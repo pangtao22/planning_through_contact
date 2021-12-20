@@ -1,0 +1,9 @@
+.DS_Store
+.idea
+.coverage
+.ipynb_checkpoints
+*.ipynb
+*.pyc
+*.gz
+*.pdf
+*stats*
