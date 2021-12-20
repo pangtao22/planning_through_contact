@@ -12,11 +12,7 @@ import pandas as pd
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 
-from qsim.simulator import (QuasistaticSimulator, QuasistaticSimParameters)
-from qsim.system import cpp_params_from_py_params
-from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
-from planar_hand_setup import (model_directive_path, h,
-                               robot_stiffness_dict, object_sdf_dict,
+from planar_hand_setup import (quasistatic_model_path, h,
                                robot_l_name, robot_r_name, object_name)
 
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
@@ -27,30 +23,18 @@ from dash_app_common import (add_goal_meshcat, hover_template_reachability,
                              create_pca_plots, calc_X_WG, create_q_u0_plot)
 
 # %% quasistatic dynamics
-sim_params = QuasistaticSimParameters()
-q_sim_py = QuasistaticSimulator(
-    model_directive_path=model_directive_path,
-    robot_stiffness_dict=robot_stiffness_dict,
-    object_sdf_paths=object_sdf_dict,
-    sim_params=sim_params,
-    internal_vis=True)
+q_dynamics = QuasistaticDynamics(h=h,
+                                 quasistatic_model_path=quasistatic_model_path,
+                                 internal_viz=True)
 
-# construct C++ backend.
-sim_params_cpp = cpp_params_from_py_params(sim_params)
-q_sim_cpp = QuasistaticSimulatorCpp(
-    model_directive_path=model_directive_path,
-    robot_stiffness_str=robot_stiffness_dict,
-    object_sdf_paths=object_sdf_dict,
-    sim_params=sim_params_cpp)
+plant = q_dynamics.plant
 
-q_dynamics = QuasistaticDynamics(h=h, q_sim_py=q_sim_py, q_sim=q_sim_cpp)
-
-model_a_l = q_sim_py.plant.GetModelInstanceByName(robot_l_name)
-model_a_r = q_sim_py.plant.GetModelInstanceByName(robot_r_name)
-model_u = q_sim_py.plant.GetModelInstanceByName(object_name)
+model_a_l = plant.GetModelInstanceByName(robot_l_name)
+model_a_r = plant.GetModelInstanceByName(robot_r_name)
+model_u = plant.GetModelInstanceByName(object_name)
 
 # %% meshcat
-vis = q_sim_py.viz.vis
+vis = q_dynamics.q_sim_py.viz.vis
 set_orthographic_camera_yz(vis)
 add_goal_meshcat(vis)
 

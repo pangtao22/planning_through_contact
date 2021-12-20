@@ -11,48 +11,28 @@ from dash.dependencies import Input, Output, State
 from dash_app_common import (add_goal_meshcat, hover_template_reachability,
                              layout, calc_principal_points,
                              create_pca_plots, calc_X_WG, create_q_u0_plot)
-from irs_lqr.irs_lqr_quasistatic import (IrsLqrQuasistaticParameters,
-                                         IrsLqrQuasistatic)
+from irs_lqr.irs_lqr_quasistatic import (IrsLqrQuasistatic)
+from irs_lqr.irs_lqr_params import IrsLqrQuasistaticParameters
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from planar_hand_setup import (gravity, contact_detection_tolerance,
+from planar_hand_setup import (h, quasistatic_model_path,
                                decouple_AB, use_workers, gradient_mode,
-                               task_stride, num_samples)
-from planar_hand_setup import (model_directive_path, h,
-                               robot_stiffness_dict, object_sdf_dict,
+                               task_stride, num_samples,
                                robot_l_name, robot_r_name, object_name)
-from qsim.simulator import (QuasistaticSimulator, QuasistaticSimParameters)
-from qsim.system import cpp_params_from_py_params
-from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
+
 from rrt.planner import ConfigurationSpace
 from rrt.utils import set_orthographic_camera_yz, sample_on_sphere
 
-# %% quasistatic dynamics
-sim_params = QuasistaticSimParameters(
-    gravity=gravity,
-    nd_per_contact=2,
-    contact_detection_tolerance=contact_detection_tolerance,
-    is_quasi_dynamic=True)
-q_sim_py = QuasistaticSimulator(
-    model_directive_path=model_directive_path,
-    robot_stiffness_dict=robot_stiffness_dict,
-    object_sdf_paths=object_sdf_dict,
-    sim_params=sim_params,
-    internal_vis=True)
-
-# construct C++ backend.
-sim_params_cpp = cpp_params_from_py_params(sim_params)
-q_sim_cpp = QuasistaticSimulatorCpp(
-    model_directive_path=model_directive_path,
-    robot_stiffness_str=robot_stiffness_dict,
-    object_sdf_paths=object_sdf_dict,
-    sim_params=sim_params_cpp)
-
-q_dynamics = QuasistaticDynamics(h=h, q_sim_py=q_sim_py, q_sim=q_sim_cpp)
+#%% quasistatic dynamics
+q_dynamics = QuasistaticDynamics(h=h,
+                                 quasistatic_model_path=quasistatic_model_path,
+                                 internal_viz=True)
+plant = q_dynamics.plant
+q_sim_py = q_dynamics.q_sim_py
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
-model_a_l = q_sim_py.plant.GetModelInstanceByName(robot_l_name)
-model_a_r = q_sim_py.plant.GetModelInstanceByName(robot_r_name)
-model_u = q_sim_py.plant.GetModelInstanceByName(object_name)
+model_a_l = plant.GetModelInstanceByName(robot_l_name)
+model_a_r = plant.GetModelInstanceByName(robot_r_name)
+model_u = plant.GetModelInstanceByName(object_name)
 
 cspace = ConfigurationSpace(
     model_u=model_u, model_a_l=model_a_l, model_a_r=model_a_r, q_sim=q_sim_py)
@@ -87,8 +67,8 @@ duration = T * h
 irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
 
 # %% meshcat
-vis = q_sim_py.viz.vis
-q_sim_py.viz.reset_recording()
+vis = q_dynamics.q_sim_py.viz.vis
+q_dynamics.q_sim_py.viz.reset_recording()
 set_orthographic_camera_yz(vis)
 add_goal_meshcat(vis)
 
@@ -111,7 +91,7 @@ app.layout = dbc.Container([
             width={'size': 6, 'offset': 0, 'order': 0},
         ),
         dbc.Col(
-            html.Iframe(src='http://127.0.0.1:7001/static/',
+            html.Iframe(src='http://127.0.0.1:7000/static/',
                         height=800, width=1000),
             width={'size': 6, 'offset': 0, 'order': 0},
         )
@@ -312,8 +292,8 @@ def hover_callback(hover_data, figure, q_a_samples_json):
             model_u: np.array([point['x'], point['y'], point['z']]),
             model_a_l: q_a_samples['qa_l'][idx],
             model_a_r: q_a_samples['qa_r'][idx]}
-        q_sim_py.update_mbp_positions(q_dict)
-        q_sim_py.draw_current_configuration()
+        q_dynamics.q_sim_py.update_mbp_positions(q_dict)
+        q_dynamics.q_sim_py.draw_current_configuration()
 
     return hover_data_json
 
@@ -363,7 +343,7 @@ def calc_trajectory(n_clicks, q_u_goal_json, q_u0_json, q_a0_json):
                          q_u_goal_dict['theta']])
     x0, u0, q_u0 = get_x0_and_u0_from_json(q_u0_json, q_a0_json)
     x_goal = np.array(x0)
-    x_goal[q_sim_py.velocity_indices[model_u]] = q_u_goal
+    x_goal[q_dynamics.q_sim_py.velocity_indices[model_u]] = q_u_goal
     irs_lqr_q.initialize_problem(
         x0=x0,
         x_trj_d=np.tile(x_goal, (T + 1, 1)),

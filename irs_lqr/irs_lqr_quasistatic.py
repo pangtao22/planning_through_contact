@@ -1,44 +1,13 @@
 from typing import Dict
 import time
 
+from irs_lqr.irs_lqr_params import IrsLqrQuasistaticParameters
 from pydrake.all import ModelInstanceIndex
 
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from irs_lqr.tv_lqr import solve_tvlqr, get_solver
 
 from zmq_parallel_cmp.array_io import *
-
-
-class IrsLqrQuasistaticParameters:
-    def __init__(self):
-        # Necessary arguments defining optimal control problem.
-        self.Q_dict = None
-        self.Qd_dict = None
-        self.R_dict = None
-        self.x0 = None
-        self.x_trj_d = None
-        self.u_trj_0 = None
-        self.T = None
-
-        # Optional arguments defining bounds.
-        self.x_bounds_abs = None
-        self.u_bounds_abs = None
-        self.x_bounds_rel = None
-        self.u_bounds_rel = None
-
-        # Necessary arguments related to sampling.
-        self.sampling = None
-        self.std_u_initial = None
-        self.num_samples = 100
-
-        # Arguments related to various options.
-        self.decouple_AB = True
-        self.use_workers = True
-        # Supports "first_order", "exact", "zero_order_B", "zero_order_AB"
-        self.gradient_mode = "zero_order_B"
-        self.solver_name = "gurobi"
-        self.task_stride = 1
-        self.publish_every_iteration = False
 
 
 def update_q_start_and_goal(
@@ -146,7 +115,6 @@ class IrsLqrQuasistatic:
 
         self.current_iter = 1
         self.start_time = time.time()
-
 
     def rollout(self, x0: np.ndarray, u_trj: np.ndarray):
         T = u_trj.shape[0]
@@ -362,7 +330,8 @@ class IrsLqrQuasistatic:
                 xinit=None,
                 uinit=None)
             u_trj_new[t, :] = u_star[0]
-            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(x_trj_new[t], u_trj_new[t])
+            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(x_trj_new[t],
+                                                           u_trj_new[t])
 
         return x_trj_new, u_trj_new
 

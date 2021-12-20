@@ -1,9 +1,6 @@
 import multiprocessing
 import time
 
-from qsim.simulator import QuasistaticSimParameters
-from qsim.system import cpp_params_from_py_params
-
 from irs_lqr.quasistatic_dynamics import *
 from zmq_parallel_cmp.array_io import *
 

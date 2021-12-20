@@ -1,6 +1,6 @@
 import os
-import numpy as np
 
+from irs_lqr.irs_lqr_params import IrsLqrGradientMode
 from qsim.model_paths import models_dir
 
 
@@ -18,10 +18,10 @@ contact_detection_tolerance = 10.0
 gradient_lstsq_tolerance = 1e-3
 
 # gradient exac
-gradient_mode = "first_order"
+gradient_mode = IrsLqrGradientMode.kFirst
 decouple_AB = True
 
-# num_workers
+# workers
 use_workers = True
 num_workers = 10
 task_stride = 1

@@ -13,7 +13,8 @@ from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
 
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from irs_lqr.irs_lqr_quasistatic import (
-    IrsLqrQuasistatic, IrsLqrQuasistaticParameters)
+    IrsLqrQuasistatic)
+from irs_lqr.irs_lqr_params import IrsLqrQuasistaticParameters
 
 from planar_hand_setup import *
 
@@ -75,13 +76,11 @@ for i in range(T):
     q_cmd_dict = {idx_a_l: q_robot_l_traj.value(t + h).ravel(),
                   idx_a_r: q_robot_r_traj.value(t + h).ravel()}
     u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
-    x_next = q_dynamics.dynamics_py(x, u, mode='qp_mp', requires_grad=True,
-                                    grad_from_active_constraints=True)
+    x_next = q_dynamics.dynamics_py(x, u, mode='qp_mp', requires_grad=True)
     Dq_nextDq = q_dynamics.q_sim_py.get_Dq_nextDq()
     Dq_nextDqa_cmd = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
 
-    q_dynamics.dynamics(x, u, requires_grad=True,
-                        grad_from_active_constraints=True)
+    q_dynamics.dynamics(x, u, requires_grad=True)
     Dq_nextDq_cpp = q_dynamics.q_sim.get_Dq_nextDq()
     Dq_nextDqa_cmd_cpp = q_dynamics.q_sim.get_Dq_nextDqa_cmd()
 

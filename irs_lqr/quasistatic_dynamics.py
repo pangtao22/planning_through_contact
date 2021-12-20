@@ -4,10 +4,9 @@ import numpy as np
 from pydrake.all import (ModelInstanceIndex, MultibodyPlant,
                          PiecewisePolynomial)
 from qsim.parser import QuasistaticParser
-from qsim.simulator import QuasistaticSimulator
-from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
 
 from .dynamical_system import DynamicalSystem
+from irs_lqr.irs_lqr_params import IrsLqrGradientMode
 
 
 class QuasistaticDynamics(DynamicalSystem):
@@ -129,8 +128,7 @@ class QuasistaticDynamics(DynamicalSystem):
                                                 q_dict_traj=q_dict_traj)
 
     def dynamics_py(self, x: np.ndarray, u: np.ndarray, mode: str = 'qp_mp',
-                    requires_grad: bool = False,
-                    grad_from_active_constraints: bool = False):
+                    requires_grad: bool = False):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
@@ -145,12 +143,12 @@ class QuasistaticDynamics(DynamicalSystem):
         q_next_dict = self.q_sim_py.step(
             q_a_cmd_dict, tau_ext_dict, self.h,
             mode=mode, requires_grad=requires_grad,
-            grad_from_active_constraints=grad_from_active_constraints)
+            grad_from_active_constraints=True)
 
         return self.get_x_from_q_dict(q_next_dict)
 
-    def dynamics(self, x: np.ndarray, u: np.ndarray, requires_grad: bool = False,
-                 grad_from_active_constraints: bool = True):
+    def dynamics(self, x: np.ndarray, u: np.ndarray,
+                 requires_grad: bool = False):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
@@ -165,7 +163,7 @@ class QuasistaticDynamics(DynamicalSystem):
             q_a_cmd_dict, tau_ext_dict, self.h,
             self.q_sim_py.sim_params.contact_detection_tolerance,
             requires_grad=requires_grad,
-            grad_from_active_constraints=grad_from_active_constraints)
+            grad_from_active_constraints=True)
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)
 
@@ -250,7 +248,8 @@ class QuasistaticDynamics(DynamicalSystem):
     # TODO: rename this to calc_AB?
     def calc_AB_batch(
             self, x_nominals: np.ndarray, u_nominals: np.ndarray,
-            n_samples: int, std_u: Union[np.ndarray, float], mode: str):
+            n_samples: int, std_u: Union[np.ndarray, float],
+            mode: IrsLqrGradientMode):
         """
         x_nominals: (n, n_x) array, n states.
         u_nominals: (n, n_u) array, n inputs.
@@ -259,19 +258,19 @@ class QuasistaticDynamics(DynamicalSystem):
         n = x_nominals.shape[0]
         ABhat_list = np.zeros((n, self.dim_x, self.dim_x + self.dim_u))
 
-        if mode == "first_order":
+        if mode == IrsLqrGradientMode.kFirst:
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_first_order(
                     x_nominals[i], u_nominals[i], n_samples, std_u)
-        elif mode == "zero_order_B":
+        elif mode == IrsLqrGradientMode.kZeroB:
             for i in range(n):
                 ABhat_list[i] = self.calc_B_zero_order(
                     x_nominals[i], u_nominals[i], n_samples, std_u)
-        elif mode == "zero_order_AB":
+        elif mode == IrsLqrGradientMode.kZeroAb:
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_zero_order(
                     x_nominals[i], u_nominals[i], n_samples, std_u)                    
-        elif mode == "exact":
+        elif mode == IrsLqrGradientMode.kExact:
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_exact(
                     x_nominals[i], u_nominals[i])
