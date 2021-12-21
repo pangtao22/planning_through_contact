@@ -1,18 +1,8 @@
 from typing import Dict
 import numpy as np
 
-from pydrake.all import ModelInstanceIndex, MathematicalProgram
-import pydrake.symbolic as sym
-import pydrake.solvers.mathematicalprogram as mp
+from pydrake.all import ModelInstanceIndex
 from qsim.simulator import QuasistaticSimulator
-from rrt.utils import reachable_sets, pca_gaussian
-
-import meshcat
-import meshcat.geometry as g
-import meshcat.transformations as tf
-
-import plotly.graph_objects as go
-import plotly.io as pio
 
 
 class ConfigurationSpace:
@@ -45,15 +35,8 @@ class ConfigurationSpace:
             model_u: np.array([[-0.5, 0.5], [0.3, 0.6], [-np.pi, np.pi]]),
             model_a_l: np.array([[-np.pi / 2, np.pi / 2], [-np.pi / 2, 0]]),
             model_a_r: np.array([[-np.pi / 2, np.pi / 2], [0, np.pi / 2]])}
-        # angle limit of antipodal grasp from horizontal
-        self.grasp_angle_limit = np.array([-np.pi / 4, np.pi / 4])
-        # planar hand parameters
-        self.r_u = 0.25
-        self.r_a = 0.05
-        self.right_base_pos = 0.1
-        self.left_base_pos = -0.1
 
-    def sample_enveloping_grasp(self, q_u: np.ndarray):
+    def sample_contact(self, q_u: np.ndarray):
         """
         For a given configuration of the ball, q_u, this function finds configurations
         of the fingers such that both fingers (and links?) contact the surface of ball.
@@ -81,8 +64,8 @@ class ConfigurationSpace:
                     qi_down is initialized to the lower joint limit, qi_up the upper 
                     joint limit.
                 For the left finger,
-                    qi_down is initialized to the upper joint limit, qi_up the 
-                    lower joint limit.
+                    qi_down is initialized to the lower joint limit, qi_up the lower 
+                    joint limit.
                 '''
                 if model_a == self.model_a_r:
                     qi_down = self.joint_limits[model_a][i_joint, 0]
@@ -105,100 +88,6 @@ class ConfigurationSpace:
                         qi_down = qi_middle
 
         return q_dict
-
-    def sample_circulating_grasp(self, q_u: np.ndarray):
-        """
-        For a given configuration of the ball, q_u, this function finds configurations
-        of the fingers such that both fingers (and links?) contact the surface of ball.
-
-        Suggested range of q_u:
-            y: [-0.3, 0.3]
-            z: [0.3, 0.8]
-            theta: [-np.pi, np.pi]
-        """
-        # Set both fingers to the "down" configuration.
-        q_dict = {self.model_u: q_u,
-                  self.model_a_l: self.joint_limits[self.model_a_l][:, 1],
-                  self.model_a_r: self.joint_limits[self.model_a_r][:, 0]}
-        y = q_u[0]
-        z = q_u[1]
-        l = self.r_u + self.r_a + 0.001
-        a1 = 6 * self.r_a
-        a2 = 4 * self.r_a
-
-        for _ in range(15):
-            g = np.random.rand() * (self.grasp_angle_limit[
-                                        1] - self.grasp_angle_limit[0]) + \
-                self.grasp_angle_limit[0]
-
-            right_ee_goal = np.array([y + np.cos(g) * l - self.right_base_pos,
-                                      z + np.sin(g) * l])
-            q_dict[self.model_a_r] = self.ik_calc_joint_angle_mp(right_ee_goal,
-                                                                 a1, a2,
-                                                                 self.joint_limits[
-                                                                     self.model_a_r])
-
-            left_ee_goal = np.array(
-                [- y + np.cos(g) * l + self.left_base_pos, - z + np.sin(g) *
-                 l])
-            q_dict[self.model_a_l] = self.ik_calc_joint_angle_mp(left_ee_goal,
-                                                                 a1, a2,
-                                                                 self.joint_limits[
-                                                                     self.model_a_l],
-                                                                 side="left")
-            if not self.has_collision(q_dict):
-                return q_dict
-
-        # If cannot find antipodal circulating grasp, decrease the angle
-        # between the two contact points
-        t = 0
-        while True:
-            ratio = np.clip(12 - 9 * t / 49, 3, 12)
-            g1 = - np.random.rand() * np.pi / ratio
-            g2 = np.random.rand() * np.pi / ratio
-            right_ee_goal = np.array([y + np.cos(g1) * l - self.right_base_pos,
-                                      z + np.sin(g1) * l])
-            q_dict[self.model_a_r] = self.ik_calc_joint_angle_mp(right_ee_goal,
-                                                                 a1, a2,
-                                                                 self.joint_limits[
-                                                                     self.model_a_r])
-
-            left_ee_goal = np.array(
-                [- y + np.cos(g2) * l + self.left_base_pos, - z + np.sin(g2) *
-                 l])
-            q_dict[self.model_a_l] = self.ik_calc_joint_angle_mp(left_ee_goal,
-                                                                 a1, a2,
-                                                                 self.joint_limits[
-                                                                     self.model_a_l],
-                                                                 side="left")
-            t += 1
-            if not self.has_collision(q_dict):
-                return q_dict
-
-    def ik_calc_joint_angle_mp(self, goal, a1, a2, joint_limits, side="right"):
-        if side == "right":
-            q_initial_guess = joint_limits[:, 1]
-        else:
-            q_initial_guess = joint_limits[:, 0]
-        prog = MathematicalProgram()
-
-        q = prog.NewContinuousVariables(2)
-        prog.AddConstraint(
-            a1 * sym.cos(q[0]) + a2 * sym.cos(q[0] + q[1]) ==
-            goal[0])
-        prog.AddConstraint(
-            a1 * sym.sin(q[0]) + a2 * sym.sin(q[0] + q[1]) ==
-            goal[1])
-        prog.AddBoundingBoxConstraint(joint_limits[:, 0], joint_limits[:, 1], q)
-
-        prog.SetInitialGuess(q, q_initial_guess)
-        result = mp.Solve(prog)
-        q_value = result.GetSolution(q)
-        return q_value
-
-    def visualize_grasp(self, q_dict):
-        self.q_sim.update_mbp_positions(q_dict)
-        self.q_sim.draw_current_configuration(draw_forces=False)
 
     def sample_near(self, q: Dict[ModelInstanceIndex, np.ndarray], r: float):
         """
@@ -227,49 +116,6 @@ class ConfigurationSpace:
                 break
         return q_dict
 
-    def sample_reachable_near(self, node, r: float, rrt, method="gaussian",
-                              n=3):
-        """
-        Sample a configuration of the system, with q_u being close to q[model_u] and
-            q_a collision-free.
-        Sample goal q_u from the reachable Gaussian.
-        Sample both enveloping and circulating grasps.
-        """
-        model_u = self.model_u
-
-        qu = node.q[model_u]
-        lb_u = np.maximum(self.joint_limits[model_u][:, 0], qu - r)
-        ub_u = np.minimum(self.joint_limits[model_u][:, 1], qu + r)
-
-        while True:
-            if method == "gaussian":
-                # The samples in the ellispoid is within 3 standard
-                # deviation of the Gaussian
-                qu_sample = np.random.multivariate_normal(
-                    node.mean, node.cov / 4)
-            elif method == "shell":
-                qu_sample = node.sample_shell()
-            elif method == "explore":
-                qu_sample = rrt.sample_configuration(node)
-            # Make sure the ball is not in collision with the hands
-            if (qu_sample >= lb_u).all() and (qu_sample <= ub_u).all():
-                break
-
-        q_goals = []
-        for i in range(n):
-            while True:
-                q_dict = {}
-                q_dict[model_u] = qu_sample
-                if i == 0:
-                    q_dict = self.sample_enveloping_grasp(q_dict[model_u])
-                else:
-                    q_dict = self.sample_circulating_grasp(q_dict[model_u])
-                if not self.has_collision(q_dict):
-                    q_goals.append(q_dict)
-                    break
-
-        return q_goals
-
     def sample(self):
         """
         returns a collision-free configuration for self.qsim.plant.
@@ -287,76 +133,24 @@ class ConfigurationSpace:
                 break
         return q_dict
 
+    def dist(self, q1: Dict[ModelInstanceIndex, np.ndarray],
+             q2: Dict[ModelInstanceIndex, np.ndarray]):
+        d = 0
+        for model in q1.keys():
+            dq = q1[model] - q2[model]
+            d += np.sqrt((dq**2).sum())
+        return d
+
     def has_collision(self, q_dict: Dict[ModelInstanceIndex, np.ndarray]):
-        self.q_sim.update_mbp_positions(
-            q_dict)  # this also updates query_object.
+        self.q_sim.update_mbp_positions(q_dict)  # this also updates query_object.
         return self.q_sim.query_object.HasCollisions()
 
 
 class TreeNode:
-    def __init__(self, q, parent, q_dynamics, cspace, index=1, cost=0,
-                 q_goal=None, x_waypoints=None, calc_reachable=True):
+    def __init__(self, q, parent):
         self.q = q
         self.parent = parent
         self.children = []
-        self.index = index
-        if calc_reachable:
-            x0 = q_dynamics.get_x_from_q_dict(q)
-            u0 = q_dynamics.get_u_from_q_cmd_dict(q)
-            qu_samples = reachable_sets(x0, u0, q_dynamics, cspace.model_u,
-                                        cspace.model_a_l, cspace.model_a_r)
-            qu_mean, sigma, cov, Vh = pca_gaussian(qu_samples)
-            # Handle covariance singularity
-            if np.linalg.det(cov) == 0:
-                cov += 1e-8
-            self.mean = qu_mean
-            self.sigma = sigma
-            self.cov = cov
-            self.vol = np.linalg.det(cov)
-            self.Vh = Vh
-            self.cost = cost
-        self.q_goal = q_goal
-        self.x_waypoints = x_waypoints
-
-    def gaussian_pdf(self, x):
-        return np.exp(-(x - self.mean).T @ np.linalg.inv(self.cov) @ (
-                x - self.mean)) / (2 * np.pi) ** (
-                           len(self.sigma) / 2) / np.linalg.det(
-            self.cov) ** 0.5
-
-    def sample_shell(self, num_samples=1, scale=0.8):
-        """
-        Sample on a shell of ellipsoid to encourage exploration
-        """
-        k = np.random.rand(num_samples, 3)
-        theta = k[:, 0] * 2 * np.pi
-        phi = np.arccos(1 - 2 * k[:, 1])
-        ratio = (1 - scale) * k[:, 2] + scale
-
-        x = self.sigma[0] * ratio * np.sin(phi) * np.cos(theta)
-        y = self.sigma[1] * ratio * np.sin(phi) * np.sin(theta)
-        z = self.sigma[2] * ratio * np.cos(phi)
-
-        p = self.Vh.T @ np.vstack((x, y, z)) + self.mean.reshape((len(
-            self.mean), 1))
-        p = np.squeeze(p)
-
-        return p
-
-    def visualize_sample(self, p):
-        vis = meshcat.Visualizer()
-        vis["ellipsoid"].set_object(g.Mesh(
-            g.Ellipsoid(self.sigma),
-            g.MeshLambertMaterial(color=0x008000, opacity=0.3)))
-        R = np.zeros((4, 4))
-        R[:3, :3] = self.Vh.T
-        R[3, 3] = 1
-        vis["ellipsoid"].set_transform(
-            tf.translation_matrix(self.mean).dot(R))
-        vis["sample"].set_object(g.Points(
-            g.PointsGeometry(p.reshape((3, p.shape[1]))),
-            g.PointsMaterial(size=0.01)
-        ))
 
 
 class RRT:
@@ -364,249 +158,40 @@ class RRT:
         """
         RRT Tree.
         """
-
-    def __init__(self, root: TreeNode, cspace: ConfigurationSpace, q_dynamics):
+    def __init__(self, root: TreeNode, cspace: ConfigurationSpace):
         self.root = root  # root TreeNode
         self.cspace = cspace  # robot.ConfigurationSpace
         self.size = 1  # int length of path
         self.max_recursion = 1000  # int length of longest possible path
-        self.q_dynamics = q_dynamics
-        self.node_list = [root]
-        self.volume_list = [root.vol]
 
     def add_node(self, parent_node: TreeNode,
-                 q: Dict[ModelInstanceIndex, np.ndarray],
-                 cost, q_goal, x_waypoints):
-        self.size += 1
-        child_node = TreeNode(q, parent_node, self.q_dynamics, self.cspace,
-                              self.size, cost + parent_node.cost, q_goal,
-                              x_waypoints)
+                 q_child: Dict[ModelInstanceIndex, np.ndarray]):
+        child_node = TreeNode(q_child, parent_node)
         parent_node.children.append(child_node)
-        self.node_list.append(child_node)
-        self.volume_list.append(child_node.vol)
+        self.size += 1
         return child_node
 
-    def sample_node(self, mode="random"):
+    # Brute force nearest, handles general distance functions
+    def nearest(self, q_target: Dict[ModelInstanceIndex, np.ndarray]):
         """
-        Sample node from which to build RRT
-        mode: "random": randomly pick a node on the tree;
-        "explore": sample existing nodes in the tree weighted by ellipsoid
-        volume
+        Finds the nearest node in the tree by distance to q_target in the
+             configuration space.
+        Args:
+            q_target: dictionary of arrays representing a configuration of the MBP.
+        Returns:
+            closest: TreeNode. the closest node in the configuration space
+                to q_target
+            distance: float. distance from q_target to closest.q
         """
 
-        if mode == "random":
-            return np.random.choice(self.node_list, 1)[0]
-        elif mode == "explore":
-            prob = 1/np.array(self.volume_list)
-            prob /= np.sum(prob)
-            ind = np.argmax(np.random.multinomial(1, prob))
-            return self.node_list[ind]
-
-    def sample_configuration(self, qi, num_samples=10):
-        qjs = qi.sample_shell(num_samples=num_samples)
-        p = np.inf
-
-        for j in range(num_samples):
-            pj = 0
-            qj = qjs[:, j]
-            for node in self.node_list:
-                pj += node.gaussian_pdf(qj) * node.vol
-            if pj < p:
-                p = pj
-                qu = qj
-        return qu
-
-
-    def rewire(self, qi, irs_lqr_q, T, num_iters, k=5):
-        if k > self.size:
-            k = self.size
-        p_list = self.calc_near_nodes_prob(qi)
-
-        ind = np.argpartition(p_list, -k)[-k:]
-
-        parent_node = qi.parent
-        cost = qi.cost
-        x_waypoints = qi.x_waypoints
-        # Disconnect the wire from the original parent
-        parent_node.children.remove(qi)
-
-        xd = self.q_dynamics.get_x_from_q_dict(qi.q)
-        for i in ind:
-            node = self.node_list[i]
-            u0 = self.q_dynamics.get_u_from_q_cmd_dict(node.q)
-            irs_lqr_q.initialize_problem(
-                x0=self.q_dynamics.get_x_from_q_dict(node.q),
-                x_trj_d=np.tile(xd, (T + 1, 1)),
-                u_trj_0=np.tile(u0, (T, 1)))
-
-            irs_lqr_q.iterate(num_iters)
-
-            new_cost = node.cost + irs_lqr_q.cost_best
-            if new_cost < cost:
-                cost = new_cost
-                x_waypoints = irs_lqr_q.x_trj_best
-                parent_node = node
-
-        parent_node.children.append(qi)
-        qi.parent = parent_node
-        qi.cost = cost
-        qi.x_waypoints = x_waypoints
-
-    def calc_near_nodes_prob(self, qi):
-        p_list = []
-
-        for node in self.node_list:
-            p_list.append(node.gaussian_pdf(qi.q[self.cspace.model_u]))
-
-        return np.array(p_list)
-
-    def get_nearest_node(self, qi):
-        p_list = self.calc_near_nodes_prob(qi)
-        return self.node_list[np.argmax(p_list)]
-
-    def l2_dist(self, q1, q2):
-        xu1 = q1.q[self.cspace.model_u]
-        xu2 = q2.q[self.cspace.model_u]
-        xal1 = q1.q[self.cspace.model_a_l]
-        xal2 = q2.q[self.cspace.model_a_l]
-        xar1 = q1.q[self.cspace.model_a_r]
-        xar2 = q2.q[self.cspace.model_a_r]
-        return np.linalg.norm(xu1 - xu2)
-
-    def visualize_meshcat(self, groupby="index"):
-        """
-        groupby: visualization groupby index or object type
-        """
-        vis = meshcat.Visualizer()
-        model_u = self.cspace.model_u
-        node_p = self.root.q[model_u].reshape((3, 1))
-        vis['root'].set_object(g.Points(
-            g.PointsGeometry(node_p, color=np.array([1.0, 1.0,
-                                                     0.0]).reshape((3,
-                                                                    1))),
-            g.PointsMaterial(size=0.01)
-        ))
-
-        # RRT tree traversal
         def recur(node, depth=0):
-            node_p = node.q[model_u].reshape((3, 1))
-            i = 0
-            for child in node.children:
-                index = child.index
-                child_p = child.q[model_u].reshape((3, 1))
-                goal = child.q_goal[model_u].reshape((3, 1))
-                vertices = np.hstack((node_p, child_p)).astype(np.float32)
-                goal_reach = np.hstack((goal, child_p)).astype(np.float32)
-                if groupby == "index":
-                    vis["{}/node".format(index)].set_object(g.Points(
-                        g.PointsGeometry(child_p),
-                        g.PointsMaterial(size=0.01)
-                    ))
-                    vis["{}/goal".format(index)].set_object(g.Points(
-                        g.PointsGeometry(goal, color=np.array([0.0, 0.0,
-                                                               1.0]).reshape((3,
-                                                                              1))),
-                        g.PointsMaterial(size=0.01)
-                    ))
-                    vis["{}/line".format(index)].set_object(g.LineSegments(
-                        g.PointsGeometry(
-                            vertices)))
-                    vis["{}/line_goal".format(index)].set_object(
-                        g.LineSegments(g.PointsGeometry(goal_reach,
-                                                        color=np.array([0.0, 0.0,
-                                                                        1.0]).reshape(
-                                                            (3, 1)))))
-                    vis["{}/ellipsoid".format(index)].set_object(g.Mesh(
-                        g.Ellipsoid(child.sigma),
-                        g.MeshLambertMaterial(color=0x008000, opacity=0.3)))
-                    R = np.zeros((4, 4))
-                    R[:3, :3] = child.Vh.T
-                    R[3, 3] = 1
-                    vis["{}/ellipsoid".format(index)].set_transform(
-                        tf.translation_matrix(child.mean).dot(R))
-                elif groupby == "object":
-                    vis["node/{}".format(index)].set_object(g.Points(
-                        g.PointsGeometry(child_p),
-                        g.PointsMaterial(size=0.01)
-                    ))
-                    vis["goal/{}".format(index)].set_object(g.Points(
-                        g.PointsGeometry(goal, color=np.array([0.0, 0.0,
-                                                               1.0]).reshape((3,
-                                                                              1))),
-                        g.PointsMaterial(size=0.01)
-                    ))
-                    vis["line/{}".format(index)].set_object(g.LineSegments(
-                        g.PointsGeometry(
-                            vertices)))
-                    vis["line_goal/{}".format(index)].set_object(
-                        g.LineSegments(g.PointsGeometry(goal_reach,
-                                                        color=np.array([0.0, 0.0,
-                                                                        1.0]).reshape(
-                                                            (3, 1)))))
-                    vis["ellipsoid/{}".format(index)].set_object(g.Mesh(
-                        g.Ellipsoid(child.sigma),
-                        g.MeshLambertMaterial(color=0x008000, opacity=0.3)))
-                    R = np.zeros((4, 4))
-                    R[:3, :3] = child.Vh.T
-                    R[3, 3] = 1
-                    vis["ellipsoid/{}".format(index)].set_transform(
-                        tf.translation_matrix(child.mean).dot(R))
-                i += 1
-                recur(child, depth + 1)
+            closest, distance = node, self.cspace.dist(node.q, q_target)
+            if depth < self.max_recursion:
+                for child in node.children:
+                    (child_closest, child_distance) = recur(child, depth+1)
+                    if child_distance < distance:
+                        closest = child_closest
+                        child_distance = child_distance
+            return closest, distance
+        return recur(self.root)[0]
 
-        recur(self.root)
-
-    def visualize(self, model_u):
-        pio.renderers.default = "browser"  # see plotly charts in pycharm.
-        data = []
-        node_p = self.root.q[model_u].reshape((3, 1))
-        data.append(go.Scatter3d(x=node_p[0], y=node_p[1], z=node_p[2],
-                                 mode="markers", marker=dict(color="red",
-                                                             size=5,
-                                                             sizemode='diameter')))
-
-        # RRT tree traversal
-        def recur(node, depth=0):
-            node_p = node.q[model_u].reshape((3, 1))
-            for child in node.children:
-                child_p = child.q[model_u].reshape((3, 1))
-                goal = child.q_goal[model_u].reshape((3, 1))
-                # Tree Node
-                data.append(
-                    go.Scatter3d(x=child_p[0], y=child_p[1], z=child_p[2],
-                                 mode="markers",
-                                 marker=dict(color="black", size=5,
-                                             sizemode='diameter')))
-                # Originally generated goal configuration
-                data.append(
-                    go.Scatter3d(x=goal[0], y=goal[1], z=goal[2],
-                                 mode="markers",
-                                 marker=dict(color='blue', size=5,
-                                             sizemode='diameter')))
-                data.append(
-                    go.Scatter3d(x=[child_p[0], goal[0]],
-                                 y=[child_p[1], goal[1]],
-                                 z=[child_p[2], goal[2]],
-                                 marker=dict(
-                                     size=0
-                                 ),
-                                 line=dict(
-                                     color='blue',
-                                     dash="dash",
-                                     width=2
-                                 )))
-                # TRee Vertices
-                data.append(
-                    go.Scatter3d(x=[child_p[0], node_p[0]],
-                                 y=[child_p[1], node_p[1]],
-                                 z=[child_p[2], node_p[2]],
-                                 line=dict(color="black",
-                                           dash="dash",
-                                           width=2
-                                           )))
-                recur(child, depth + 1)
-
-        recur(self.root)
-
-        fig = go.Figure(data=data)
-        fig.show()
