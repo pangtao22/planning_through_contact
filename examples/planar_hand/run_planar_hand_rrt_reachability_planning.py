@@ -21,36 +21,18 @@ from rrt.planner import RRT, ConfigurationSpace, TreeNode
 from rrt.utils import save_rrt, solve_irs_lqr
 
 # %% sim setup
-sim_params = QuasistaticSimParameters(
-    gravity=gravity,
-    nd_per_contact=2,
-    contact_detection_tolerance=contact_detection_tolerance,
-    is_quasi_dynamic=True)
+q_dynamics = QuasistaticDynamics(h=h,
+                                 quasistatic_model_path=quasistatic_model_path,
+                                 internal_viz=True)
+q_sim_py = q_dynamics.q_sim_py
 
-q_sim_py = QuasistaticSimulator(
-    model_directive_path=model_directive_path,
-    robot_stiffness_dict=robot_stiffness_dict,
-    object_sdf_paths=object_sdf_dict,
-    sim_params=sim_params,
-    internal_vis=True)
-
-# construct C++ backend.
-sim_params_cpp = cpp_params_from_py_params(sim_params)
-sim_params_cpp.gradient_lstsq_tolerance = gradient_lstsq_tolerance
-q_sim_cpp = QuasistaticSimulatorCpp(
-    model_directive_path=model_directive_path,
-    robot_stiffness_str=robot_stiffness_dict,
-    object_sdf_paths=object_sdf_dict,
-    sim_params=sim_params_cpp)
-
-plant = q_sim_cpp.get_plant()
+plant = q_sim_py.get_plant()
 q_sim_py.get_robot_name_to_model_instance_dict()
 model_a_l = plant.GetModelInstanceByName(robot_l_name)
 model_a_r = plant.GetModelInstanceByName(robot_r_name)
 model_u = plant.GetModelInstanceByName(object_name)
 
 # %%
-q_dynamics = QuasistaticDynamics(h=h, q_sim_py=q_sim_py, q_sim=q_sim_cpp)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 
@@ -105,19 +87,8 @@ vis = q_dynamics.q_sim_py.viz.vis
 add_goal_meshcat(vis)
 
 while True:
-    '''
-    1. sample q_goal from q_current's "reachable sets"
-    2. q_start = q_current
-    3. solve traj opt (q_start, q_goal)
-    4. add node q_reached from traj opt, save q_way_points
-    5. q_current = q_reached
-    '''
-    if rrt.size > 60:
-        tree_build_method = "explore"
-    else:
-        tree_build_method = "shell"
-    q_goals = cspace.sample_reachable_near(current_node, 0.2, rrt,
-                                           method="shell")
+    q_goals = cspace.sample_reachable_near(current_node, rrt,
+                                           method="explore", n=2)
 
     for q_goal in q_goals:
         # Set goal visualization
@@ -141,16 +112,20 @@ while True:
         new_node = rrt.add_node(current_node, q_reached, irs_lqr_q.cost_best,
                                 q_goal, irs_lqr_q.x_trj_best)
         q_dynamics.publish_trajectory(irs_lqr_q.x_trj_best)
-        rrt.rewire(new_node, irs_lqr_q, T, num_iters)
+        rrt.rewire(new_node, irs_lqr_q, T, num_iters, k=5)
 
+        if cspace.close_to_joint_limits(q_reached) or not new_node.in_contact:
+            q_regrasp, cost, x_trj = cspace.regrasp(q_reached, q_dynamics)
+            rrt.add_node(new_node, q_regrasp, cost, q_regrasp, x_trj)
+
+        print("Tree size: ", rrt.size)
 
     current_node = rrt.sample_node(mode="random")
 
-    if rrt.size > 150:
+    if rrt.size > 1500:
         break
 
-rrt.visualize_meshcat()
-# rrt.visualize(model_u)
+rrt.visualize_meshcat(groupby="object")
 
 # Planning
 # Sample random configuration
@@ -160,7 +135,7 @@ q_goal = cspace.sample_enveloping_grasp(qu_goal)
 
 node_g = TreeNode(q_goal, parent=None, calc_reachable=False,
                   q_dynamics=q_dynamics, cspace=cspace)
-last_node = rrt.get_nearest_node(node_g)
+last_node = rrt.get_nearest_node(node_g.q[model_u])
 
 # Set goal visualization
 X_WG = calc_X_WG(y=qu_goal[0], z=qu_goal[1], theta=qu_goal[2])
@@ -194,11 +169,15 @@ q_dynamics.publish_trajectory(trajectory)
 cost += last_node.cost
 print("Cost: ", cost)
 
+# Compare with directly solving traj opt
+solve_irs_lqr(irs_lqr_q, q_dynamics, rrt.root.q, q_goal, irs_lqr_q.T,
+              num_iters)
+q_dynamics.publish_trajectory(irs_lqr_q.x_trj_best)
+print("Direct Trajopt cost:", irs_lqr_q.cost_best)
+
 # Smooth out trajectory
 irs_lqr_q.T = trajectory.shape[0] - 1
 solve_irs_lqr(irs_lqr_q, q_dynamics, rrt.root.q, q_goal, irs_lqr_q.T,
               num_iters, x_trj_d=trajectory)
 q_dynamics.publish_trajectory(irs_lqr_q.x_trj_best)
 print("Smoothed cost:", irs_lqr_q.cost_best)
-
-save_rrt(rrt)

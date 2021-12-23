@@ -47,6 +47,7 @@ class ConfigurationSpace:
             model_a_r: np.array([[-np.pi / 2, np.pi / 2], [0, np.pi / 2]])}
         # angle limit of antipodal grasp from horizontal
         self.grasp_angle_limit = np.array([-np.pi / 4, np.pi / 4])
+        self.epsilon_joint_limit = 0.2
         # planar hand parameters
         self.r_u = 0.25
         self.r_a = 0.05
@@ -153,7 +154,7 @@ class ConfigurationSpace:
         # between the two contact points
         t = 0
         while True:
-            ratio = np.clip(12 - 9 * t / 49, 3, 12)
+            ratio = np.clip(12 - 9 * t / 49, 2, 12)
             g1 = - np.random.rand() * np.pi / ratio
             g2 = np.random.rand() * np.pi / ratio
             right_ee_goal = np.array([y + np.cos(g1) * l - self.right_base_pos,
@@ -200,35 +201,29 @@ class ConfigurationSpace:
         self.q_sim.update_mbp_positions(q_dict)
         self.q_sim.draw_current_configuration(draw_forces=False)
 
-    def sample_near(self, q: Dict[ModelInstanceIndex, np.ndarray], r: float):
-        """
-        Sample a configuration of the system, with q_u being close to q[model_u] and
-            q_a collision-free.
-        """
-        model_u = self.model_u
+    def close_to_joint_limits(self, q_dict):
+        # for model in [self.model_a_l, self.model_a_r]:
+        #     if (q_dict[model] <= self.joint_limits[model][:,0] + self.epsilon_joint_limit).any():
+        #         return True
+        #     if (q_dict[model] >= self.joint_limits[model][:,1] - self.epsilon_joint_limit).any():
+        #         return True 
+        # return False
 
-        qu = q[model_u]
-        lb_u = np.maximum(self.joint_limits[model_u][:, 0], qu - r)
-        ub_u = np.minimum(self.joint_limits[model_u][:, 1], qu + r)
+        for model in [self.model_a_l, self.model_a_r]:
+            if (q_dict[model] <= self.joint_limits[model][:,0] - self.epsilon_joint_limit).any():
+                return True
+            if (q_dict[model] >= self.joint_limits[model][:,1] + self.epsilon_joint_limit).all():
+                return True 
+        return False
+    
+    def regrasp(self, q_dict, q_dynamics):
+        q_regrasp = self.sample_circulating_grasp(q_dict[self.model_u])
+        x0 = q_dynamics.get_x_from_q_dict(q_dict)
+        xf = q_dynamics.get_x_from_q_dict(q_regrasp)
+        return q_regrasp, 0, np.array([x0, xf])
 
-        q_dict = {}
-        while True:
-            for model, bounds in self.joint_limits.items():
-                n = len(bounds)
-                if model == model_u:
-                    lb = lb_u
-                    ub = ub_u
-                else:
-                    lb = bounds[:, 0]
-                    ub = bounds[:, 1]
-                q_dict[model] = np.random.rand(n) * (ub - lb) + lb
-
-            if not self.has_collision(q_dict):
-                break
-        return q_dict
-
-    def sample_reachable_near(self, node, r: float, rrt, method="gaussian",
-                              n=3):
+    def sample_reachable_near(self, node, rrt, method="gaussian",
+                              scale_rad=np.pi,n=3):
         """
         Sample a configuration of the system, with q_u being close to q[model_u] and
             q_a collision-free.
@@ -237,9 +232,8 @@ class ConfigurationSpace:
         """
         model_u = self.model_u
 
-        qu = node.q[model_u]
-        lb_u = np.maximum(self.joint_limits[model_u][:, 0], qu - r)
-        ub_u = np.minimum(self.joint_limits[model_u][:, 1], qu + r)
+        lb_u = self.joint_limits[model_u][:, 0]
+        ub_u = self.joint_limits[model_u][:, 1]
 
         while True:
             if method == "gaussian":
@@ -250,7 +244,9 @@ class ConfigurationSpace:
             elif method == "shell":
                 qu_sample = node.sample_shell()
             elif method == "explore":
-                qu_sample = rrt.sample_configuration(node)
+                qu_sample = rrt.sample_near_configuration(node, lb_u, ub_u, num_samples=50)
+            # Scale angle back to radian
+            qu_sample[2] = np.clip(qu_sample[2] * scale_rad, -np.pi, np.pi)
             # Make sure the ball is not in collision with the hands
             if (qu_sample >= lb_u).all() and (qu_sample <= ub_u).all():
                 break
@@ -270,22 +266,25 @@ class ConfigurationSpace:
 
         return q_goals
 
-    def sample(self):
+    def sample(self, t, num_tree_build, n=2):
         """
-        returns a collision-free configuration for self.qsim.plant.
+        returns a random collision-free configuration for self.qsim.plant.
         """
-        q_dict = {}
-        while True:
-            for model, bounds in self.joint_limits.items():
-                n = len(bounds)
-                lb = bounds[:, 0]
-                ub = bounds[:, 1]
-                q_model = np.random.rand(n) * (ub - lb) + lb
-                q_dict[model] = q_model
+        model_u = self.model_u
+        u_limit = self.joint_limits[model_u]
+        q_dict= {model_u: np.random.rand(3) * (u_limit[:, 1] - u_limit[:, 0]) + u_limit[:, 0]}
 
-            if not self.has_collision(q_dict):
-                break
-        return q_dict
+        q_goals = []
+        for i in range(n):
+            while True:
+                if i == 0:
+                    q_dict = self.sample_enveloping_grasp(q_dict[model_u])
+                else:
+                    q_dict = self.sample_circulating_grasp(q_dict[model_u])
+                if not self.has_collision(q_dict):
+                    q_goals.append(q_dict)
+                    break
+        return q_goals
 
     def has_collision(self, q_dict: Dict[ModelInstanceIndex, np.ndarray]):
         self.q_sim.update_mbp_positions(
@@ -300,14 +299,22 @@ class TreeNode:
         self.parent = parent
         self.children = []
         self.index = index
+        limits = cspace.joint_limits[cspace.model_u]
+        qu = q[cspace.model_u]
+        self.in_contact = False
         if calc_reachable:
             x0 = q_dynamics.get_x_from_q_dict(q)
             u0 = q_dynamics.get_u_from_q_cmd_dict(q)
             qu_samples = reachable_sets(x0, u0, q_dynamics, cspace.model_u,
                                         cspace.model_a_l, cspace.model_a_r)
-            qu_mean, sigma, cov, Vh = pca_gaussian(qu_samples)
-            # Handle covariance singularity
-            if np.linalg.det(cov) == 0:
+            # Check if hands are in contact with the ball
+            if not np.isclose(qu_samples, qu_samples[0]).all(): 
+                # Check if ball is within the configuration limit
+                if (qu >= limits[:,0]).all() and (qu <= limits[:,1]).all():
+                    self.in_contact = True
+            qu_mean, sigma, cov, Vh = pca_gaussian(qu_samples, r=0.35)
+            # Handle covariance singularity/numerical instability
+            while np.linalg.det(cov) <= 0:
                 cov += 1e-8
             self.mean = qu_mean
             self.sigma = sigma
@@ -319,7 +326,7 @@ class TreeNode:
         self.x_waypoints = x_waypoints
 
     def gaussian_pdf(self, x):
-        return np.exp(-(x - self.mean).T @ np.linalg.inv(self.cov) @ (
+        return np.exp(-(x - self.mean).T @ np.linalg.inv(self.cov/4) @ (
                 x - self.mean)) / (2 * np.pi) ** (
                            len(self.sigma) / 2) / np.linalg.det(
             self.cov) ** 0.5
@@ -391,36 +398,56 @@ class RRT:
         Sample node from which to build RRT
         mode: "random": randomly pick a node on the tree;
         "explore": sample existing nodes in the tree weighted by ellipsoid
-        volume
+        volume;
+        "new": sample more frequently newly added nodes.
+        Only sample nodes where hands are in contact with the ball
         """
-
+        
         if mode == "random":
-            return np.random.choice(self.node_list, 1)[0]
+            while True:
+                node_sample = np.random.choice(self.node_list, 1)[0]
+                if node_sample.in_contact:               
+                    return node_sample
         elif mode == "explore":
-            prob = 1/np.array(self.volume_list)
-            prob /= np.sum(prob)
-            ind = np.argmax(np.random.multinomial(1, prob))
-            return self.node_list[ind]
+            p = np.inf
+            for node_j in self.node_list:
+                if node_j.in_contact:
+                    qj = node_j.q[self.cspace.model_u]
+                    pj = 0
+                    for node in self.node_list:
+                        if node is not node_j:
+                            pj += node.gaussian_pdf(qj) * node.vol
+                    if pj < p:
+                        p = pj
+                        node_sample = node_j
+            return node_sample
+        elif mode == "new":
+            while True:
+                prob = np.tanh((np.arange(self.size) + 1) / self.size * 2)
+                prob /= np.sum(prob)
+                ind = np.argmax(np.random.multinomial(1, prob))
+                if self.node_list[ind].in_contact:
+                    return self.node_list[ind]
 
-    def sample_configuration(self, qi, num_samples=10):
-        qjs = qi.sample_shell(num_samples=num_samples)
+    def sample_near_configuration(self, qi, lb_u, ub_u, num_samples=10):
+        qjs = qi.sample_shell(num_samples=num_samples, scale=1)
         p = np.inf
 
         for j in range(num_samples):
             pj = 0
             qj = qjs[:, j]
-            for node in self.node_list:
-                pj += node.gaussian_pdf(qj) * node.vol
-            if pj < p:
-                p = pj
-                qu = qj
+            if (qj >= lb_u).all() and (qj <= ub_u).all():
+                for node in self.node_list:
+                    pj += node.gaussian_pdf(qj) * node.vol
+                if pj < p:
+                    p = pj
+                    qu = qj
         return qu
-
 
     def rewire(self, qi, irs_lqr_q, T, num_iters, k=5):
         if k > self.size:
             k = self.size
-        p_list = self.calc_near_nodes_prob(qi)
+        p_list = self.calc_near_nodes_prob(qi.q[self.cspace.model_u])
 
         ind = np.argpartition(p_list, -k)[-k:]
 
@@ -452,16 +479,16 @@ class RRT:
         qi.cost = cost
         qi.x_waypoints = x_waypoints
 
-    def calc_near_nodes_prob(self, qi):
+    def calc_near_nodes_prob(self, xi):
         p_list = []
 
         for node in self.node_list:
-            p_list.append(node.gaussian_pdf(qi.q[self.cspace.model_u]))
+            p_list.append(node.gaussian_pdf(xi))
 
         return np.array(p_list)
 
-    def get_nearest_node(self, qi):
-        p_list = self.calc_near_nodes_prob(qi)
+    def get_nearest_node(self, xi):
+        p_list = self.calc_near_nodes_prob(xi)
         return self.node_list[np.argmax(p_list)]
 
     def l2_dist(self, q1, q2):

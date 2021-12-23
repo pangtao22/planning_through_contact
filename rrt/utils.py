@@ -55,10 +55,12 @@ def reachable_sets(x0, u0, q_dynamics, model_u, model_a_l, model_a_r,
     return qu_samples
 
 
-def pca_gaussian(qu_samples, r=0.5):
+def pca_gaussian(qu_samples, scale_rad=np.pi, r=0.5):
     '''
     Ellipsoid x.T inv(cov) x = 1
     '''
+    # Scale radian to metric
+    qu_samples[:, 2] /= scale_rad
     qu_mean = qu_samples.mean(axis=0)
     _, sigma, Vh = np.linalg.svd(qu_samples - qu_mean)
     scale = r/sigma[0]
