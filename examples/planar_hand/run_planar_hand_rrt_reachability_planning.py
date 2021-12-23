@@ -87,10 +87,10 @@ vis = q_dynamics.q_sim_py.viz.vis
 add_goal_meshcat(vis)
 
 while True:
-    q_goals = cspace.sample_reachable_near(current_node, rrt,
+    q_goal_candidates = cspace.sample_reachable_near(current_node, rrt,
                                            method="explore", n=2)
 
-    for q_goal in q_goals:
+    for q_goal in q_goal_candidates:
         # Set goal visualization
         q_u = q_goal[model_u]
         X_WG = calc_X_WG(y=q_u[0], z=q_u[1], theta=q_u[2])
@@ -170,14 +170,14 @@ cost += last_node.cost
 print("Cost: ", cost)
 
 # Compare with directly solving traj opt
-solve_irs_lqr(irs_lqr_q, q_dynamics, rrt.root.q, q_goal, irs_lqr_q.T,
+irs_lqr_q.solve(rrt.root.q, q_goal, irs_lqr_q.T,
               num_iters)
 q_dynamics.publish_trajectory(irs_lqr_q.x_trj_best)
 print("Direct Trajopt cost:", irs_lqr_q.cost_best)
 
 # Smooth out trajectory
 irs_lqr_q.T = trajectory.shape[0] - 1
-solve_irs_lqr(irs_lqr_q, q_dynamics, rrt.root.q, q_goal, irs_lqr_q.T,
+irs_lqr_q.solve(rrt.root.q, q_goal, irs_lqr_q.T,
               num_iters, x_trj_d=trajectory)
 q_dynamics.publish_trajectory(irs_lqr_q.x_trj_best)
 print("Smoothed cost:", irs_lqr_q.cost_best)

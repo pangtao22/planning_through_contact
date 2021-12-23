@@ -107,10 +107,10 @@ class ConfigurationSpace:
 
         return q_dict
 
-    def sample_circulating_grasp(self, q_u: np.ndarray):
+    def sample_pitch_grasp(self, q_u: np.ndarray):
         """
         For a given configuration of the ball, q_u, this function finds configurations
-        of the fingers such that both fingers (and links?) contact the surface of ball.
+        of the fingers such that only finger tips contact the surface of ball.
 
         Suggested range of q_u:
             y: [-0.3, 0.3]
@@ -127,6 +127,7 @@ class ConfigurationSpace:
         a1 = 6 * self.r_a
         a2 = 4 * self.r_a
 
+        # Sample antipodal grasps with 15 random angles
         for _ in range(15):
             g = np.random.rand() * (self.grasp_angle_limit[
                                         1] - self.grasp_angle_limit[0]) + \
@@ -150,7 +151,7 @@ class ConfigurationSpace:
             if not self.has_collision(q_dict):
                 return q_dict
 
-        # If cannot find antipodal circulating grasp, decrease the angle
+        # If cannot find antipodal pitch grasp, decrease the angle
         # between the two contact points
         t = 0
         while True:
@@ -177,6 +178,10 @@ class ConfigurationSpace:
                 return q_dict
 
     def ik_calc_joint_angle_mp(self, goal, a1, a2, joint_limits, side="right"):
+        """
+        Inverse Kinematics given the tip pose. Intial guess decides the upward or 
+        downward solution.
+        """
         if side == "right":
             q_initial_guess = joint_limits[:, 1]
         else:
@@ -217,7 +222,7 @@ class ConfigurationSpace:
         return False
     
     def regrasp(self, q_dict, q_dynamics):
-        q_regrasp = self.sample_circulating_grasp(q_dict[self.model_u])
+        q_regrasp = self.sample_pitch_grasp(q_dict[self.model_u])
         x0 = q_dynamics.get_x_from_q_dict(q_dict)
         xf = q_dynamics.get_x_from_q_dict(q_regrasp)
         return q_regrasp, 0, np.array([x0, xf])
@@ -228,7 +233,7 @@ class ConfigurationSpace:
         Sample a configuration of the system, with q_u being close to q[model_u] and
             q_a collision-free.
         Sample goal q_u from the reachable Gaussian.
-        Sample both enveloping and circulating grasps.
+        Sample both enveloping and pitch grasps for the same q_u.
         """
         model_u = self.model_u
 
@@ -259,7 +264,7 @@ class ConfigurationSpace:
                 if i == 0:
                     q_dict = self.sample_enveloping_grasp(q_dict[model_u])
                 else:
-                    q_dict = self.sample_circulating_grasp(q_dict[model_u])
+                    q_dict = self.sample_pitch_grasp(q_dict[model_u])
                 if not self.has_collision(q_dict):
                     q_goals.append(q_dict)
                     break
@@ -280,7 +285,7 @@ class ConfigurationSpace:
                 if i == 0:
                     q_dict = self.sample_enveloping_grasp(q_dict[model_u])
                 else:
-                    q_dict = self.sample_circulating_grasp(q_dict[model_u])
+                    q_dict = self.sample_pitch_grasp(q_dict[model_u])
                 if not self.has_collision(q_dict):
                     q_goals.append(q_dict)
                     break
@@ -293,7 +298,7 @@ class ConfigurationSpace:
 
 
 class TreeNode:
-    def __init__(self, q, parent, q_dynamics, cspace, index=1, cost=0,
+    def __init__(self, q, parent, q_dynamics, cspace, index=1, value=0,
                  q_goal=None, x_waypoints=None, calc_reachable=True):
         self.q = q
         self.parent = parent
@@ -321,7 +326,7 @@ class TreeNode:
             self.cov = cov
             self.vol = np.linalg.det(cov)
             self.Vh = Vh
-            self.cost = cost
+            self.value = value
         self.q_goal = q_goal
         self.x_waypoints = x_waypoints
 
@@ -344,8 +349,7 @@ class TreeNode:
         y = self.sigma[1] * ratio * np.sin(phi) * np.sin(theta)
         z = self.sigma[2] * ratio * np.cos(phi)
 
-        p = self.Vh.T @ np.vstack((x, y, z)) + self.mean.reshape((len(
-            self.mean), 1))
+        p = self.Vh.T @ np.vstack((x, y, z)) + self.mean[:, None]
         p = np.squeeze(p)
 
         return p
@@ -383,10 +387,10 @@ class RRT:
 
     def add_node(self, parent_node: TreeNode,
                  q: Dict[ModelInstanceIndex, np.ndarray],
-                 cost, q_goal, x_waypoints):
+                 cost, q_goal: Dict[ModelInstanceIndex, np.ndarray], x_waypoints):
         self.size += 1
         child_node = TreeNode(q, parent_node, self.q_dynamics, self.cspace,
-                              self.size, cost + parent_node.cost, q_goal,
+                              self.size, cost + parent_node.value, q_goal,
                               x_waypoints)
         parent_node.children.append(child_node)
         self.node_list.append(child_node)
@@ -452,7 +456,7 @@ class RRT:
         ind = np.argpartition(p_list, -k)[-k:]
 
         parent_node = qi.parent
-        cost = qi.cost
+        value = qi.value
         x_waypoints = qi.x_waypoints
         # Disconnect the wire from the original parent
         parent_node.children.remove(qi)
@@ -468,15 +472,15 @@ class RRT:
 
             irs_lqr_q.iterate(num_iters)
 
-            new_cost = node.cost + irs_lqr_q.cost_best
-            if new_cost < cost:
-                cost = new_cost
+            new_value = node.value + irs_lqr_q.cost_best
+            if new_value < value:
+                value = new_value
                 x_waypoints = irs_lqr_q.x_trj_best
                 parent_node = node
 
         parent_node.children.append(qi)
         qi.parent = parent_node
-        qi.cost = cost
+        qi.value = value
         qi.x_waypoints = x_waypoints
 
     def calc_near_nodes_prob(self, xi):

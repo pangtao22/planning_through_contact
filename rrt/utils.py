@@ -69,25 +69,6 @@ def pca_gaussian(qu_samples, scale_rad=np.pi, r=0.5):
     return qu_mean, sigma, cov, Vh
 
 
-def solve_irs_lqr(irs_lqr_q, q_dynamics, q_start, q_goal, T, num_iters,
-                  x_trj_d=None):
-    """
-    x_trj_d: initial guess of the object trajectory
-    """
-    xd = q_dynamics.get_x_from_q_dict(q_goal)
-    u0 = q_dynamics.get_u_from_q_cmd_dict(q_start)
-
-    if x_trj_d is None:
-        x_trj_d = np.tile(xd, (T + 1, 1))
-
-    irs_lqr_q.initialize_problem(
-        x0=q_dynamics.get_x_from_q_dict(q_start),
-        x_trj_d=x_trj_d,
-        u_trj_0=np.tile(u0, (T, 1)))
-
-    irs_lqr_q.iterate(num_iters)
-
-
 def save_rrt(rrt):
     model_u, model_a_l, model_a_r = rrt.cspace.model_u, rrt.cspace.model_a_l, rrt.cspace.model_a_r
     int_model_u = int(model_u)

@@ -10,12 +10,10 @@ from irs_lqr.tv_lqr import solve_tvlqr, get_solver
 from zmq_parallel_cmp.array_io import *
 
 
-def update_q_start_and_goal(
-        q_start: Dict[ModelInstanceIndex, np.ndarray],
-        q_goal: Dict[ModelInstanceIndex, np.ndarray],
-        params: IrsLqrQuasistaticParameters,
-        q_dynamics: QuasistaticDynamics,
-        T: int):
+def update_q_start_and_goal(q_start: Dict[ModelInstanceIndex, np.ndarray],
+                            q_goal: Dict[ModelInstanceIndex, np.ndarray],
+                            params: IrsLqrQuasistaticParameters,
+                            q_dynamics: QuasistaticDynamics, T: int):
     params.x0 = q_dynamics.get_x_from_q_dict(q_start)
 
     u0 = q_dynamics.get_u_from_q_cmd_dict(q_start)
@@ -122,14 +120,16 @@ class IrsLqrQuasistatic:
         x_trj = np.zeros((T + 1, self.dim_x))
         x_trj[0, :] = x0
         for t in range(T):
-            x_trj[t + 1, :] = self.q_dynamics.dynamics(x_trj[t, :], u_trj[t, :])
+            x_trj[t + 1, :] = self.q_dynamics.dynamics(x_trj[t, :],
+                                                       u_trj[t, :])
         return x_trj
 
     @staticmethod
     def calc_Q_cost(models_list: List[ModelInstanceIndex],
                     x_dict: Dict[ModelInstanceIndex, np.ndarray],
-                    xd_dict: Dict[ModelInstanceIndex, np.ndarray],
-                    Q_dict: Dict[ModelInstanceIndex, np.ndarray]):
+                    xd_dict: Dict[ModelInstanceIndex,
+                                  np.ndarray], Q_dict: Dict[ModelInstanceIndex,
+                                                            np.ndarray]):
         cost = 0.
         for model in models_list:
             x_i = x_dict[model]
@@ -150,10 +150,14 @@ class IrsLqrQuasistatic:
         xd_dict = self.q_dynamics.get_q_dict_from_x(self.x_trj_d[-1])
         cost_Qu_final = self.calc_Q_cost(
             models_list=self.q_dynamics.models_unactuated,
-            x_dict=x_dict, xd_dict=xd_dict, Q_dict=self.Qd_dict)
+            x_dict=x_dict,
+            xd_dict=xd_dict,
+            Q_dict=self.Qd_dict)
         cost_Qa_final = self.calc_Q_cost(
             models_list=self.q_dynamics.models_actuated,
-            x_dict=x_dict, xd_dict=xd_dict, Q_dict=self.Qd_dict)
+            x_dict=x_dict,
+            xd_dict=xd_dict,
+            Q_dict=self.Qd_dict)
 
         # Q and R costs.
         cost_Qu = 0.
@@ -165,10 +169,14 @@ class IrsLqrQuasistatic:
             # Q cost.
             cost_Qu += self.calc_Q_cost(
                 models_list=self.q_dynamics.models_unactuated,
-                x_dict=x_dict, xd_dict=xd_dict, Q_dict=self.Q_dict)
+                x_dict=x_dict,
+                xd_dict=xd_dict,
+                Q_dict=self.Q_dict)
             cost_Qa += self.calc_Q_cost(
                 models_list=self.q_dynamics.models_actuated,
-                x_dict=x_dict, xd_dict=xd_dict, Q_dict=self.Q_dict)
+                x_dict=x_dict,
+                xd_dict=xd_dict,
+                Q_dict=self.Q_dict)
 
             # R cost.
             if t == 0:
@@ -194,10 +202,11 @@ class IrsLqrQuasistatic:
         std_u = self.sampling(self.std_u_initial, self.current_iter)
 
         # Compute ABhat.
-        ABhat_list = self.q_dynamics.calc_AB_batch(
-            x_trj[:-1, :], u_trj, n_samples=self.num_samples, std_u=std_u,
-            mode=self.gradient_mode
-        )
+        ABhat_list = self.q_dynamics.calc_AB_batch(x_trj[:-1, :],
+                                                   u_trj,
+                                                   n_samples=self.num_samples,
+                                                   std_u=std_u,
+                                                   mode=self.gradient_mode)
 
         for t in range(T):
             At[t] = ABhat_list[t, :, :self.dim_x]
@@ -234,13 +243,14 @@ class IrsLqrQuasistatic:
         for t in range(0, T, stride):
             t1 = min(t + stride, T)
             x_u = np.zeros((t1 - t, self.dim_x + self.dim_u))
-            x_u[:, :self.dim_x] = x_trj[t: t1]
-            x_u[:, self.dim_x:] = u_trj[t: t1]
+            x_u[:, :self.dim_x] = x_trj[t:t1]
+            x_u[:, self.dim_x:] = u_trj[t:t1]
             # TODO: support 1-order and first-order computation of the gradient.
-            send_array(
-                self.sender, x_u,
-                t=np.arange(t, t1).tolist(),
-                n_samples=self.num_samples, std=std_u.tolist())
+            send_array(self.sender,
+                       x_u,
+                       t=np.arange(t, t1).tolist(),
+                       n_samples=self.num_samples,
+                       std=std_u.tolist())
             n_tasks_sent += 1
 
         # receive tasks.
@@ -297,8 +307,10 @@ class IrsLqrQuasistatic:
             # u_bounds_abs are used to establish a trust region around a current
             # trajectory.
             u_bounds_abs = np.zeros((2, self.T, self.dim_u))
-            u_bounds_abs[0] = x_trj[:-1, self.indices_u_into_x] + self.u_bounds_abs[0]
-            u_bounds_abs[1] = x_trj[:-1, self.indices_u_into_x] + self.u_bounds_abs[1]
+            u_bounds_abs[0] = x_trj[:-1, self.
+                                    indices_u_into_x] + self.u_bounds_abs[0]
+            u_bounds_abs[1] = x_trj[:-1, self.
+                                    indices_u_into_x] + self.u_bounds_abs[1]
         if self.x_bounds_rel is not None:
             # this should be rarely used.
             x_bounds_rel = np.zeros((2, self.T, self.dim_x))
@@ -314,24 +326,27 @@ class IrsLqrQuasistatic:
             x_star, u_star = solve_tvlqr(
                 At[t:self.T],
                 Bt[t:self.T],
-                ct[t:self.T], self.Q, self.Qd,
-                self.R, x_trj_new[t, :],
+                ct[t:self.T],
+                self.Q,
+                self.Qd,
+                self.R,
+                x_trj_new[t, :],
                 self.x_trj_d[t:],
                 solver=self.solver,
                 indices_u_into_x=self.indices_u_into_x,
-                x_bound_abs=x_bounds_abs[:, t:, :] if (
-                        self.x_bounds_abs is not None) else None,
-                u_bound_abs=u_bounds_abs[:, t:, :] if (
-                        self.u_bounds_abs is not None) else None,
-                x_bound_rel=x_bounds_rel[:, t:, :] if (
-                        self.x_bounds_rel is not None) else None,
-                u_bound_rel=u_bounds_rel[:, t:, :] if (
-                        self.u_bounds_rel is not None) else None,
+                x_bound_abs=x_bounds_abs[:, t:, :] if
+                (self.x_bounds_abs is not None) else None,
+                u_bound_abs=u_bounds_abs[:, t:, :] if
+                (self.u_bounds_abs is not None) else None,
+                x_bound_rel=x_bounds_rel[:, t:, :] if
+                (self.x_bounds_rel is not None) else None,
+                u_bound_rel=u_bounds_rel[:, t:, :] if
+                (self.u_bounds_rel is not None) else None,
                 xinit=None,
                 uinit=None)
             u_trj_new[t, :] = u_star[0]
-            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(x_trj_new[t],
-                                                           u_trj_new[t])
+            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(
+                x_trj_new[t], u_trj_new[t])
 
         return x_trj_new, u_trj_new
 
@@ -385,9 +400,32 @@ class IrsLqrQuasistatic:
             "Qa": self.cost_Qa_list[i_best],
             "Qa_f": self.cost_Qa_final_list[i_best],
             "R": self.cost_R_list[i_best],
-            "all": self.cost_all_list[i_best]}
-        result = {'cost': cost,
-                  "x_trj": np.array(self.x_trj_best),
-                  "u_trj": np.array(self.u_trj_best)}
+            "all": self.cost_all_list[i_best]
+        }
+        result = {
+            'cost': cost,
+            "x_trj": np.array(self.x_trj_best),
+            "u_trj": np.array(self.u_trj_best)
+        }
         return result
 
+    def solve(self,
+              q_start: Dict[ModelInstanceIndex, np.ndarray],
+              q_goal: Dict[ModelInstanceIndex, np.ndarray],
+              T,
+              num_iters,
+              x_trj_d=None):
+        """
+        x_trj_d: initial guess of the object trajectory
+        """
+        xd = self.q_dynamics.get_x_from_q_dict(q_goal)
+        u0 = self.q_dynamics.get_u_from_q_cmd_dict(q_start)
+
+        if x_trj_d is None:
+            x_trj_d = np.tile(xd, (T + 1, 1))
+
+        self.initialize_problem(x0=self.q_dynamics.get_x_from_q_dict(q_start),
+                                x_trj_d=x_trj_d,
+                                u_trj_0=np.tile(u0, (T, 1)))
+
+        self.iterate(num_iters)
