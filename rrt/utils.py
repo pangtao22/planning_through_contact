@@ -35,7 +35,7 @@ def sample_on_sphere(radius: float, n_samples: int):
 
 
 def reachable_sets(x0, u0, q_dynamics, model_u, model_a_l, model_a_r,
-                   n_samples=2000, radius=0.2):
+                n_samples=2000, radius=0.2):
     du = np.random.rand(n_samples, 4) * radius * 2 - radius
     qu_samples = np.zeros((n_samples, 3))
     qa_l_samples = np.zeros((n_samples, 2))
@@ -64,6 +64,7 @@ def pca_gaussian(qu_samples, scale_rad=np.pi, r=0.5):
     qu_mean = qu_samples.mean(axis=0)
     _, sigma, Vh = np.linalg.svd(qu_samples - qu_mean)
     scale = r/sigma[0]
+    # Uniform scaling
     sigma *= scale
     cov = Vh.T@np.diag(sigma**2)@Vh
     return qu_mean, sigma, cov, Vh
@@ -88,8 +89,9 @@ def save_rrt(rrt):
     recur(rrt.root)
 
     rrt.cspace = None
+    rrt.q_dynamics = None
 
-    with open("rrt.pkl", "wb") as file:
+    with open("rrt_explore_random.pkl", "wb") as file:
         pickle.dump(rrt, file, pickle.HIGHEST_PROTOCOL)
 
 

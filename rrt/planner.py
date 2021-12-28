@@ -5,6 +5,8 @@ from pydrake.all import ModelInstanceIndex, MathematicalProgram
 import pydrake.symbolic as sym
 import pydrake.solvers.mathematicalprogram as mp
 from qsim.simulator import QuasistaticSimulator
+from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
+from networkx import DiGraph
 from rrt.utils import reachable_sets, pca_gaussian
 
 import meshcat
@@ -228,7 +230,7 @@ class ConfigurationSpace:
         return q_regrasp, 0, np.array([x0, xf])
 
     def sample_reachable_near(self, node, rrt, method="gaussian",
-                              scale_rad=np.pi,n=3):
+                              scale_rad=np.pi, n=3):
         """
         Sample a configuration of the system, with q_u being close to q[model_u] and
             q_a collision-free.
@@ -319,6 +321,8 @@ class TreeNode:
                     self.in_contact = True
             qu_mean, sigma, cov, Vh = pca_gaussian(qu_samples, r=0.35)
             # Handle covariance singularity/numerical instability
+            # Happens when the reachable set is small,e.g. the ball is too 
+            # far away (out of reach), fingers not in contact with the ball
             while np.linalg.det(cov) <= 0:
                 cov += 1e-8
             self.mean = qu_mean
@@ -370,31 +374,29 @@ class TreeNode:
         ))
 
 
-class RRT:
-    class RRT:
-        """
-        RRT Tree.
-        """
+class RRT(DiGraph):
+    """
+    RRT Tree.
+    """
 
-    def __init__(self, root: TreeNode, cspace: ConfigurationSpace, q_dynamics):
+    def __init__(self, root: TreeNode, cspace: ConfigurationSpace, q_dynamics: QuasistaticDynamics):
+        DiGraph.__init__(self)
         self.root = root  # root TreeNode
         self.cspace = cspace  # robot.ConfigurationSpace
-        self.size = 1  # int length of path
+        # self.size = 1  # int length of path
         self.max_recursion = 1000  # int length of longest possible path
         self.q_dynamics = q_dynamics
-        self.node_list = [root]
-        self.volume_list = [root.vol]
 
     def add_node(self, parent_node: TreeNode,
                  q: Dict[ModelInstanceIndex, np.ndarray],
                  cost, q_goal: Dict[ModelInstanceIndex, np.ndarray], x_waypoints):
-        self.size += 1
+        # self.size += 1
         child_node = TreeNode(q, parent_node, self.q_dynamics, self.cspace,
-                              self.size, cost + parent_node.value, q_goal,
+                              self.size(), cost + parent_node.value, q_goal,
                               x_waypoints)
         parent_node.children.append(child_node)
-        self.node_list.append(child_node)
-        self.volume_list.append(child_node.vol)
+        self.add_nodes_from([child_node])
+        self.add_edge(parent_node, child_node)
         return child_node
 
     def sample_node(self, mode="random"):
@@ -409,29 +411,29 @@ class RRT:
         
         if mode == "random":
             while True:
-                node_sample = np.random.choice(self.node_list, 1)[0]
+                node_sample = np.random.choice(list(self.nodes), 1)[0]
                 if node_sample.in_contact:               
                     return node_sample
         elif mode == "explore":
-            p = np.inf
-            for node_j in self.node_list:
+            p = 0
+            for node_j in list(self.nodes):
                 if node_j.in_contact:
                     qj = node_j.q[self.cspace.model_u]
                     pj = 0
-                    for node in self.node_list:
+                    for node in list(self.nodes):
                         if node is not node_j:
                             pj += node.gaussian_pdf(qj) * node.vol
-                    if pj < p:
+                    if pj > p:
                         p = pj
                         node_sample = node_j
             return node_sample
         elif mode == "new":
             while True:
-                prob = np.tanh((np.arange(self.size) + 1) / self.size * 2)
+                prob = np.tanh((np.arange(self.size()) + 1) / self.size() * 2)
                 prob /= np.sum(prob)
                 ind = np.argmax(np.random.multinomial(1, prob))
-                if self.node_list[ind].in_contact:
-                    return self.node_list[ind]
+                if list(self.nodes)[ind].in_contact:
+                    return list(self.nodes)[ind]
 
     def sample_near_configuration(self, qi, lb_u, ub_u, num_samples=10):
         qjs = qi.sample_shell(num_samples=num_samples, scale=1)
@@ -441,7 +443,7 @@ class RRT:
             pj = 0
             qj = qjs[:, j]
             if (qj >= lb_u).all() and (qj <= ub_u).all():
-                for node in self.node_list:
+                for node in list(self.nodes):
                     pj += node.gaussian_pdf(qj) * node.vol
                 if pj < p:
                     p = pj
@@ -449,8 +451,8 @@ class RRT:
         return qu
 
     def rewire(self, qi, irs_lqr_q, T, num_iters, k=5):
-        if k > self.size:
-            k = self.size
+        if k > self.size():
+            k = self.size()
         p_list = self.calc_near_nodes_prob(qi.q[self.cspace.model_u])
 
         ind = np.argpartition(p_list, -k)[-k:]
@@ -460,10 +462,11 @@ class RRT:
         x_waypoints = qi.x_waypoints
         # Disconnect the wire from the original parent
         parent_node.children.remove(qi)
+        self.remove_edge(parent_node, qi)
 
         xd = self.q_dynamics.get_x_from_q_dict(qi.q)
         for i in ind:
-            node = self.node_list[i]
+            node = list(self.nodes)[i]
             u0 = self.q_dynamics.get_u_from_q_cmd_dict(node.q)
             irs_lqr_q.initialize_problem(
                 x0=self.q_dynamics.get_x_from_q_dict(node.q),
@@ -479,6 +482,7 @@ class RRT:
                 parent_node = node
 
         parent_node.children.append(qi)
+        self.add_edge(parent_node, qi)        
         qi.parent = parent_node
         qi.value = value
         qi.x_waypoints = x_waypoints
@@ -486,14 +490,14 @@ class RRT:
     def calc_near_nodes_prob(self, xi):
         p_list = []
 
-        for node in self.node_list:
+        for node in list(self.nodes):
             p_list.append(node.gaussian_pdf(xi))
 
         return np.array(p_list)
 
     def get_nearest_node(self, xi):
         p_list = self.calc_near_nodes_prob(xi)
-        return self.node_list[np.argmax(p_list)]
+        return list(self.nodes)[np.argmax(p_list)]
 
     def l2_dist(self, q1, q2):
         xu1 = q1.q[self.cspace.model_u]
@@ -504,7 +508,7 @@ class RRT:
         xar2 = q2.q[self.cspace.model_a_r]
         return np.linalg.norm(xu1 - xu2)
 
-    def visualize_meshcat(self, groupby="index"):
+    def visualize_meshcat(self, groupby="object"):
         """
         groupby: visualization groupby index or object type
         """

@@ -355,9 +355,9 @@ class IrsLqrQuasistatic:
         # self.x_trj_list is initialized with the initial guess.
 
         while True:
-            print('Iter {:02d},'.format(self.current_iter),
-                  'cost: {:0.4f}.'.format(self.cost),
-                  'time: {:0.2f}.'.format(time.time() - self.start_time))
+            # print('Iter {:02d},'.format(self.current_iter),
+            #       'cost: {:0.4f}.'.format(self.cost),
+            #       'time: {:0.2f}.'.format(time.time() - self.start_time))
 
             x_trj_new, u_trj_new = self.local_descent(self.x_trj, self.u_trj)
             (cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final,

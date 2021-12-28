@@ -18,7 +18,7 @@ from planar_hand_setup import *
 from dash_app_common import (add_goal_meshcat, calc_X_WG)
 
 from rrt.planner import RRT, ConfigurationSpace, TreeNode
-from rrt.utils import save_rrt, solve_irs_lqr
+from rrt.utils import save_rrt
 
 # %% sim setup
 q_dynamics = QuasistaticDynamics(h=h,
@@ -118,11 +118,14 @@ while True:
             q_regrasp, cost, x_trj = cspace.regrasp(q_reached, q_dynamics)
             rrt.add_node(new_node, q_regrasp, cost, q_regrasp, x_trj)
 
-        print("Tree size: ", rrt.size)
+        print("Tree size: ", rrt.size())
+
+        if rrt.size() == 50:
+            rrt.visualize_meshcat()
 
     current_node = rrt.sample_node(mode="random")
 
-    if rrt.size > 1500:
+    if rrt.size() > 1500:
         break
 
 rrt.visualize_meshcat(groupby="object")
@@ -143,7 +146,7 @@ vis['goal'].set_transform(X_WG)
 
 planned_traj = []
 
-solve_irs_lqr(irs_lqr_q, q_dynamics, last_node.q, q_goal, T, num_iters)
+irs_lqr_q.solve(last_node.q, q_goal, T, num_iters)
 
 planned_traj.append(irs_lqr_q.x_trj_best)
 cost = irs_lqr_q.cost_best
@@ -166,7 +169,7 @@ trajectory.append(planned_traj[0][-1])
 trajectory = np.array(trajectory)
 q_dynamics.publish_trajectory(trajectory)
 
-cost += last_node.cost
+cost += last_node.value
 print("Cost: ", cost)
 
 # Compare with directly solving traj opt
@@ -181,3 +184,5 @@ irs_lqr_q.solve(rrt.root.q, q_goal, irs_lqr_q.T,
               num_iters, x_trj_d=trajectory)
 q_dynamics.publish_trajectory(irs_lqr_q.x_trj_best)
 print("Smoothed cost:", irs_lqr_q.cost_best)
+
+save_rrt(rrt)
