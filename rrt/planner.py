@@ -109,7 +109,7 @@ class ConfigurationSpace:
 
         return q_dict
 
-    def sample_pitch_grasp(self, q_u: np.ndarray):
+    def sample_pinch_grasp(self, q_u: np.ndarray):
         """
         For a given configuration of the ball, q_u, this function finds configurations
         of the fingers such that only finger tips contact the surface of ball.
@@ -153,7 +153,7 @@ class ConfigurationSpace:
             if not self.has_collision(q_dict):
                 return q_dict
 
-        # If cannot find antipodal pitch grasp, decrease the angle
+        # If cannot find antipodal pinch grasp, decrease the angle
         # between the two contact points
         t = 0
         while True:
@@ -224,7 +224,7 @@ class ConfigurationSpace:
         return False
     
     def regrasp(self, q_dict, q_dynamics):
-        q_regrasp = self.sample_pitch_grasp(q_dict[self.model_u])
+        q_regrasp = self.sample_pinch_grasp(q_dict[self.model_u])
         x0 = q_dynamics.get_x_from_q_dict(q_dict)
         xf = q_dynamics.get_x_from_q_dict(q_regrasp)
         return q_regrasp, 0, np.array([x0, xf])
@@ -235,7 +235,7 @@ class ConfigurationSpace:
         Sample a configuration of the system, with q_u being close to q[model_u] and
             q_a collision-free.
         Sample goal q_u from the reachable Gaussian.
-        Sample both enveloping and pitch grasps for the same q_u.
+        Sample both enveloping and pinch grasps for the same q_u.
         """
         model_u = self.model_u
 
@@ -266,7 +266,7 @@ class ConfigurationSpace:
                 if i == 0:
                     q_dict = self.sample_enveloping_grasp(q_dict[model_u])
                 else:
-                    q_dict = self.sample_pitch_grasp(q_dict[model_u])
+                    q_dict = self.sample_pinch_grasp(q_dict[model_u])
                 if not self.has_collision(q_dict):
                     q_goals.append(q_dict)
                     break
@@ -287,7 +287,7 @@ class ConfigurationSpace:
                 if i == 0:
                     q_dict = self.sample_enveloping_grasp(q_dict[model_u])
                 else:
-                    q_dict = self.sample_pitch_grasp(q_dict[model_u])
+                    q_dict = self.sample_pinch_grasp(q_dict[model_u])
                 if not self.has_collision(q_dict):
                     q_goals.append(q_dict)
                     break
@@ -415,18 +415,17 @@ class RRT(DiGraph):
                 if node_sample.in_contact:               
                     return node_sample
         elif mode == "explore":
-            p = 0
-            for node_j in list(self.nodes):
-                if node_j.in_contact:
-                    qj = node_j.q[self.cspace.model_u]
-                    pj = 0
-                    for node in list(self.nodes):
-                        if node is not node_j:
-                            pj += node.gaussian_pdf(qj) * node.vol
-                    if pj > p:
-                        p = pj
-                        node_sample = node_j
-            return node_sample
+            vol_list = []
+            node_list = list(self.nodes)
+            for node in node_list:
+                if node.in_contact:
+                    vol_list.append(node.vol)
+                else:
+                    vol_list.append(0)
+            vol_list = np.array(vol_list)
+            prob = vol_list/np.sum(vol_list)
+            ind = np.argmax(np.random.multinomial(100, prob))
+            return node_list[ind]
         elif mode == "new":
             while True:
                 prob = np.tanh((np.arange(self.size()) + 1) / self.size() * 2)

@@ -72,21 +72,14 @@ def pca_gaussian(qu_samples, scale_rad=np.pi, r=0.5):
 
 def save_rrt(rrt):
     model_u, model_a_l, model_a_r = rrt.cspace.model_u, rrt.cspace.model_a_l, rrt.cspace.model_a_r
-    int_model_u = int(model_u)
-    int_model_a_l = int(model_a_l)
-    int_model_a_r = int(model_a_r)
 
-    def recur(node):
+    for node in list(rrt.nodes):
         q = {}
-        q[int_model_u] = node.q[model_u]
-        q[int_model_a_l] = node.q[model_a_l]
-        q[int_model_a_r] = node.q[model_a_r]
+        for model in [model_u, model_a_l, model_a_r]:
+            q[int(model)] = node.q[model]
+
         node.q = q
         node.q_goal = None
-        for child in node.children:
-            recur(child)
-
-    recur(rrt.root)
 
     rrt.cspace = None
     rrt.q_dynamics = None
