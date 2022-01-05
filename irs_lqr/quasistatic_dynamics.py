@@ -3,7 +3,7 @@ from typing import Dict, Set, Union
 import numpy as np
 from pydrake.all import (ModelInstanceIndex, MultibodyPlant,
                          PiecewisePolynomial)
-from qsim.parser import QuasistaticParser
+from qsim.parser import QuasistaticParser, GradientMode
 
 from .dynamical_system import DynamicalSystem
 from irs_lqr.irs_lqr_params import IrsLqrGradientMode
@@ -128,7 +128,7 @@ class QuasistaticDynamics(DynamicalSystem):
                                                 q_dict_traj=q_dict_traj)
 
     def dynamics_py(self, x: np.ndarray, u: np.ndarray, mode: str = 'qp_mp',
-                    requires_grad: bool = False):
+                    gradient_mode: GradientMode = GradientMode.kNone):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
@@ -142,13 +142,13 @@ class QuasistaticDynamics(DynamicalSystem):
 
         q_next_dict = self.q_sim_py.step(
             q_a_cmd_dict, tau_ext_dict, self.h,
-            mode=mode, requires_grad=requires_grad,
+            mode=mode, gradient_mode=gradient_mode,
             grad_from_active_constraints=True)
 
         return self.get_x_from_q_dict(q_next_dict)
 
     def dynamics(self, x: np.ndarray, u: np.ndarray,
-                 requires_grad: bool = False):
+                 gradient_mode: GradientMode = GradientMode.kNone):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
@@ -160,9 +160,11 @@ class QuasistaticDynamics(DynamicalSystem):
         tau_ext_dict = self.q_sim.calc_tau_ext([])
 
         self.q_sim.step(
-            q_a_cmd_dict, tau_ext_dict, self.h,
-            self.q_sim_py.sim_params.contact_detection_tolerance,
-            requires_grad=requires_grad,
+            q_a_cmd_dict=q_a_cmd_dict,
+            tau_ext_dict=tau_ext_dict,
+            h=self.h,
+            contact_detection_tolerance=self.q_sim_py.sim_params.contact_detection_tolerance,
+            gradient_mode=gradient_mode,
             grad_from_active_constraints=True)
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)
@@ -219,7 +221,7 @@ class QuasistaticDynamics(DynamicalSystem):
 
     def jacobian_xu(self, x, u):
         AB = np.zeros((self.dim_x, self.dim_x + self.dim_u))
-        self.dynamics(x, u, requires_grad=True)
+        self.dynamics(x, u, gradient_mode=True)
         AB[:, :self.dim_x] = self.q_sim.get_Dq_nextDq()
         AB[:, self.dim_x:] = self.q_sim.get_Dq_nextDqa_cmd()
 
@@ -238,7 +240,7 @@ class QuasistaticDynamics(DynamicalSystem):
         du = np.random.normal(0, std_u, size=[n_samples, self.dim_u])
         ABhat = np.zeros((self.dim_x, self.dim_x + self.dim_u))
         for i in range(n_samples):
-            self.dynamics(x_nominal, u_nominal + du[i], requires_grad=True)
+            self.dynamics(x_nominal, u_nominal + du[i], gradient_mode=GradientMode.kBOnly)
             ABhat[:, :self.dim_x] += self.q_sim.get_Dq_nextDq()
             ABhat[:, self.dim_x:] += self.q_sim.get_Dq_nextDqa_cmd()
 
@@ -290,7 +292,8 @@ class QuasistaticDynamics(DynamicalSystem):
 
         n_x = self.dim_x
         n_u = self.dim_u
-        x_next_nominal = self.dynamics(x_nominal, u_nominal, requires_grad=True)
+        x_next_nominal = self.dynamics(x_nominal, u_nominal,
+                                       gradient_mode=GradientMode.kBOnly)
         ABhat = np.zeros((n_x, n_x + n_u))
         ABhat[:, :n_x] = self.q_sim.get_Dq_nextDq()
 
