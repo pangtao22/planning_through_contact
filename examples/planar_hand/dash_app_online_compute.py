@@ -236,7 +236,7 @@ def update_reachability(n_clicks, q_u0_json, q_a0_json):
 
     for i in tqdm.tqdm(range(n_samples)):
         u = u0 + du[i]
-        x_1 = q_dynamics.dynamics(x0, u, requires_grad=False)
+        x_1 = q_dynamics.dynamics(x0, u, gradient_mode=False)
         save_x(x_1)
 
     # PCA of 1-step reachable set.

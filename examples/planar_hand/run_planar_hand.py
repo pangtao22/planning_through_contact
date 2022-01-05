@@ -5,11 +5,8 @@ import numpy as np
 
 from pydrake.all import PiecewisePolynomial
 
-from qsim.simulator import QuasistaticSimulator, QuasistaticSimParameters
-from qsim.system import cpp_params_from_py_params
-from quasistatic_simulator.examples.setup_simulation_diagram import (
-    create_dict_keyed_by_model_instance_index)
-from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
+from qsim.simulator import QuasistaticSimulator, GradientMode
+from qsim_cpp import QuasistaticSimulatorCpp
 
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from irs_lqr.irs_lqr_quasistatic import (
@@ -31,7 +28,6 @@ dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 q_sim_py = q_dynamics.q_sim_py
 plant = q_sim_py.get_plant()
-q_sim_py.get_robot_name_to_model_instance_dict()
 idx_a_l = plant.GetModelInstanceByName(robot_l_name)
 idx_a_r = plant.GetModelInstanceByName(robot_r_name)
 idx_u = plant.GetModelInstanceByName(object_name)
@@ -55,12 +51,9 @@ q_a_traj_dict_str = {robot_l_name: q_robot_l_traj,
 
 q_u0 = np.array([0.0, 0.35, 0])
 
-q0_dict_str = {object_name: q_u0,
-               robot_l_name: qa_l_knots[0],
-               robot_r_name: qa_r_knots[0]}
-
-q0_dict = create_dict_keyed_by_model_instance_index(
-    q_sim_py.plant, q_dict_str=q0_dict_str)
+q0_dict = {idx_u: q_u0,
+               idx_a_l: qa_l_knots[0],
+               idx_a_r: qa_r_knots[0]}
 
 
 #%% try running the dynamics.
@@ -76,11 +69,11 @@ for i in range(T):
     q_cmd_dict = {idx_a_l: q_robot_l_traj.value(t + h).ravel(),
                   idx_a_r: q_robot_r_traj.value(t + h).ravel()}
     u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
-    x_next = q_dynamics.dynamics_py(x, u, mode='qp_mp', requires_grad=True)
+    x_next = q_dynamics.dynamics_py(x, u, mode='qp_mp', gradient_mode=GradientMode.kBOnly)
     Dq_nextDq = q_dynamics.q_sim_py.get_Dq_nextDq()
     Dq_nextDqa_cmd = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
 
-    q_dynamics.dynamics(x, u, requires_grad=True)
+    q_dynamics.dynamics(x, u, gradient_mode=GradientMode.kBOnly)
     Dq_nextDq_cpp = q_dynamics.q_sim.get_Dq_nextDq()
     Dq_nextDqa_cmd_cpp = q_dynamics.q_sim.get_Dq_nextDqa_cmd()
 
