@@ -1,9 +1,11 @@
-from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from planning_through_contact.examples.planar_hand.planar_hand_setup import *
+# from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
+# from planning_through_contact.examples.planar_hand.planar_hand_setup import *
 from rrt.utils import load_rrt
+import networkx as nx
 
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 def setup_relu(relu_layer_width: tuple,
@@ -79,31 +81,31 @@ def train_approximator(dataset,
             optimizer.zero_grad()
 
             output_samples = model(input_samples)
-            batch_loss = loss(output_samples, target)
+            batch_loss = loss(output_samples, target.view(target.shape[0],1))
             batch_loss.backward()
             optimizer.step()
 
             running_loss += batch_loss.item()
         test_input_samples, test_target = test_set[:]
         test_output_samples = model(test_input_samples)
-        test_loss = loss(test_output_samples, test_target)
+        test_loss = loss(test_output_samples, test_target.view(test_target.shape[0],1))
 
-        if verbose:
+        if verbose and epoch%100==0:
             print(f"epoch {epoch} training loss " +
                   f"{running_loss/len(train_loader)}," +
                   f" test loss {test_loss}")
 
-q_dynamics = QuasistaticDynamics(h=h,
-                                 quasistatic_model_path=quasistatic_model_path,
-                                 internal_viz=True)
-q_sim_py = q_dynamics.q_sim_py
+# q_dynamics = QuasistaticDynamics(h=h,
+#                                  quasistatic_model_path=quasistatic_model_path,
+#                                  internal_viz=True)
+# q_sim_py = q_dynamics.q_sim_py
 
-plant = q_sim_py.get_plant()
-q_sim_py.get_robot_name_to_model_instance_dict()
-model_a_l = plant.GetModelInstanceByName(robot_l_name)
-model_a_r = plant.GetModelInstanceByName(robot_r_name)
-model_u = plant.GetModelInstanceByName(object_name)
-rrt = load_rrt("rrt.pkl")
+# plant = q_sim_py.get_plant()
+# q_sim_py.get_robot_name_to_model_instance_dict()
+model_a_l = 2 #plant.GetModelInstanceByName(robot_l_name)
+model_a_r = 3 #plant.GetModelInstanceByName(robot_r_name)
+model_u = 4 #plant.GetModelInstanceByName(object_name)
+rrt = load_rrt("rrt_explore_random.pkl")
 
 x = []
 y = []
@@ -115,12 +117,18 @@ for node in list(rrt.nodes):
     x.append(xdata)
     y.append(node.value)
 
-dataset = torch.utils.data.TensorDataset(torch.tensor(np.array(x)), torch.tensor(np.array(y)))
+# Plot Directed Graph colored by values
+y = np.array(y)
+plt.subplot(111)
+nx.draw_networkx(rrt, node_color=y, with_labels=False)
+plt.show()
 
-model = setup_relu((7, 12, 12, 1),
+dataset = torch.utils.data.TensorDataset(torch.tensor(np.array(x)), torch.tensor(y))
+
+model = setup_relu((7, 32, 64, 128, 64, 32, 1),
                     params=None,
                     negative_slope=0.1,
                     bias=True,
                     dtype=torch.float64)
 
-train_approximator(dataset, model, batch_size=50, num_epochs=200, lr=0.001)
+train_approximator(dataset, model, batch_size=50, num_epochs=5000, lr=0.003)
