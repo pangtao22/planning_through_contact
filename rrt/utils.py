@@ -1,6 +1,5 @@
 import numpy as np
 import meshcat
-import tqdm
 import pickle
 
 
@@ -32,27 +31,6 @@ def sample_on_sphere(radius: float, n_samples: int):
     xyz_samples[:, 2] = radius * np.cos(phi)
 
     return xyz_samples
-
-
-def reachable_sets(x0, u0, q_dynamics, model_u, model_a_l, model_a_r,
-                n_samples=2000, radius=0.2):
-    du = np.random.rand(n_samples, 4) * radius * 2 - radius
-    qu_samples = np.zeros((n_samples, 3))
-    qa_l_samples = np.zeros((n_samples, 2))
-    qa_r_samples = np.zeros((n_samples, 2))
-
-    def save_x(x: np.ndarray):
-        q_dict = q_dynamics.get_q_dict_from_x(x)
-        qu_samples[i] = q_dict[model_u]
-        qa_l_samples[i] = q_dict[model_a_l]
-        qa_r_samples[i] = q_dict[model_a_r]
-
-    for i in tqdm.tqdm(range(n_samples)):
-        u = u0 + du[i]
-        x_1 = q_dynamics.dynamics(x0, u, requires_grad=False)
-        save_x(x_1)
-
-    return qu_samples
 
 
 def pca_gaussian(qu_samples, scale_rad=np.pi, r=0.5):

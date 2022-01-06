@@ -7,7 +7,8 @@ import pydrake.solvers.mathematicalprogram as mp
 from qsim.simulator import QuasistaticSimulator
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from networkx import DiGraph
-from rrt.utils import reachable_sets, pca_gaussian
+from rrt.utils import pca_gaussian
+import tqdm
 
 import meshcat
 import meshcat.geometry as g
@@ -55,6 +56,26 @@ class ConfigurationSpace:
         self.r_a = 0.05
         self.right_base_pos = 0.1
         self.left_base_pos = -0.1
+
+    def reachable_sets(self, x0, u0, q_dynamics,
+                       n_samples=2000, radius=0.2):
+        du = np.random.rand(n_samples, 4) * radius * 2 - radius
+        qu_samples = np.zeros((n_samples, 3))
+        qa_l_samples = np.zeros((n_samples, 2))
+        qa_r_samples = np.zeros((n_samples, 2))
+
+        def save_x(x: np.ndarray):
+            q_dict = q_dynamics.get_q_dict_from_x(x)
+            qu_samples[i] = q_dict[self.model_u]
+            qa_l_samples[i] = q_dict[self.model_a_l]
+            qa_r_samples[i] = q_dict[self.model_a_r]
+
+        for i in tqdm.tqdm(range(n_samples)):
+            u = u0 + du[i]
+            x_1 = q_dynamics.dynamics(x0, u)
+            save_x(x_1)
+
+        return qu_samples
 
     def sample_enveloping_grasp(self, q_u: np.ndarray):
         """
@@ -312,12 +333,11 @@ class TreeNode:
         if calc_reachable:
             x0 = q_dynamics.get_x_from_q_dict(q)
             u0 = q_dynamics.get_u_from_q_cmd_dict(q)
-            qu_samples = reachable_sets(x0, u0, q_dynamics, cspace.model_u,
-                                        cspace.model_a_l, cspace.model_a_r)
+            qu_samples = cspace.reachable_sets(x0, u0, q_dynamics)
             # Check if hands are in contact with the ball
             if not np.isclose(qu_samples, qu_samples[0]).all(): 
                 # Check if ball is within the configuration limit
-                if (qu >= limits[:,0]).all() and (qu <= limits[:,1]).all():
+                if (qu >= limits[:, 0]).all() and (qu <= limits[:, 1]).all():
                     self.in_contact = True
             qu_mean, sigma, cov, Vh = pca_gaussian(qu_samples, r=0.35)
             # Handle covariance singularity/numerical instability
@@ -382,6 +402,7 @@ class RRT(DiGraph):
     def __init__(self, root: TreeNode, cspace: ConfigurationSpace, q_dynamics: QuasistaticDynamics):
         DiGraph.__init__(self)
         self.root = root  # root TreeNode
+        self.add_nodes_from([root])
         self.cspace = cspace  # robot.ConfigurationSpace
         # self.size = 1  # int length of path
         self.max_recursion = 1000  # int length of longest possible path
@@ -522,7 +543,7 @@ class RRT(DiGraph):
         ))
 
         # RRT tree traversal
-        def recur(node, depth=0):
+        for node in list(self.nodes):
             node_p = node.q[model_u].reshape((3, 1))
             i = 0
             for child in node.children:
@@ -586,9 +607,6 @@ class RRT(DiGraph):
                     vis["ellipsoid/{}".format(index)].set_transform(
                         tf.translation_matrix(child.mean).dot(R))
                 i += 1
-                recur(child, depth + 1)
-
-        recur(self.root)
 
     def visualize(self, model_u):
         pio.renderers.default = "browser"  # see plotly charts in pycharm.
@@ -600,7 +618,7 @@ class RRT(DiGraph):
                                                              sizemode='diameter')))
 
         # RRT tree traversal
-        def recur(node, depth=0):
+        for node in list(self.nodes):
             node_p = node.q[model_u].reshape((3, 1))
             for child in node.children:
                 child_p = child.q[model_u].reshape((3, 1))
@@ -638,9 +656,6 @@ class RRT(DiGraph):
                                            dash="dash",
                                            width=2
                                            )))
-                recur(child, depth + 1)
-
-        recur(self.root)
 
         fig = go.Figure(data=data)
         fig.show()
