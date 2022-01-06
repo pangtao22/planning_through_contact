@@ -3,12 +3,6 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pydrake.all import PiecewisePolynomial, ModelInstanceIndex
-
-from qsim.simulator import QuasistaticSimulator, QuasistaticSimParameters
-from qsim.system import cpp_params_from_py_params
-from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
-
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from irs_lqr.irs_lqr_quasistatic import IrsLqrQuasistatic
 from irs_lqr.irs_lqr_params import IrsLqrQuasistaticParameters
@@ -78,7 +72,7 @@ cspace = ConfigurationSpace(model_u=model_u, model_a_l=model_a_l,
                             model_a_r=model_a_r,
                             q_sim=q_sim_py)
 rrt = RRT(
-    root=TreeNode(q0_dict, parent=None, q_dynamics=q_dynamics, cspace=cspace),
+    root=TreeNode(q0_dict, q_dynamics=q_dynamics, cspace=cspace),
     cspace=cspace, q_dynamics=q_dynamics)
 
 current_node = rrt.root
@@ -109,23 +103,23 @@ while True:
         irs_lqr_q.iterate(num_iters)
 
         q_reached = q_dynamics.get_q_dict_from_x(irs_lqr_q.x_trj_best[-1])
-        new_node = rrt.add_node(current_node, q_reached, irs_lqr_q.cost_best,
+        new_node = rrt.add_tree_node(current_node, q_reached, irs_lqr_q.cost_best,
                                 q_goal, irs_lqr_q.x_trj_best)
         q_dynamics.publish_trajectory(irs_lqr_q.x_trj_best)
         rrt.rewire(new_node, irs_lqr_q, T, num_iters, k=5)
 
         if cspace.close_to_joint_limits(q_reached) or not new_node.in_contact:
             q_regrasp, cost, x_trj = cspace.regrasp(q_reached, q_dynamics)
-            rrt.add_node(new_node, q_regrasp, cost, q_regrasp, x_trj)
+            rrt.add_tree_node(new_node, q_regrasp, cost, q_regrasp, x_trj)
 
-        print("Tree size: ", rrt.size())
+        print("Tree size: ", rrt.size)
 
-        if rrt.size() == 50:
+        if rrt.size == 50:
             rrt.visualize_meshcat()
 
-    current_node = rrt.sample_node(mode="random")
+    current_node = rrt.sample_node(mode="explore")
 
-    if rrt.size() > 1500:
+    if rrt.size > 1500:
         break
 
 rrt.visualize_meshcat(groupby="object")
@@ -153,11 +147,11 @@ cost = irs_lqr_q.cost_best
 
 # Backtrack node parent to obtain the trajectory
 while True:
-    parent_node = last_node.parent
+    parent_node = list(rrt.predecessors(last_node))[0]
     planned_traj.append(last_node.x_waypoints)
     last_node = parent_node
 
-    if last_node.parent is None:
+    if len(list(rrt.predecessors(last_node))) == 0:
         break
 
 # Visualize entire trajectory

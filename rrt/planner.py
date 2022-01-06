@@ -321,10 +321,9 @@ class ConfigurationSpace:
 
 
 class TreeNode:
-    def __init__(self, q, parent, q_dynamics, cspace, index=1, value=0,
+    def __init__(self, q, q_dynamics, cspace, index=1, value=0,
                  q_goal=None, x_waypoints=None, calc_reachable=True):
         self.q = q
-        self.parent = parent
         self.children = []
         self.index = index
         limits = cspace.joint_limits[cspace.model_u]
@@ -402,21 +401,20 @@ class RRT(DiGraph):
     def __init__(self, root: TreeNode, cspace: ConfigurationSpace, q_dynamics: QuasistaticDynamics):
         DiGraph.__init__(self)
         self.root = root  # root TreeNode
-        self.add_nodes_from([root])
+        self.add_node(root)
         self.cspace = cspace  # robot.ConfigurationSpace
-        # self.size = 1  # int length of path
+        self.size = 1  # int length of path
         self.max_recursion = 1000  # int length of longest possible path
         self.q_dynamics = q_dynamics
 
-    def add_node(self, parent_node: TreeNode,
+    def add_tree_node(self, parent_node: TreeNode,
                  q: Dict[ModelInstanceIndex, np.ndarray],
                  cost, q_goal: Dict[ModelInstanceIndex, np.ndarray], x_waypoints):
-        # self.size += 1
-        child_node = TreeNode(q, parent_node, self.q_dynamics, self.cspace,
-                              self.size(), cost + parent_node.value, q_goal,
+        self.size += 1
+        child_node = TreeNode(q, self.q_dynamics, self.cspace,
+                              self.size, cost + parent_node.value, q_goal,
                               x_waypoints)
-        parent_node.children.append(child_node)
-        self.add_nodes_from([child_node])
+        self.add_node(child_node)
         self.add_edge(parent_node, child_node)
         return child_node
 
@@ -449,7 +447,7 @@ class RRT(DiGraph):
             return node_list[ind]
         elif mode == "new":
             while True:
-                prob = np.tanh((np.arange(self.size()) + 1) / self.size() * 2)
+                prob = np.tanh((np.arange(self.size) + 1) / self.size * 2)
                 prob /= np.sum(prob)
                 ind = np.argmax(np.random.multinomial(1, prob))
                 if list(self.nodes)[ind].in_contact:
@@ -471,17 +469,16 @@ class RRT(DiGraph):
         return qu
 
     def rewire(self, qi, irs_lqr_q, T, num_iters, k=5):
-        if k > self.size():
-            k = self.size()
+        if k > self.size:
+            k = self.size
         p_list = self.calc_near_nodes_prob(qi.q[self.cspace.model_u])
 
         ind = np.argpartition(p_list, -k)[-k:]
 
-        parent_node = qi.parent
+        parent_node = list(self.predecessors(qi))[0]
         value = qi.value
         x_waypoints = qi.x_waypoints
         # Disconnect the wire from the original parent
-        parent_node.children.remove(qi)
         self.remove_edge(parent_node, qi)
 
         xd = self.q_dynamics.get_x_from_q_dict(qi.q)
@@ -503,7 +500,6 @@ class RRT(DiGraph):
 
         parent_node.children.append(qi)
         self.add_edge(parent_node, qi)        
-        qi.parent = parent_node
         qi.value = value
         qi.x_waypoints = x_waypoints
 
