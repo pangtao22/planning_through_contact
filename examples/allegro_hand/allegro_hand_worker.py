@@ -6,7 +6,7 @@ from zmq_parallel_cmp.array_io import *
 
 # TODO: make workers system-agnostic. Maybe passsing in a yml file describing
 #  the sytem from the command line?
-from planar_hand_setup import *
+from allegro_hand_setup import *
 
 
 def f_worker(lock: multiprocessing.Lock):

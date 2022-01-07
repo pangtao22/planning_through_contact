@@ -26,10 +26,9 @@ class QuasistaticDynamics(DynamicalSystem):
         self.models_all = self.q_sim.get_all_models()
         self.models_actuated = self.q_sim.get_actuated_models()
         self.models_unactuated = self.q_sim.get_unactuated_models()
-        # TODO: distinguish between position indices and velocity indices for
-        #  3D systems.
-        self.position_indices = self.q_sim.get_velocity_indices()
-        self.velocity_indices = self.position_indices
+
+        self.position_indices = self.q_sim.get_position_indices()
+        self.velocity_indices = self.q_sim.get_velocity_indices()
 
         # make sure that q_sim_py and q_sim have the same underlying plant.
         self.check_plants(
@@ -107,7 +106,7 @@ class QuasistaticDynamics(DynamicalSystem):
     def get_Q_from_Q_dict(self,
                           Q_dict: Dict[ModelInstanceIndex, np.ndarray]):
         Q = np.eye(self.dim_x)
-        for model, idx in self.velocity_indices.items():
+        for model, idx in self.position_indices.items():
             Q[idx, idx] = Q_dict[model]
         return Q
 

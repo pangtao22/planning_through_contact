@@ -14,7 +14,7 @@ from dash_app_common import (add_goal_meshcat, hover_template_reachability,
 from irs_lqr.irs_lqr_quasistatic import (IrsLqrQuasistatic)
 from irs_lqr.irs_lqr_params import IrsLqrQuasistaticParameters
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from planar_hand_setup import (h, quasistatic_model_path,
+from planar_hand_setup import (h, q_model_path,
                                decouple_AB, use_workers, gradient_mode,
                                task_stride, num_samples,
                                robot_l_name, robot_r_name, object_name)
@@ -24,7 +24,7 @@ from rrt.utils import set_orthographic_camera_yz, sample_on_sphere
 
 #%% quasistatic dynamics
 q_dynamics = QuasistaticDynamics(h=h,
-                                 quasistatic_model_path=quasistatic_model_path,
+                                 quasistatic_model_path=q_model_path,
                                  internal_viz=True)
 plant = q_dynamics.plant
 q_sim_py = q_dynamics.q_sim_py

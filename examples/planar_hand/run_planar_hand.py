@@ -22,7 +22,7 @@ duration = T * h
 
 # quasistatic dynamical system
 q_dynamics = QuasistaticDynamics(h=h,
-                                 quasistatic_model_path=quasistatic_model_path,
+                                 quasistatic_model_path=q_model_path,
                                  internal_viz=True)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
@@ -52,8 +52,8 @@ q_a_traj_dict_str = {robot_l_name: q_robot_l_traj,
 q_u0 = np.array([0.0, 0.35, 0])
 
 q0_dict = {idx_u: q_u0,
-               idx_a_l: qa_l_knots[0],
-               idx_a_r: qa_r_knots[0]}
+           idx_a_l: qa_l_knots[0],
+           idx_a_r: qa_r_knots[0]}
 
 
 #%% try running the dynamics.
@@ -106,12 +106,7 @@ params.T = T
 params.u_bounds_abs = np.array([
     -np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
 
-
-def sampling(u_initial, iter):
-    return u_initial / (iter ** 0.8)
-
-
-params.sampling = sampling
+params.sampling = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
 
 params.decouple_AB = decouple_AB

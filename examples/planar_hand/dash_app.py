@@ -12,7 +12,7 @@ import pandas as pd
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 
-from planar_hand_setup import (quasistatic_model_path, h,
+from planar_hand_setup import (q_model_path, h,
                                robot_l_name, robot_r_name, object_name)
 
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
@@ -24,7 +24,7 @@ from dash_app_common import (add_goal_meshcat, hover_template_reachability,
 
 # %% quasistatic dynamics
 q_dynamics = QuasistaticDynamics(h=h,
-                                 quasistatic_model_path=quasistatic_model_path,
+                                 quasistatic_model_path=q_model_path,
                                  internal_viz=True)
 
 plant = q_dynamics.plant
