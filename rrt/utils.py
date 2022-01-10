@@ -41,8 +41,9 @@ def pca_gaussian(qu_samples, scale_rad=np.pi, r=0.5):
     qu_samples[:, 2] /= scale_rad
     qu_mean = qu_samples.mean(axis=0)
     _, sigma, Vh = np.linalg.svd(qu_samples - qu_mean)
-    scale = r/sigma[0]
+    # scale = r/sigma[0]
     # Uniform scaling
+    scale = 0.36
     sigma *= scale
     cov = Vh.T@np.diag(sigma**2)@Vh
     return qu_mean, sigma, cov, Vh
@@ -62,7 +63,7 @@ def save_rrt(rrt):
     rrt.cspace = None
     rrt.q_dynamics = None
 
-    with open("rrt_explore_random.pkl", "wb") as file:
+    with open("rrt_explore_explore.pkl", "wb") as file:
         pickle.dump(rrt, file, pickle.HIGHEST_PROTOCOL)
 
 

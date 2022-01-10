@@ -21,7 +21,7 @@ q_dynamics = QuasistaticDynamics(h=h,
 q_sim_py = q_dynamics.q_sim_py
 
 plant = q_sim_py.get_plant()
-q_sim_py.get_robot_name_to_model_instance_dict()
+# q_sim_py.get_robot_name_to_model_instance_dict()
 model_a_l = plant.GetModelInstanceByName(robot_l_name)
 model_a_r = plant.GetModelInstanceByName(robot_r_name)
 model_u = plant.GetModelInstanceByName(object_name)
@@ -82,7 +82,7 @@ add_goal_meshcat(vis)
 
 while True:
     q_goal_candidates = cspace.sample_reachable_near(current_node, rrt,
-                                           method="explore", n=2)
+                                           method="explore", n=2, scale_rad=2)
 
     for q_goal in q_goal_candidates:
         # Set goal visualization
@@ -111,6 +111,7 @@ while True:
         if cspace.close_to_joint_limits(q_reached) or not new_node.in_contact:
             q_regrasp, cost, x_trj = cspace.regrasp(q_reached, q_dynamics)
             rrt.add_tree_node(new_node, q_regrasp, cost, q_regrasp, x_trj)
+            cspace.visualize_grasp(q_regrasp)
 
         print("Tree size: ", rrt.size)
 
@@ -130,7 +131,7 @@ u_limit = cspace.joint_limits[cspace.model_u]
 qu_goal = np.random.rand(3) * (u_limit[:, 1] - u_limit[:, 0]) + u_limit[:, 0]
 q_goal = cspace.sample_enveloping_grasp(qu_goal)
 
-node_g = TreeNode(q_goal, parent=None, calc_reachable=False,
+node_g = TreeNode(q_goal, calc_reachable=False,
                   q_dynamics=q_dynamics, cspace=cspace)
 last_node = rrt.get_nearest_node(node_g.q[model_u])
 
