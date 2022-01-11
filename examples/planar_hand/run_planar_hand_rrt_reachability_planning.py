@@ -115,12 +115,9 @@ while True:
 
         print("Tree size: ", rrt.size)
 
-        if rrt.size == 50:
-            rrt.visualize_meshcat()
-
     current_node = rrt.sample_node(mode="explore")
 
-    if rrt.size > 1500:
+    if rrt.size > 800:
         break
 
 rrt.visualize_meshcat(groupby="object")
@@ -180,4 +177,4 @@ irs_lqr_q.solve(rrt.root.q, q_goal, irs_lqr_q.T,
 q_dynamics.publish_trajectory(irs_lqr_q.x_trj_best)
 print("Smoothed cost:", irs_lqr_q.cost_best)
 
-save_rrt(rrt)
+save_rrt(rrt, "rrt_explore_explore_800_rewire.pkl")

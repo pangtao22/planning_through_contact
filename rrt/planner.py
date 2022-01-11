@@ -1,3 +1,4 @@
+import copy
 from typing import Dict
 import numpy as np
 
@@ -50,7 +51,7 @@ class ConfigurationSpace:
         }
         # angle limit of antipodal grasp from horizontal
         self.grasp_angle_limit = np.array([-np.pi / 4, np.pi / 4])
-        self.epsilon_joint_limit = 0.1
+        self.epsilon_joint_limit = 0.2
         # planar hand parameters
         self.r_u = 0.25
         self.r_a = 0.05
@@ -348,7 +349,6 @@ class TreeNode:
                  x_waypoints=None,
                  calc_reachable=True):
         self.q = q
-        self.children = []
         self.index = index
         limits = cspace.joint_limits[cspace.model_u]
         qu = q[cspace.model_u]
@@ -502,7 +502,9 @@ class RRT(DiGraph):
             k = self.size
         p_list = self.calc_near_nodes_prob(qi.q[self.cspace.model_u])
 
-        ind = np.argpartition(p_list, -k)[-k:]
+        ind = list(np.argpartition(p_list, -k)[-k:])
+        # Remove the node itself from the parent candidate list
+        ind.remove(qi.index-1)
 
         parent_node = list(self.predecessors(qi))[0]
         value = qi.value
@@ -527,16 +529,17 @@ class RRT(DiGraph):
                 x_waypoints = irs_lqr_q.x_trj_best
                 parent_node = node
 
-        parent_node.children.append(qi)
         self.add_edge(parent_node, qi)
         qi.value = value
         qi.x_waypoints = x_waypoints
 
-    def calc_near_nodes_prob(self, xi):
+    def calc_near_nodes_prob(self, xi, scale_rad=2):
         p_list = []
 
         for node in list(self.nodes):
-            p_list.append(node.gaussian_pdf(xi))
+            x = copy.deepcopy(xi)
+            x[-1] = x[-1]/scale_rad
+            p_list.append(node.gaussian_pdf(x))
 
         return np.array(p_list)
 
@@ -570,7 +573,7 @@ class RRT(DiGraph):
         for node in list(self.nodes):
             node_p = node.q[model_u].reshape((3, 1))
             i = 0
-            for child in node.children:
+            for child in list(self.successors(node)):
                 index = child.index
                 child_p = child.q[model_u].reshape((3, 1))
                 goal = child.q_goal[model_u].reshape((3, 1))
@@ -651,7 +654,7 @@ class RRT(DiGraph):
         # RRT tree traversal
         for node in list(self.nodes):
             node_p = node.q[model_u].reshape((3, 1))
-            for child in node.children:
+            for child in list(self.successors(node)):
                 child_p = child.q[model_u].reshape((3, 1))
                 goal = child.q_goal[model_u].reshape((3, 1))
                 # Tree Node

@@ -49,7 +49,7 @@ def pca_gaussian(qu_samples, scale_rad=np.pi, r=0.5):
     return qu_mean, sigma, cov, Vh
 
 
-def save_rrt(rrt):
+def save_rrt(rrt, rrt_file):
     model_u, model_a_l, model_a_r = rrt.cspace.model_u, rrt.cspace.model_a_l, rrt.cspace.model_a_r
 
     for node in list(rrt.nodes):
@@ -65,7 +65,7 @@ def save_rrt(rrt):
     rrt.cspace = None
     rrt.q_dynamics = None
 
-    with open("rrt_explore_explore.pkl", "wb") as file:
+    with open(rrt_file, "wb") as file:
         pickle.dump(rrt, file, pickle.HIGHEST_PROTOCOL)
 
 
