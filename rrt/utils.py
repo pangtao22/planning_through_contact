@@ -54,11 +54,13 @@ def save_rrt(rrt):
 
     for node in list(rrt.nodes):
         q = {}
+        q_goal = {}
         for model in [model_u, model_a_l, model_a_r]:
             q[int(model)] = node.q[model]
+            q_goal[int(model)] = node.q_goal[model]
 
         node.q = q
-        node.q_goal = None
+        node.q_goal = q_goal
 
     rrt.cspace = None
     rrt.q_dynamics = None

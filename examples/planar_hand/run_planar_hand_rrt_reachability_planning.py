@@ -72,7 +72,7 @@ cspace = ConfigurationSpace(model_u=model_u, model_a_l=model_a_l,
                             model_a_r=model_a_r,
                             q_sim=q_sim_py)
 rrt = RRT(
-    root=TreeNode(q0_dict, q_dynamics=q_dynamics, cspace=cspace),
+    root=TreeNode(q0_dict, q_dynamics=q_dynamics, cspace=cspace, q_goal=q0_dict),
     cspace=cspace, q_dynamics=q_dynamics)
 
 current_node = rrt.root
