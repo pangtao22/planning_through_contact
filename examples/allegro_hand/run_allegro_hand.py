@@ -46,7 +46,13 @@ params = IrsLqrQuasistaticParameters()
 params.Q_dict = {
     idx_u: np.array([10, 10, 10, 10, 1, 1, 1]),
     idx_a: np.ones(dim_u) * 1e-3}
-params.Qd_dict = {model: Q_i * 100 for model, Q_i in params.Q_dict.items()}
+
+params.Qd_dict = {}
+for model in q_dynamics.models_actuated:
+    params.Qd_dict[model] = params.Q_dict[model]
+for model in q_dynamics.models_unactuated:
+    params.Qd_dict[model] = params.Q_dict[model] * 100
+
 params.R_dict = {idx_a: 10 * np.ones(dim_u)}
 params.T = T
 
@@ -54,7 +60,7 @@ params.u_bounds_abs = np.array([
     -np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
 
 params.sampling = lambda u_initial, i: u_initial / (i ** 0.8)
-params.std_u_initial = np.ones(dim_u) * 0.3
+params.std_u_initial = np.ones(dim_u) * 0.5
 
 params.decouple_AB = decouple_AB
 params.use_workers = use_workers

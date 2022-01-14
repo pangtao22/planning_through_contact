@@ -238,12 +238,18 @@ class QuasistaticDynamics(DynamicalSystem):
         # np.random.seed(2021)
         du = np.random.normal(0, std_u, size=[n_samples, self.dim_u])
         ABhat = np.zeros((self.dim_x, self.dim_x + self.dim_u))
+        is_sample_good = np.ones(n_samples, dtype=bool)
         for i in range(n_samples):
-            self.dynamics(x_nominal, u_nominal + du[i], gradient_mode=GradientMode.kBOnly)
-            ABhat[:, :self.dim_x] += self.q_sim.get_Dq_nextDq()
-            ABhat[:, self.dim_x:] += self.q_sim.get_Dq_nextDqa_cmd()
+            try:
+                self.dynamics(x_nominal, u_nominal + du[i],
+                              gradient_mode=GradientMode.kBOnly)
+                ABhat[:, :self.dim_x] += self.q_sim.get_Dq_nextDq()
+                ABhat[:, self.dim_x:] += self.q_sim.get_Dq_nextDqa_cmd()
+            except RuntimeError as err:
+                is_sample_good[i] = False
+                print(i, err)
 
-        ABhat /= n_samples
+        ABhat /= is_sample_good.sum()
         return ABhat
 
     # TODO: rename this to calc_AB?

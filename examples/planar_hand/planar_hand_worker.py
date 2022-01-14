@@ -56,7 +56,7 @@ if __name__ == "__main__":
     p_list = []
     try:
         lock = multiprocessing.Lock()
-        for _ in range(num_workers):
+        for _ in range(multiprocessing.cpu_count()):
             p = multiprocessing.Process(target=f_worker, args=(lock,))
             p_list.append(p)
             p.start()
