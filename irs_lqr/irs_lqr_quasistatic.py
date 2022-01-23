@@ -229,6 +229,7 @@ class IrsLqrQuasistatic:
 
         # send tasks.
         # TODO: make the stride a parameter of the class.
+        t0 = time.time()
         stride = self.task_stride
         n_tasks_sent = 0
         for t in range(0, T, stride):
@@ -248,6 +249,8 @@ class IrsLqrQuasistatic:
             ABhat, t_list, _, _ = recv_array(self.receiver)
             At[t_list] = ABhat[:, :, :self.dim_x]
             Bt[t_list] = ABhat[:, :, self.dim_x:]
+        t1 = time.time()
+        print(f"compute gradients took {t1 - t0} seconds.")
 
         if self.decouple_AB:
             At, Bt = self.decouple_AB_matrices(At, Bt)
@@ -279,7 +282,10 @@ class IrsLqrQuasistatic:
             u_trj (np.array, shape T x m) : nominal input trajectory
         """
         if self.use_workers:
+            t0 = time.time()
             At, Bt, ct = self.get_TV_matrices_batch(x_trj, u_trj)
+            t1 = time.time()
+            print(f"get_TV_matrices_batch took {t1 - t0} seconds.")
         else:
             At, Bt, ct = self.get_TV_matrices(x_trj, u_trj)
 
