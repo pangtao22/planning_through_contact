@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import time
 import matplotlib.pyplot as plt
 import numpy as np
@@ -72,7 +73,7 @@ irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
 
 
 #%%
-Q_WB_d = RollPitchYaw(0, 0, np.pi / 3).ToQuaternion()
+Q_WB_d = RollPitchYaw(0, 0, np.pi / 8).ToQuaternion()
 p_WB_d = q_u0[4:] + np.array([0, 0, 0], dtype=float)
 q_d_dict = {idx_u: np.hstack([Q_WB_d.wxyz(), p_WB_d]),
             idx_a: q_a0}
