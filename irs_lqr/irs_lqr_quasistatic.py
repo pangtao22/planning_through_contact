@@ -8,6 +8,7 @@ from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from irs_lqr.tv_lqr import solve_tvlqr, get_solver
 
 from zmq_parallel_cmp.array_io import *
+from .zmq_dynamics_worker import kTaskVentSocket, kTaskSinkSocket
 
 
 def update_q_start_and_goal(
@@ -75,11 +76,11 @@ class IrsLqrQuasistatic:
 
         # Socket to send messages on
         self.sender = context.socket(zmq.PUSH)
-        self.sender.bind("tcp://*:5557")
+        self.sender.bind(f"tcp://*:{kTaskVentSocket}")
 
         # Socket to receive messages on
         self.receiver = context.socket(zmq.PULL)
-        self.receiver.bind("tcp://*:5558")
+        self.receiver.bind(f"tcp://*:{kTaskSinkSocket}")
 
         print("Solve traj-opt only after the workers are ready!")
 
