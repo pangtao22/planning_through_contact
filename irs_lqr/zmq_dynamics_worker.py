@@ -37,20 +37,23 @@ def f_worker(q_model_path: str, h: float):
     # Process tasks forever
     i_tasks = 0
     while True:
-        x_u_nominal, t_list, n_samples, std = recv_array(receiver)
-        assert len(x_u_nominal.shape) == 2
-        x_nominals = x_u_nominal[:, :q_dynamics.dim_x]
-        u_nominals = x_u_nominal[:, q_dynamics.dim_x:]
+        x_and_u, data = recv_x_and_u(receiver)
+        t = data['t']
+        n_samples = data['n_samples']
+        std = data['std']
+        irs_lqr_gradient_mode = IrsLqrGradientMode(data['is_lqr_gradient_mode'])
 
-        ABhat = q_dynamics.calc_AB_batch(
-            x_nominals=x_nominals,
-            u_nominals=u_nominals,
+        assert len(x_and_u.shape) == 1
+
+        ABhat = q_dynamics.calc_AB(
+            x_nominals=x_and_u[None, :q_dynamics.dim_x],
+            u_nominals=x_and_u[None, q_dynamics.dim_x:],
             n_samples=n_samples,
             std_u=std,
-            mode=IrsLqrGradientMode.kFirst)
+            mode=irs_lqr_gradient_mode)
 
         # Send results to sink
-        send_array(sender, A=ABhat, t=t_list, n_samples=-1, std=[-1])
+        send_bundled_AB(sender, AB=ABhat, t=t)
 
         i_tasks += 1
         if i_tasks % 50 == 0:

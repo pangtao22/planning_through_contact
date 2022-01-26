@@ -33,8 +33,7 @@ class IrsLqrQuasistaticParameters:
 
         # Arguments related to various options.
         self.decouple_AB = True
-        self.use_workers = True
+        self.use_zmq_workers = True
         self.gradient_mode = IrsLqrGradientMode.kFirst
         self.solver_name = "gurobi"
-        self.task_stride = 1
         self.publish_every_iteration = False

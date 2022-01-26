@@ -20,6 +20,5 @@ decouple_AB = True
 
 # workers
 use_workers = True
-task_stride = 1
 num_iters = 10
 num_samples = 50

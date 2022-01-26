@@ -1,5 +1,8 @@
 from typing import Dict
 import time
+import os
+
+import spdlog
 
 from irs_lqr.irs_lqr_params import IrsLqrQuasistaticParameters
 from pydrake.all import ModelInstanceIndex
@@ -58,9 +61,8 @@ class IrsLqrQuasistatic:
         self.indices_u_into_x = q_dynamics.get_u_indices_into_x()
 
         self.decouple_AB = params.decouple_AB
-        self.use_workers = params.use_workers
+        self.use_workers = params.use_zmq_workers
         self.gradient_mode = params.gradient_mode
-        self.task_stride = params.task_stride
         self.publish_every_iteration = params.publish_every_iteration
 
         # sampling standard deviation.
@@ -71,18 +73,22 @@ class IrsLqrQuasistatic:
         # solver
         self.solver = get_solver(params.solver_name)
 
+        # logger
+        self.logger = spdlog.ConsoleLogger(str(os.getgid()))
+
         # parallelization.
-        context = zmq.Context()
+        if self.params.use_zmq_workers:
+            context = zmq.Context()
 
-        # Socket to send messages on
-        self.sender = context.socket(zmq.PUSH)
-        self.sender.bind(f"tcp://*:{kTaskVentSocket}")
+            # Socket to send messages on
+            self.sender = context.socket(zmq.PUSH)
+            self.sender.bind(f"tcp://*:{kTaskVentSocket}")
 
-        # Socket to receive messages on
-        self.receiver = context.socket(zmq.PULL)
-        self.receiver.bind(f"tcp://*:{kTaskSinkSocket}")
+            # Socket to receive messages on
+            self.receiver = context.socket(zmq.PULL)
+            self.receiver.bind(f"tcp://*:{kTaskSinkSocket}")
 
-        print("Solve traj-opt only after the workers are ready!")
+            self.logger.info("Solve traj-opt only after the workers are ready!")
 
     def initialize_problem(self, x0, x_trj_d, u_trj_0):
         # initial trajectory.
@@ -195,7 +201,7 @@ class IrsLqrQuasistatic:
         std_u = self.sampling(self.std_u_initial, self.current_iter)
 
         # Compute ABhat.
-        ABhat_list = self.q_dynamics.calc_AB_batch(
+        ABhat_list = self.q_dynamics.calc_AB(
             x_trj[:-1, :], u_trj, n_samples=self.num_samples, std_u=std_u,
             mode=self.gradient_mode
         )
@@ -229,29 +235,22 @@ class IrsLqrQuasistatic:
         std_u = self.sampling(self.std_u_initial, self.current_iter)
 
         # send tasks.
-        # TODO: make the stride a parameter of the class.
-        t0 = time.time()
-        stride = self.task_stride
-        n_tasks_sent = 0
-        for t in range(0, T, stride):
-            t1 = min(t + stride, T)
-            x_u = np.zeros((t1 - t, self.dim_x + self.dim_u))
-            x_u[:, :self.dim_x] = x_trj[t: t1]
-            x_u[:, self.dim_x:] = u_trj[t: t1]
-            # TODO: support 1-order and first-order computation of the gradient.
-            send_array(
-                self.sender, x_u,
-                t=np.arange(t, t1).tolist(),
-                n_samples=self.num_samples, std=std_u.tolist())
-            n_tasks_sent += 1
+        for t in range(T):
+            x_u = np.zeros(self.dim_x + self.dim_u)
+            x_u[:self.dim_x] = x_trj[t]
+            x_u[self.dim_x:] = u_trj[t]
+            send_x_and_u(
+                socket=self.sender,
+                x_u=x_u,
+                t=t,
+                n_samples=self.num_samples, std=std_u.tolist(),
+                irs_lqr_gradient_mode=self.params.gradient_mode)
 
         # receive tasks.
-        for _ in range(n_tasks_sent):
-            ABhat, t_list, _, _ = recv_array(self.receiver)
-            At[t_list] = ABhat[:, :, :self.dim_x]
-            Bt[t_list] = ABhat[:, :, self.dim_x:]
-        t1 = time.time()
-        print(f"compute gradients took {t1 - t0} seconds.")
+        for _ in range(T):
+            ABhat, t = recv_bundled_AB(self.receiver)
+            At[t] = ABhat[:, :, :self.dim_x]
+            Bt[t] = ABhat[:, :, self.dim_x:]
 
         if self.decouple_AB:
             At, Bt = self.decouple_AB_matrices(At, Bt)
@@ -283,10 +282,7 @@ class IrsLqrQuasistatic:
             u_trj (np.array, shape T x m) : nominal input trajectory
         """
         if self.use_workers:
-            t0 = time.time()
             At, Bt, ct = self.get_TV_matrices_batch(x_trj, u_trj)
-            t1 = time.time()
-            print(f"get_TV_matrices_batch took {t1 - t0} seconds.")
         else:
             At, Bt, ct = self.get_TV_matrices(x_trj, u_trj)
 

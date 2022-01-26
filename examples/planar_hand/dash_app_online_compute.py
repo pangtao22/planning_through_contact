@@ -52,7 +52,7 @@ params.sampling = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
 
 params.decouple_AB = decouple_AB
-params.use_workers = use_workers
+params.use_zmq_workers = use_workers
 params.gradient_mode = gradient_mode
 params.task_stride = task_stride
 params.num_samples = num_samples

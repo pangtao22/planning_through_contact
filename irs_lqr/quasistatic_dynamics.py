@@ -202,6 +202,7 @@ class QuasistaticDynamics(DynamicalSystem):
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)
 
+    # TODO: use batch simulator.
     def dynamics_batch(self, x, u):
         """
         Batch dynamics. Uses pytorch for
@@ -225,6 +226,39 @@ class QuasistaticDynamics(DynamicalSystem):
         AB[:, self.dim_x:] = self.q_sim.get_Dq_nextDqa_cmd()
 
         return AB
+
+    def calc_AB(
+            self, x_nominals: np.ndarray, u_nominals: np.ndarray,
+            n_samples: int, std_u: Union[np.ndarray, float],
+            mode: IrsLqrGradientMode):
+        """
+        x_nominals: (n, n_x) array, n states.
+        u_nominals: (n, n_u) array, n inputs.
+        mode: "first_order", "zero_order_B", "zero_order_AB", or "exact."
+        """
+        n = x_nominals.shape[0]
+        ABhat_list = np.zeros((n, self.dim_x, self.dim_x + self.dim_u))
+
+        if mode == IrsLqrGradientMode.kFirst:
+            for i in range(n):
+                ABhat_list[i] = self.calc_AB_first_order(
+                    x_nominals[i], u_nominals[i], n_samples, std_u)
+        elif mode == IrsLqrGradientMode.kZeroB:
+            for i in range(n):
+                ABhat_list[i] = self.calc_B_zero_order(
+                    x_nominals[i], u_nominals[i], n_samples, std_u)
+        elif mode == IrsLqrGradientMode.kZeroAb:
+            for i in range(n):
+                ABhat_list[i] = self.calc_AB_zero_order(
+                    x_nominals[i], u_nominals[i], n_samples, std_u)
+        elif mode == IrsLqrGradientMode.kExact:
+            for i in range(n):
+                ABhat_list[i] = self.calc_AB_exact(
+                    x_nominals[i], u_nominals[i])
+        else:
+            raise RuntimeError(f"AB mode {mode} is not supported.")
+
+        return ABhat_list
 
     def calc_AB_exact(self, x_nominal: np.ndarray, u_nominal: np.ndarray):
         return self.jacobian_xu(x_nominal, u_nominal)
@@ -251,40 +285,6 @@ class QuasistaticDynamics(DynamicalSystem):
 
         ABhat /= is_sample_good.sum()
         return ABhat
-
-    # TODO: rename this to calc_AB?
-    def calc_AB_batch(
-            self, x_nominals: np.ndarray, u_nominals: np.ndarray,
-            n_samples: int, std_u: Union[np.ndarray, float],
-            mode: IrsLqrGradientMode):
-        """
-        x_nominals: (n, n_x) array, n states.
-        u_nominals: (n, n_u) array, n inputs.
-        mode: "first_order", "zero_order_B", "zero_order_AB", or "exact."
-        """
-        n = x_nominals.shape[0]
-        ABhat_list = np.zeros((n, self.dim_x, self.dim_x + self.dim_u))
-
-        if mode == IrsLqrGradientMode.kFirst:
-            for i in range(n):
-                ABhat_list[i] = self.calc_AB_first_order(
-                    x_nominals[i], u_nominals[i], n_samples, std_u)
-        elif mode == IrsLqrGradientMode.kZeroB:
-            for i in range(n):
-                ABhat_list[i] = self.calc_B_zero_order(
-                    x_nominals[i], u_nominals[i], n_samples, std_u)
-        elif mode == IrsLqrGradientMode.kZeroAb:
-            for i in range(n):
-                ABhat_list[i] = self.calc_AB_zero_order(
-                    x_nominals[i], u_nominals[i], n_samples, std_u)                    
-        elif mode == IrsLqrGradientMode.kExact:
-            for i in range(n):
-                ABhat_list[i] = self.calc_AB_exact(
-                    x_nominals[i], u_nominals[i])
-        else:
-            raise RuntimeError(f"AB mode {mode} is not supported.")
-
-        return ABhat_list
 
     def calc_B_zero_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
                           n_samples: int, std_u: Union[np.ndarray, float]):
