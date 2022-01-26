@@ -186,7 +186,7 @@ class IrsLqrQuasistatic:
 
         return cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final, cost_R
 
-    def get_TV_matrices(self, x_trj, u_trj):
+    def get_bundled_AB_serial(self, x_trj, u_trj):
         """
         Get time varying linearized dynamics given a nominal trajectory.
         - args:
@@ -219,7 +219,7 @@ class IrsLqrQuasistatic:
 
         return At, Bt, ct
 
-    def get_TV_matrices_batch(self, x_trj, u_trj):
+    def get_bundled_AB_parallel(self, x_trj, u_trj):
         """
         Get time varying linearized dynamics given a nominal trajectory,
          using worker processes launched separately.
@@ -282,9 +282,9 @@ class IrsLqrQuasistatic:
             u_trj (np.array, shape T x m) : nominal input trajectory
         """
         if self.use_workers:
-            At, Bt, ct = self.get_TV_matrices_batch(x_trj, u_trj)
+            At, Bt, ct = self.get_bundled_AB_parallel(x_trj, u_trj)
         else:
-            At, Bt, ct = self.get_TV_matrices(x_trj, u_trj)
+            At, Bt, ct = self.get_bundled_AB_serial(x_trj, u_trj)
 
         x_trj_new = np.zeros(x_trj.shape)
         x_trj_new[0, :] = x_trj[0, :]
