@@ -1,6 +1,8 @@
 from typing import Dict, Set, Union
+import os
 
 import numpy as np
+import spdlog
 from pydrake.all import (ModelInstanceIndex, MultibodyPlant,
                          PiecewisePolynomial)
 from qsim.parser import QuasistaticParser, GradientMode
@@ -38,6 +40,14 @@ class QuasistaticDynamics(DynamicalSystem):
             models_all_b=self.q_sim_py.get_all_models(),
             velocity_indices_a=self.q_sim.get_velocity_indices(),
             velocity_indices_b=self.q_sim.get_velocity_indices())
+
+        # logger
+        self.logger_name = str(os.getpid())
+        try:
+            self.logger = spdlog.ConsoleLogger(self.logger_name)
+        except RuntimeError:
+            self.logger_name += 'd'
+            self.logger = spdlog.ConsoleLogger(self.logger_name)
 
     @staticmethod
     def check_plants(plant_a: MultibodyPlant, plant_b: MultibodyPlant,
@@ -281,7 +291,7 @@ class QuasistaticDynamics(DynamicalSystem):
                 ABhat[:, self.dim_x:] += self.q_sim.get_Dq_nextDqa_cmd()
             except RuntimeError as err:
                 is_sample_good[i] = False
-                print(i, err)
+                self.logger.warn(err.__str__())
 
         ABhat /= is_sample_good.sum()
         return ABhat
