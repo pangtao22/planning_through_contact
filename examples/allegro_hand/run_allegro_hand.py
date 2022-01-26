@@ -64,9 +64,9 @@ params.sampling = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.5
 
 params.decouple_AB = decouple_AB
-params.use_zmq_workers = use_workers
-params.gradient_mode = gradient_mode
 params.num_samples = num_samples
+params.gradient_mode = gradient_mode
+params.parallel_mode = parallel_mode
 
 irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
 

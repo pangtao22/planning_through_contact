@@ -1,6 +1,7 @@
 import os
 
-from irs_lqr.irs_lqr_params import IrsLqrGradientMode
+from irs_lqr.irs_lqr_params import (IrsLqrGradientMode,
+                                    IrsLqrParallelizationMode)
 from qsim.model_paths import models_dir
 
 
@@ -13,11 +14,11 @@ object_name = 'sphere'
 # environment
 h = 0.1
 
-# gradient
+# gradient computation
 gradient_mode = IrsLqrGradientMode.kFirst
+parallel_mode = IrsLqrParallelizationMode.kZmq
 decouple_AB = True
 
-# workers
-use_workers = True
+# IrsLqr
 num_iters = 10
 num_samples = 100

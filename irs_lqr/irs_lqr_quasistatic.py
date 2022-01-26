@@ -4,14 +4,15 @@ import os
 
 import spdlog
 
-from irs_lqr.irs_lqr_params import IrsLqrQuasistaticParameters
 from pydrake.all import ModelInstanceIndex
 
-from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from irs_lqr.tv_lqr import solve_tvlqr, get_solver
-
 from zmq_parallel_cmp.array_io import *
+
 from .zmq_dynamics_worker import kTaskVentSocket, kTaskSinkSocket
+from .irs_lqr_params import (IrsLqrQuasistaticParameters,
+                             IrsLqrParallelizationMode)
+from .quasistatic_dynamics import QuasistaticDynamics
+from .tv_lqr import solve_tvlqr, get_solver
 
 
 def update_q_start_and_goal(
@@ -61,7 +62,6 @@ class IrsLqrQuasistatic:
         self.indices_u_into_x = q_dynamics.get_u_indices_into_x()
 
         self.decouple_AB = params.decouple_AB
-        self.use_workers = params.use_zmq_workers
         self.gradient_mode = params.gradient_mode
         self.publish_every_iteration = params.publish_every_iteration
 
@@ -77,7 +77,13 @@ class IrsLqrQuasistatic:
         self.logger = spdlog.ConsoleLogger(str(os.getgid()))
 
         # parallelization.
-        if self.params.use_zmq_workers:
+        self.use_zmq_workers = (
+                self.params.parallel_mode ==
+                IrsLqrParallelizationMode.kZmq or
+                self.params.parallel_mode ==
+                IrsLqrParallelizationMode.kZmqDebug)
+
+        if self.use_zmq_workers:
             context = zmq.Context()
 
             # Socket to send messages on
@@ -186,40 +192,61 @@ class IrsLqrQuasistatic:
 
         return cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final, cost_R
 
-    def get_bundled_AB_serial(self, x_trj, u_trj):
+    def calc_bundled_ABc(self, x_trj, u_trj):
         """
         Get time varying linearized dynamics given a nominal trajectory.
         - args:
             x_trj (np.array, shape (T + 1) x n)
             u_trj (np.array, shape T x m)
         """
-        T = u_trj.shape[0]
-        assert self.T == T
-        At = np.zeros((T, self.dim_x, self.dim_x))
-        Bt = np.zeros((T, self.dim_x, self.dim_u))
-        ct = np.zeros((T, self.dim_x))
+        assert x_trj.shape[0] == self.T + 1
+        assert u_trj.shape[0] == self.T
         std_u = self.sampling(self.std_u_initial, self.current_iter)
 
-        # Compute ABhat.
-        ABhat_list = self.q_dynamics.calc_AB(
-            x_trj[:-1, :], u_trj, n_samples=self.num_samples, std_u=std_u,
-            mode=self.gradient_mode
-        )
+        # dispatch based on parallelization mode.
+        if self.params.parallel_mode == IrsLqrParallelizationMode.kNone:
+            At, Bt, ct = self.calc_bundled_AB_serial(x_trj, u_trj, std_u)
 
-        for t in range(T):
-            At[t] = ABhat_list[t, :, :self.dim_x]
-            Bt[t] = ABhat_list[t, :, self.dim_x:]
+        elif self.params.parallel_mode == IrsLqrParallelizationMode.kZmq:
+            At, Bt, ct = self.calc_bundled_AB_zmq(x_trj, u_trj, std_u)
 
+        elif self.params.parallel_mode == IrsLqrParallelizationMode.kZmqDebug:
+            raise NotImplementedError("zmq debug mode has not been "
+                                      "implemented.")
+
+        # Post processing.
         if self.decouple_AB:
             At, Bt = self.decouple_AB_matrices(At, Bt)
 
-        for t in range(T):
+        # compute ct
+        for t in range(self.T):
             x_next_nominal = self.q_dynamics.dynamics(x_trj[t], u_trj[t])
             ct[t] = x_next_nominal - At[t].dot(x_trj[t]) - Bt[t].dot(u_trj[t])
 
         return At, Bt, ct
 
-    def get_bundled_AB_parallel(self, x_trj, u_trj):
+    def initialize_ABc(self):
+        At = np.zeros((self.T, self.dim_x, self.dim_x))
+        Bt = np.zeros((self.T, self.dim_x, self.dim_u))
+        ct = np.zeros((self.T, self.dim_x))
+
+        return At, Bt, ct
+
+    def calc_bundled_AB_serial(self, x_trj, u_trj, std_u):
+        At, Bt, ct = self.initialize_ABc()
+
+        # Compute ABhat.
+        ABhat_list = self.q_dynamics.calc_AB(
+            x_trj[:-1, :], u_trj, n_samples=self.num_samples, std_u=std_u,
+            mode=self.gradient_mode)
+
+        for t in range(self.T):
+            At[t] = ABhat_list[t, :, :self.dim_x]
+            Bt[t] = ABhat_list[t, :, self.dim_x:]
+
+        return At, Bt, ct
+
+    def calc_bundled_AB_zmq(self, x_trj, u_trj, std_u):
         """
         Get time varying linearized dynamics given a nominal trajectory,
          using worker processes launched separately.
@@ -227,15 +254,10 @@ class IrsLqrQuasistatic:
             x_trj (np.array, shape (T + 1) x n)
             u_trj (np.array, shape T x m)
         """
-        T = u_trj.shape[0]
-        assert self.T == T
-        At = np.zeros((T, self.dim_x, self.dim_x))
-        Bt = np.zeros((T, self.dim_x, self.dim_u))
-        ct = np.zeros((T, self.dim_x))
-        std_u = self.sampling(self.std_u_initial, self.current_iter)
+        At, Bt, ct = self.initialize_ABc()
 
         # send tasks.
-        for t in range(T):
+        for t in range(self.T):
             x_u = np.zeros(self.dim_x + self.dim_u)
             x_u[:self.dim_x] = x_trj[t]
             x_u[self.dim_x:] = u_trj[t]
@@ -247,18 +269,10 @@ class IrsLqrQuasistatic:
                 irs_lqr_gradient_mode=self.params.gradient_mode)
 
         # receive tasks.
-        for _ in range(T):
+        for _ in range(self.T):
             ABhat, t = recv_bundled_AB(self.receiver)
             At[t] = ABhat[:, :, :self.dim_x]
             Bt[t] = ABhat[:, :, self.dim_x:]
-
-        if self.decouple_AB:
-            At, Bt = self.decouple_AB_matrices(At, Bt)
-
-        # compute ct
-        for t in range(T):
-            x_next_nominal = self.q_dynamics.dynamics(x_trj[t], u_trj[t])
-            ct[t] = x_next_nominal - At[t].dot(x_trj[t]) - Bt[t].dot(u_trj[t])
 
         return At, Bt, ct
 
@@ -281,10 +295,7 @@ class IrsLqrQuasistatic:
             x_trj (np.array, shape (T + 1) x n): nominal state trajectory.
             u_trj (np.array, shape T x m) : nominal input trajectory
         """
-        if self.use_workers:
-            At, Bt, ct = self.get_bundled_AB_parallel(x_trj, u_trj)
-        else:
-            At, Bt, ct = self.get_bundled_AB_serial(x_trj, u_trj)
+        At, Bt, ct = self.calc_bundled_ABc(x_trj, u_trj)
 
         x_trj_new = np.zeros(x_trj.shape)
         x_trj_new[0, :] = x_trj[0, :]
@@ -333,7 +344,8 @@ class IrsLqrQuasistatic:
                 xinit=None,
                 uinit=None)
             u_trj_new[t, :] = u_star[0]
-            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(x_trj_new[t], u_trj_new[t])
+            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(
+                x_trj_new[t], u_trj_new[t])
 
         return x_trj_new, u_trj_new
 

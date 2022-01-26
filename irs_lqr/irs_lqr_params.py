@@ -9,6 +9,27 @@ class IrsLqrGradientMode(enum.Enum):
     kZeroAb = enum.auto()
 
 
+class IrsLqrParallelizationMode(enum.Enum):
+    kNone = enum.auto()
+
+    kZmq = enum.auto()
+    # sends sampled du to the workers, instead of
+    # having the works do the sampling, so that the result is deterministic.
+    kZmqDebug = enum.auto()
+
+    # calls BatchQuasistaticSimulator::CalcBundledBTrj
+    kCppBundledB = enum.auto()
+
+    # calls BatchQuasistaticSimulator::CalcBundledBTrjDirect
+    kCppBundledBDirect = enum.auto()
+
+    # calls BatchQuasistaticSimulator::CalcDynamicsParallel, which is the
+    # backend of BatchQuasistaticSimulator::CalcBundledBTrj.
+    # This mode allows sampling in python and thus comparison between the
+    # ZMQ-based implementation.
+    kCppDebug = enum.auto()
+
+
 class IrsLqrQuasistaticParameters:
     def __init__(self):
         # Necessary arguments defining optimal control problem.
@@ -33,7 +54,7 @@ class IrsLqrQuasistaticParameters:
 
         # Arguments related to various options.
         self.decouple_AB = True
-        self.use_zmq_workers = True
-        self.gradient_mode = IrsLqrGradientMode.kFirst
         self.solver_name = "gurobi"
         self.publish_every_iteration = False
+        self.gradient_mode = IrsLqrGradientMode.kFirst
+        self.parallel_mode = IrsLqrParallelizationMode.kZmq
