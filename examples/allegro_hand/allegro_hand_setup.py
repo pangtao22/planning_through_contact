@@ -15,7 +15,7 @@ object_name = 'sphere'
 h = 0.1
 
 # gradient computation
-gradient_mode = BundleMode.kFirst
+bundle_mode = BundleMode.kFirst
 parallel_mode = ParallelizationMode.kZmq
 decouple_AB = True
 

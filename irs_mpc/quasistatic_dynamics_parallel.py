@@ -11,6 +11,7 @@ from pydrake.all import ModelInstanceIndex
 from zmq_parallel_cmp.array_io import (send_array, recv_array, send_x_and_u,
                                        recv_x_and_u, send_bundled_AB,
                                        recv_bundled_AB)
+from qsim_cpp import GradientMode
 
 from .zmq_dynamics_worker import kTaskVentSocket, kTaskSinkSocket
 from .irs_mpc_params import (BundleMode, ParallelizationMode)
@@ -33,7 +34,7 @@ class QuasistaticDynamicsParallel:
     """
     def __init__(self,
                  q_dynamics: QuasistaticDynamics,
-                 use_zmq_workers: bool = True):
+                 use_zmq_workers: bool = False):
         self.q_dynamics = q_dynamics
         self.q_sim_batch = q_dynamics.parser.make_batch_simulator()
         self.dim_x = q_dynamics.dim_x
@@ -54,7 +55,9 @@ class QuasistaticDynamicsParallel:
             self.receiver = context.socket(zmq.PULL)
             self.receiver.bind(f"tcp://*:{kTaskSinkSocket}")
 
-            self.logger.info("Solve traj-opt only after the workers are ready!")
+            self.logger.info(
+                "Using ZMQ workers. This will hang if worker processes are not "
+                "running")
 
     @staticmethod
     def get_logger():
@@ -66,19 +69,26 @@ class QuasistaticDynamicsParallel:
 
         return logger
 
-    def dynamics_batch_serial(self, x: np.ndarray, u: np.ndarray):
+    def dynamics_batch_serial(self, x_batch: np.ndarray, u_batch: np.ndarray):
         """
+        Computes x_next for every (x, u) pair in the input on a single thread.
+        **This function should only be used for debugging.**
         -args:
-            x (n, dim_x): batched state
-            u (n, dim_u): batched input
+            x_batch (n_batch, dim_x): batched state
+            u_batch (n_batch, dim_u): batched input
         -returns
-            x_next (n, dim_x): batched next state
+            x_next_batch (n_batch, dim_x): batched next state
         """
-        n_batch = x.shape[0]
-        x_next = np.zeros((n_batch, self.dim_x))
+        n_batch = x_batch.shape[0]
+        x_next_batch = np.zeros((n_batch, self.dim_x))
 
         for i in range(n_batch):
-            x_next[i] = self.q_dynamics.dynamics(x[i], u[i])
+            x_next_batch[i] = self.q_dynamics.dynamics(x_batch[i], u_batch[i])
+        return x_next_batch
+
+    def dynamics_batch(self, x_batch: np.ndarray, u_batch: np.ndarray):
+        x_next, _, _ = self.q_sim_batch.calc_dynamics_parallel(
+            x_batch, u_batch, self.q_dynamics.h, GradientMode.kNone)
         return x_next
 
     def calc_bundled_ABc(self, x_trj: np.ndarray, u_trj: np.ndarray,

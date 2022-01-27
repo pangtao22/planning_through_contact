@@ -65,7 +65,7 @@ params.std_u_initial = np.ones(dim_u) * 0.5
 
 params.decouple_AB = decouple_AB
 params.num_samples = num_samples
-params.bundle_mode = gradient_mode
+params.bundle_mode = bundle_mode
 params.parallel_mode = parallel_mode
 
 irs_lqr_q = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
