@@ -34,7 +34,7 @@ def f_worker_simple():
         t = data['t']
         n_samples = data['n_samples']
         std = data['std']
-        irs_lqr_gradient_mode = IrsLqrGradientMode(data['is_lqr_gradient_mode'])
+        irs_lqr_gradient_mode = BundleMode(data['is_lqr_gradient_mode'])
 
         # Pretending to do some work.
         time.sleep(n_samples / 1000)

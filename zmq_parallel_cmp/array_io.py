@@ -1,7 +1,7 @@
 from typing import List
 import numpy as np
 import zmq
-from irs_lqr.irs_lqr_params import IrsLqrGradientMode
+from irs_mpc.irs_mpc_params import BundleMode
 
 
 def send_array(socket, A, flags=0, copy=True, track=False):
@@ -21,9 +21,9 @@ def recv_array(socket, flags=0, copy=True, track=False):
 
 def send_x_and_u(socket: zmq.Socket, x_u: np.ndarray, t: int,
                  n_samples: int, std: List[float],
-                 irs_lqr_gradient_mode: IrsLqrGradientMode):
+                 bundle_mode: BundleMode):
     data = dict(t=t, n_samples=n_samples, std=std,
-                is_lqr_gradient_mode=irs_lqr_gradient_mode.value)
+                bundle_mode=bundle_mode.value)
     socket.send_json(data, zmq.SNDMORE)
     return send_array(socket, x_u)
 

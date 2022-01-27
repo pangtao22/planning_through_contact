@@ -1,7 +1,7 @@
 import enum
 
 
-class IrsLqrGradientMode(enum.Enum):
+class BundleMode(enum.Enum):
     # Supports "first_order", "exact", "zero_order_B", "zero_order_AB"
     kFirst = enum.auto()
     kExact = enum.auto()
@@ -9,7 +9,7 @@ class IrsLqrGradientMode(enum.Enum):
     kZeroAb = enum.auto()
 
 
-class IrsLqrParallelizationMode(enum.Enum):
+class ParallelizationMode(enum.Enum):
     kNone = enum.auto()
 
     kZmq = enum.auto()
@@ -30,7 +30,7 @@ class IrsLqrParallelizationMode(enum.Enum):
     kCppDebug = enum.auto()
 
 
-class IrsLqrQuasistaticParameters:
+class IrsMpcQuasistaticParameters:
     def __init__(self):
         # Necessary arguments defining optimal control problem.
         self.Q_dict = None
@@ -48,7 +48,8 @@ class IrsLqrQuasistaticParameters:
         self.u_bounds_rel = None
 
         # Necessary arguments related to sampling.
-        self.sampling = None
+        # calc_std_u is a function with two inputs (std_u_initial, iteration)
+        self.calc_std_u = None
         self.std_u_initial = None
         self.num_samples = 100
 
@@ -56,5 +57,5 @@ class IrsLqrQuasistaticParameters:
         self.decouple_AB = True
         self.solver_name = "gurobi"
         self.publish_every_iteration = False
-        self.gradient_mode = IrsLqrGradientMode.kFirst
-        self.parallel_mode = IrsLqrParallelizationMode.kZmq
+        self.bundle_mode = BundleMode.kFirst
+        self.parallel_mode = ParallelizationMode.kZmq

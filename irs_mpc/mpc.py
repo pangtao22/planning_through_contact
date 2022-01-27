@@ -27,10 +27,10 @@ def get_solver(solver_name: str):
     raise ValueError("Do not recognize solver.")
 
 
-def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None,
-                x_bound_abs=None, u_bound_abs=None,
-                x_bound_rel=None, u_bound_rel=None,
-                xinit=None, uinit=None):
+def solve_mpc(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None,
+              x_bound_abs=None, u_bound_abs=None,
+              x_bound_rel=None, u_bound_rel=None,
+              xinit=None, uinit=None):
     """
     Solve time-varying LQR problem as an instance of a quadratic program (QP).
     Uses Drake's OSQP solver by default. Can use other solvers that Drake

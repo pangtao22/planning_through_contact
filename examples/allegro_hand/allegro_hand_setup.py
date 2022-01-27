@@ -1,7 +1,7 @@
 import os
 
-from irs_lqr.irs_lqr_params import (IrsLqrGradientMode,
-                                    IrsLqrParallelizationMode)
+from irs_mpc.irs_mpc_params import (BundleMode,
+                                    ParallelizationMode)
 from qsim.model_paths import models_dir
 
 
@@ -15,8 +15,8 @@ object_name = 'sphere'
 h = 0.1
 
 # gradient computation
-gradient_mode = IrsLqrGradientMode.kFirst
-parallel_mode = IrsLqrParallelizationMode.kZmq
+gradient_mode = BundleMode.kFirst
+parallel_mode = ParallelizationMode.kZmq
 decouple_AB = True
 
 # IrsLqr

@@ -8,10 +8,10 @@ from pydrake.all import PiecewisePolynomial
 from qsim.simulator import QuasistaticSimulator, GradientMode
 from qsim_cpp import QuasistaticSimulatorCpp
 
-from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from irs_lqr.irs_lqr_quasistatic import (
-    IrsLqrQuasistatic)
-from irs_lqr.irs_lqr_params import IrsLqrQuasistaticParameters
+from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from irs_mpc.irs_mpc_quasistatic import (
+    IrsMpcQuasistatic)
+from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from planar_hand_setup import *
 
@@ -22,7 +22,7 @@ duration = T * h
 
 # quasistatic dynamical system
 q_dynamics = QuasistaticDynamics(h=h,
-                                 quasistatic_model_path=q_model_path,
+                                 q_model_path=q_model_path,
                                  internal_viz=True)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
@@ -91,7 +91,7 @@ q_sim_py.animate_system_trajectory(h, q_dict_traj)
 
 
 #%%
-params = IrsLqrQuasistaticParameters()
+params = IrsMpcQuasistaticParameters()
 params.Q_dict = {
     idx_u: np.array([10, 10, 10]),
     idx_a_l: np.array([1e-3, 1e-3]),
@@ -106,15 +106,15 @@ params.T = T
 params.u_bounds_abs = np.array([
     -np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
 
-params.sampling = lambda u_initial, i: u_initial / (i ** 0.8)
+params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
 
 params.decouple_AB = decouple_AB
 params.num_samples = num_samples
-params.gradient_mode = gradient_mode
+params.bundle_mode = gradient_mode
 params.parallel_mode = parallel_mode
 
-irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
+irs_lqr_q = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
 
 #%%
 xd_dict = {idx_u: q_u0 + np.array([-0.3, 0, 0.3]),

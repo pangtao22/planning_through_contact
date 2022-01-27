@@ -8,19 +8,20 @@ from pydrake.all import (ModelInstanceIndex, MultibodyPlant,
 from qsim.parser import QuasistaticParser, GradientMode
 
 from .dynamical_system import DynamicalSystem
-from irs_lqr.irs_lqr_params import IrsLqrGradientMode
+from irs_mpc.irs_mpc_params import BundleMode
 
 
 class QuasistaticDynamics(DynamicalSystem):
-    def __init__(self, h: float, quasistatic_model_path: str,
+    def __init__(self, h: float, q_model_path: str,
                  internal_viz: bool):
         super().__init__()
-        parser = QuasistaticParser(quasistatic_model_path)
-        parser.set_quasi_dynamic(is_quasi_dynamic=True)
+        self.q_model_path = q_model_path
+        self.parser = QuasistaticParser(q_model_path)
+        self.parser.set_quasi_dynamic(is_quasi_dynamic=True)
 
         self.h = h
-        self.q_sim_py = parser.make_simulator_py(internal_vis=internal_viz)
-        self.q_sim = parser.make_simulator_cpp()
+        self.q_sim_py = self.parser.make_simulator_py(internal_vis=internal_viz)
+        self.q_sim = self.parser.make_simulator_cpp()
         self.plant = self.q_sim.get_plant()
         self.dim_x = self.plant.num_positions()
         self.dim_u = self.q_sim.num_actuated_dofs()
@@ -46,6 +47,11 @@ class QuasistaticDynamics(DynamicalSystem):
         try:
             self.logger = spdlog.ConsoleLogger(self.logger_name)
         except RuntimeError:
+            '''
+            Accessing the console loggers with the same name from different 
+            processes seems to crash, which is why logger name is appended 
+            with 'd'.
+            '''
             self.logger_name += 'd'
             self.logger = spdlog.ConsoleLogger(self.logger_name)
 
@@ -212,35 +218,18 @@ class QuasistaticDynamics(DynamicalSystem):
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)
 
-    # TODO: use batch simulator.
-    def dynamics_batch(self, x, u):
-        """
-        Batch dynamics. Uses pytorch for
-        -args:
-            x (np.array, dim: B x n): batched state
-            u (np.array, dim: B x m): batched input
-        -returns:
-            x_next (np.array, dim: B x n): batched next state
-        """
-        n_batch = x.shape[0]
-        x_next = np.zeros((n_batch, self.dim_x))
-
-        for i in range(n_batch):
-            x_next[i] = self.dynamics(x[i], u[i])
-        return x_next
-
     def jacobian_xu(self, x, u):
         AB = np.zeros((self.dim_x, self.dim_x + self.dim_u))
-        self.dynamics(x, u, gradient_mode=True)
+        self.dynamics(x, u, gradient_mode=GradientMode.kAB)
         AB[:, :self.dim_x] = self.q_sim.get_Dq_nextDq()
         AB[:, self.dim_x:] = self.q_sim.get_Dq_nextDqa_cmd()
 
         return AB
 
-    def calc_AB(
+    def calc_bundled_AB(
             self, x_nominals: np.ndarray, u_nominals: np.ndarray,
             n_samples: int, std_u: Union[np.ndarray, float],
-            mode: IrsLqrGradientMode):
+            bundle_mode: BundleMode):
         """
         x_nominals: (n, n_x) array, n states.
         u_nominals: (n, n_u) array, n inputs.
@@ -249,24 +238,24 @@ class QuasistaticDynamics(DynamicalSystem):
         n = x_nominals.shape[0]
         ABhat_list = np.zeros((n, self.dim_x, self.dim_x + self.dim_u))
 
-        if mode == IrsLqrGradientMode.kFirst:
+        if bundle_mode == BundleMode.kFirst:
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_first_order(
                     x_nominals[i], u_nominals[i], n_samples, std_u)
-        elif mode == IrsLqrGradientMode.kZeroB:
+        elif bundle_mode == BundleMode.kZeroB:
             for i in range(n):
                 ABhat_list[i] = self.calc_B_zero_order(
                     x_nominals[i], u_nominals[i], n_samples, std_u)
-        elif mode == IrsLqrGradientMode.kZeroAb:
+        elif bundle_mode == BundleMode.kZeroAb:
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_zero_order(
                     x_nominals[i], u_nominals[i], n_samples, std_u)
-        elif mode == IrsLqrGradientMode.kExact:
+        elif bundle_mode == BundleMode.kExact:
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_exact(
                     x_nominals[i], u_nominals[i])
         else:
-            raise RuntimeError(f"AB mode {mode} is not supported.")
+            raise RuntimeError(f"AB mode {bundle_mode} is not supported.")
 
         return ABhat_list
 
@@ -304,7 +293,6 @@ class QuasistaticDynamics(DynamicalSystem):
         :param std_u: standard deviation of the normal distribution when
             sampling u.
         """
-
         n_x = self.dim_x
         n_u = self.dim_u
         x_next_nominal = self.dynamics(x_nominal, u_nominal,

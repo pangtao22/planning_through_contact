@@ -3,7 +3,7 @@ import time
 import spdlog
 
 from .quasistatic_dynamics import QuasistaticDynamics
-from .irs_lqr_params import IrsLqrGradientMode
+from .irs_mpc_params import BundleMode
 from zmq_parallel_cmp.array_io import *
 
 kTaskVentSocket = 5557
@@ -31,7 +31,7 @@ def f_worker(q_model_path: str, h: float):
     logger.info(f"worker {pid} is ready.")
 
     q_dynamics = QuasistaticDynamics(
-        h=h, quasistatic_model_path=q_model_path,
+        h=h, q_model_path=q_model_path,
         internal_viz=False)
 
     # Process tasks forever
@@ -41,16 +41,16 @@ def f_worker(q_model_path: str, h: float):
         t = data['t']
         n_samples = data['n_samples']
         std = data['std']
-        irs_lqr_gradient_mode = IrsLqrGradientMode(data['is_lqr_gradient_mode'])
+        bundle_mode = BundleMode(data['bundle_mode'])
 
         assert len(x_and_u.shape) == 1
 
-        ABhat = q_dynamics.calc_AB(
+        ABhat = q_dynamics.calc_bundled_AB(
             x_nominals=x_and_u[None, :q_dynamics.dim_x],
             u_nominals=x_and_u[None, q_dynamics.dim_x:],
             n_samples=n_samples,
             std_u=std,
-            mode=irs_lqr_gradient_mode)
+            bundle_mode=bundle_mode)
 
         # Send results to sink
         send_bundled_AB(sender, AB=ABhat, t=t)

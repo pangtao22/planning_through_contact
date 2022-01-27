@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from irs_lqr.zmq_dynamics_worker import launch_workers
+from irs_mpc.zmq_dynamics_worker import launch_workers
 
 from allegro_hand_setup import q_model_path, h
 
