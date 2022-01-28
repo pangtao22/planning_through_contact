@@ -74,6 +74,9 @@ class QuasistaticDynamics(DynamicalSystem):
             idx_b = velocity_indices_b[model]
             assert idx_a == idx_b
 
+    # TODO (pang): consider moving functions that convert between state
+    #  dictionaries and state vectors to QuasistaticSimulator, together with
+    #  the relevant tests.
     def get_u_indices_into_x(self):
         u_indices = np.zeros(self.dim_u, dtype=int)
         i_start = 0

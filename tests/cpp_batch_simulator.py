@@ -1,9 +1,10 @@
 import os
-
 import numpy as np
 
+from context import irs_mpc, examples
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
+
 from examples.allegro_hand.allegro_hand_setup import *
 
 #%%
