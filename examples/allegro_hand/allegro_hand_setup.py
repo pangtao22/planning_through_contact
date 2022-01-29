@@ -16,7 +16,7 @@ h = 0.1
 
 # gradient computation
 bundle_mode = BundleMode.kFirst
-parallel_mode = ParallelizationMode.kZmq
+parallel_mode = ParallelizationMode.kCppBundledB
 decouple_AB = True
 
 # IrsLqr

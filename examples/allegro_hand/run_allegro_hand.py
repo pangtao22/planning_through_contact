@@ -84,6 +84,7 @@ u_traj_0 = np.tile(u0, (T, 1))
 irs_lqr_q.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_traj_0)
 
 #%%
+# irs_lqr_q.q_dynamics_parallel.q_sim_batch.set_num_max_parallel_executions(10)
 t0 = time.time()
 irs_lqr_q.iterate(num_iters)
 t1 = time.time()

@@ -10,12 +10,10 @@ class BundleMode(enum.Enum):
 
 
 class ParallelizationMode(enum.Enum):
+    # This should never be used in practice...
     kNone = enum.auto()
 
     kZmq = enum.auto()
-    # sends sampled du to the workers, instead of
-    # having the works do the sampling, so that the result is deterministic.
-    kZmqDebug = enum.auto()
 
     # calls BatchQuasistaticSimulator::CalcBundledBTrj
     kCppBundledB = enum.auto()
@@ -23,11 +21,21 @@ class ParallelizationMode(enum.Enum):
     # calls BatchQuasistaticSimulator::CalcBundledBTrjDirect
     kCppBundledBDirect = enum.auto()
 
+    # sends sampled du to a single-threaded implementation of bundled
+    # gradient computation, which is least likely to have mistakes...?
+    kDebug = enum.auto()
+
     # calls BatchQuasistaticSimulator::CalcDynamicsParallel, which is the
     # backend of BatchQuasistaticSimulator::CalcBundledBTrj.
     # This mode allows sampling in python and thus comparison between the
     # ZMQ-based implementation.
     kCppDebug = enum.auto()
+
+    # TODO (pang) is this reall necessary? It seems like comparing cpp
+    #  against serial python is sufficient?
+    # sends sampled du to the workers, instead of
+    # having the works do the sampling, so that the result is deterministic.
+    kZmqDebug = enum.auto()
 
 
 class IrsMpcQuasistaticParameters:

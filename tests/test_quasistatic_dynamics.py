@@ -63,3 +63,7 @@ class TestQuasistaticDynamics(unittest.TestCase):
         # TODO (pang): self.q_sim_cpp.get_v_dict_from_vec() exists, but its
         #  equivalent in QuasistaticSimulator has not been abstracted into a
         #  function yet.
+
+
+if __name__ == '__main__':
+    unittest.main()

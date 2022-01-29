@@ -43,7 +43,7 @@ class QuasistaticDynamics(DynamicalSystem):
             velocity_indices_b=self.q_sim.get_velocity_indices())
 
         # logger
-        self.logger_name = str(os.getpid())
+        self.logger_name = 'QDynamics'
         try:
             self.logger = spdlog.ConsoleLogger(self.logger_name)
         except RuntimeError:
@@ -52,7 +52,7 @@ class QuasistaticDynamics(DynamicalSystem):
             processes seems to crash, which is why logger name is appended 
             with 'd'.
             '''
-            self.logger_name += 'd'
+            self.logger_name += str(os.getpid())
             self.logger = spdlog.ConsoleLogger(self.logger_name)
 
     @staticmethod
