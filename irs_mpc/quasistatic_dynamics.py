@@ -43,17 +43,21 @@ class QuasistaticDynamics(DynamicalSystem):
             velocity_indices_b=self.q_sim.get_velocity_indices())
 
         # logger
-        self.logger_name = 'QDynamics'
+        self.logger = self.get_logger()
+
+    @staticmethod
+    def get_logger():
+        pid = str(os.getpid())
         try:
-            self.logger = spdlog.ConsoleLogger(self.logger_name)
+            logger = spdlog.ConsoleLogger(pid, True)
         except RuntimeError:
             '''
             Accessing the console loggers with the same name from different 
-            processes seems to crash, which is why logger name is appended 
-            with 'd'.
+            processes seems to crash.
             '''
-            self.logger_name += str(os.getpid())
-            self.logger = spdlog.ConsoleLogger(self.logger_name)
+            logger = spdlog.ConsoleLogger('QD' + pid)
+
+        return logger
 
     @staticmethod
     def check_plants(plant_a: MultibodyPlant, plant_b: MultibodyPlant,

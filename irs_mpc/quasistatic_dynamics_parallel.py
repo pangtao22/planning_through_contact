@@ -5,8 +5,7 @@ import numpy as np
 import spdlog
 import zmq
 from qsim_cpp import GradientMode
-from zmq_parallel_cmp.array_io import (send_x_and_u,
-                                       recv_bundled_AB)
+from zmq_parallel_cmp.array_io import (send_x_and_u, recv_bundled_AB)
 
 from .irs_mpc_params import (BundleMode, ParallelizationMode)
 from .quasistatic_dynamics import QuasistaticDynamics
@@ -38,7 +37,7 @@ class QuasistaticDynamicsParallel:
         self.indices_u_into_x = q_dynamics.get_u_indices_into_x()
 
         # logger
-        self.logger = self.get_logger()
+        self.logger = self.q_dynamics.logger
 
         if use_zmq_workers:
             context = zmq.Context()
@@ -54,16 +53,6 @@ class QuasistaticDynamicsParallel:
             self.logger.info(
                 "Using ZMQ workers. This will hang if worker processes are not "
                 "running")
-
-    @staticmethod
-    def get_logger():
-        logger_name = str(os.getpid())
-        try:
-            logger = spdlog.ConsoleLogger(logger_name)
-        except RuntimeError:
-            logger = spdlog.ConsoleLogger(logger_name + 'd')
-
-        return logger
 
     def dynamics_batch_serial(self, x_batch: np.ndarray, u_batch: np.ndarray):
         """
