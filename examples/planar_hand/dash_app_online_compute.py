@@ -14,9 +14,9 @@ from dash_app_common import (add_goal_meshcat, hover_template_reachability,
 from irs_mpc.irs_mpc_quasistatic import (IrsMpcQuasistatic)
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 from planar_hand_setup import (h, q_model_path,
-                               decouple_AB, use_workers, gradient_mode,
-                               task_stride, num_samples,
+                               decouple_AB, gradient_mode, num_samples,
                                robot_l_name, robot_r_name, object_name)
 
 from rrt.planner import ConfigurationSpace
@@ -26,6 +26,8 @@ from rrt.utils import set_orthographic_camera_yz, sample_on_sphere
 q_dynamics = QuasistaticDynamics(h=h,
                                  q_model_path=q_model_path,
                                  internal_viz=True)
+q_dynamics_p = QuasistaticDynamicsParallel(q_dynamics)
+
 plant = q_dynamics.plant
 q_sim_py = q_dynamics.q_sim_py
 dim_x = q_dynamics.dim_x
@@ -52,9 +54,7 @@ params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
 
 params.decouple_AB = decouple_AB
-params.use_zmq_workers = use_workers
 params.bundle_mode = gradient_mode
-params.task_stride = task_stride
 params.num_samples = num_samples
 params.u_bounds_abs = np.array(
     [-np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
@@ -228,16 +228,18 @@ def update_reachability(n_clicks, q_u0_json, q_a0_json):
     qa_l_samples = np.zeros((n_samples, 2))
     qa_r_samples = np.zeros((n_samples, 2))
 
-    def save_x(x: np.ndarray):
+    def save_x(x: np.ndarray, i: int):
         q_dict = q_dynamics.get_q_dict_from_x(x)
         qu_samples[i] = q_dict[model_u]
         qa_l_samples[i] = q_dict[model_a_l]
         qa_r_samples[i] = q_dict[model_a_r]
 
-    for i in tqdm.tqdm(range(n_samples)):
-        u = u0 + du[i]
-        x_1 = q_dynamics.dynamics(x0, u, gradient_mode=False)
-        save_x(x_1)
+    x_batch = q_dynamics_p.dynamics_batch(
+        x_batch=np.repeat(x0[None, :], n_samples, axis=0),
+        u_batch=u0 + du)
+
+    for i in range(n_samples):
+        save_x(x_batch[i], i)
 
     # PCA of 1-step reachable set.
     principal_points = calc_principal_points(qu_samples, r=0.5)
