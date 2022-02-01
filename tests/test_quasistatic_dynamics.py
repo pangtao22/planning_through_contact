@@ -10,6 +10,10 @@ from examples.allegro_hand.allegro_hand_setup import *
 
 
 class TestQuasistaticDynamics(unittest.TestCase):
+    """
+    The tests compare various conversions between state dictionaries and
+    state vectors are consistent between the python and cpp implementations.
+    """
     def setUp(self):
         self.q_dynamics = QuasistaticDynamics(h=h,
                                               q_model_path=q_model_path,

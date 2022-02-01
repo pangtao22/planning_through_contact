@@ -45,7 +45,10 @@ class TestQuasistaticDynamicsParallel(unittest.TestCase):
 
     def test_forward_dynamics(self):
         """
-        (Also done in c++)
+        Compares batch forwards dynamics computed by
+            - calling QuasistaticDynamics.dynamics in a loop in python.
+            - calling BatchQuasistaticCpp.dynamics_batch.
+        (This test is also done in c++.)
         """
         x_next_batch_py = self.q_dynamics_p.dynamics_batch_serial(
             self.x_batch, self.u_batch)
@@ -56,6 +59,11 @@ class TestQuasistaticDynamicsParallel(unittest.TestCase):
             np.allclose(x_next_batch_py, x_next_batch_cpp, atol=1e-6))
 
     def test_bundled_B(self):
+        """
+        Compares the bundled B computed by
+            - the C++ batch simulator, and
+            - QuasistaticDynamics::dynamics, which is used by ZMQ workers.
+        """
         T = len(self.x_batch)
         n_samples = 10
         dim_u = self.u_batch.shape[1]

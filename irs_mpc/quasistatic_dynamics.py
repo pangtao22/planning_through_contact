@@ -253,7 +253,7 @@ class QuasistaticDynamics(DynamicalSystem):
             for i in range(n):
                 ABhat_list[i] = self.calc_B_zero_order(
                     x_nominals[i], u_nominals[i], n_samples, std_u)
-        elif bundle_mode == BundleMode.kZeroAb:
+        elif bundle_mode == BundleMode.kZeroAB:
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_zero_order(
                     x_nominals[i], u_nominals[i], n_samples, std_u)

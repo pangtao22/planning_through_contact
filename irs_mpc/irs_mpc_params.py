@@ -6,7 +6,7 @@ class BundleMode(enum.Enum):
     kFirst = enum.auto()
     kExact = enum.auto()
     kZeroB = enum.auto()
-    kZeroAb = enum.auto()
+    kZeroAB = enum.auto()
 
 
 class ParallelizationMode(enum.Enum):
