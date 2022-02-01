@@ -1,19 +1,26 @@
 from typing import Dict
 import time
+import os
 
-from irs_lqr.irs_lqr_params import IrsLqrQuasistaticParameters
+import numpy as np
+import spdlog
+
 from pydrake.all import ModelInstanceIndex
 
-from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from irs_lqr.tv_lqr import solve_tvlqr, get_solver
-
 from zmq_parallel_cmp.array_io import *
+
+from .zmq_dynamics_worker import kTaskVentSocket, kTaskSinkSocket
+from .irs_mpc_params import (IrsMpcQuasistaticParameters,
+                             ParallelizationMode)
+from .quasistatic_dynamics import QuasistaticDynamics
+from .quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
+from .mpc import solve_mpc, get_solver
 
 
 def update_q_start_and_goal(
         q_start: Dict[ModelInstanceIndex, np.ndarray],
         q_goal: Dict[ModelInstanceIndex, np.ndarray],
-        params: IrsLqrQuasistaticParameters,
+        params: IrsMpcQuasistaticParameters,
         q_dynamics: QuasistaticDynamics,
         T: int):
     params.x0 = q_dynamics.get_x_from_q_dict(q_start)
@@ -25,9 +32,9 @@ def update_q_start_and_goal(
     params.x_trj_d = np.tile(xd, (T + 1, 1))
 
 
-class IrsLqrQuasistatic:
+class IrsMpcQuasistatic:
     def __init__(self, q_dynamics: QuasistaticDynamics,
-                 params: IrsLqrQuasistaticParameters):
+                 params: IrsMpcQuasistaticParameters):
         """
 
         Arguments are similar to those of SqpLsImplicit.
@@ -56,32 +63,24 @@ class IrsLqrQuasistatic:
         self.u_bounds_rel = params.u_bounds_rel
         self.indices_u_into_x = q_dynamics.get_u_indices_into_x()
 
-        self.decouple_AB = params.decouple_AB
-        self.use_workers = params.use_workers
-        self.gradient_mode = params.gradient_mode
-        self.task_stride = params.task_stride
         self.publish_every_iteration = params.publish_every_iteration
-
-        # sampling standard deviation.
-        self.std_u_initial = params.std_u_initial
-        self.sampling = params.sampling
-        self.num_samples = params.num_samples
 
         # solver
         self.solver = get_solver(params.solver_name)
 
+        # logger
+        self.logger = spdlog.ConsoleLogger("IrsMpc")
+
         # parallelization.
-        context = zmq.Context()
+        use_zmq_workers = (
+                self.params.parallel_mode ==
+                ParallelizationMode.kZmq or
+                self.params.parallel_mode ==
+                ParallelizationMode.kZmqDebug)
 
-        # Socket to send messages on
-        self.sender = context.socket(zmq.PUSH)
-        self.sender.bind("tcp://*:5557")
-
-        # Socket to receive messages on
-        self.receiver = context.socket(zmq.PULL)
-        self.receiver.bind("tcp://*:5558")
-
-        print("Solve traj-opt only after the workers are ready!")
+        self.q_dynamics_parallel = QuasistaticDynamicsParallel(
+            q_dynamics=q_dynamics,
+            use_zmq_workers=use_zmq_workers)
 
     def initialize_problem(self, x0, x_trj_d, u_trj_0):
         # initial trajectory.
@@ -179,109 +178,32 @@ class IrsLqrQuasistatic:
 
         return cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final, cost_R
 
-    def get_TV_matrices(self, x_trj, u_trj):
+    def calc_bundled_ABc(self, x_trj: np.ndarray, u_trj: np.ndarray):
         """
-        Get time varying linearized dynamics given a nominal trajectory.
-        - args:
-            x_trj (np.array, shape (T + 1) x n)
-            u_trj (np.array, shape T x m)
+        Calls the owned QuasistaticDynamicsParallel.calcBundledABc with
+            parameters defined in self.params.
+        :param x_trj:
+        :param u_trj:
+        :return:
         """
-        T = u_trj.shape[0]
-        assert self.T == T
-        At = np.zeros((T, self.dim_x, self.dim_x))
-        Bt = np.zeros((T, self.dim_x, self.dim_u))
-        ct = np.zeros((T, self.dim_x))
-        std_u = self.sampling(self.std_u_initial, self.current_iter)
+        std_u = self.params.calc_std_u(
+            self.params.std_u_initial, self.current_iter)
+        return self.q_dynamics_parallel.calc_bundled_ABc(
+            x_trj=x_trj, u_trj=u_trj,
+            n_samples=self.params.num_samples,
+            std_u=std_u,
+            decouple_AB=self.params.decouple_AB,
+            bundle_mode=self.params.bundle_mode,
+            parallel_mode=self.params.parallel_mode)
 
-        # Compute ABhat.
-        ABhat_list = self.q_dynamics.calc_AB_batch(
-            x_trj[:-1, :], u_trj, n_samples=self.num_samples, std_u=std_u,
-            mode=self.gradient_mode
-        )
-
-        for t in range(T):
-            At[t] = ABhat_list[t, :, :self.dim_x]
-            Bt[t] = ABhat_list[t, :, self.dim_x:]
-
-        if self.decouple_AB:
-            At, Bt = self.decouple_AB_matrices(At, Bt)
-
-        for t in range(T):
-            x_next_nominal = self.q_dynamics.dynamics(x_trj[t], u_trj[t])
-            ct[t] = x_next_nominal - At[t].dot(x_trj[t]) - Bt[t].dot(u_trj[t])
-
-        return At, Bt, ct
-
-    def get_TV_matrices_batch(self, x_trj, u_trj):
-        """
-        Get time varying linearized dynamics given a nominal trajectory,
-         using worker processes launched separately.
-        - args:
-            x_trj (np.array, shape (T + 1) x n)
-            u_trj (np.array, shape T x m)
-        """
-        T = u_trj.shape[0]
-        assert self.T == T
-        At = np.zeros((T, self.dim_x, self.dim_x))
-        Bt = np.zeros((T, self.dim_x, self.dim_u))
-        ct = np.zeros((T, self.dim_x))
-        std_u = self.sampling(self.std_u_initial, self.current_iter)
-
-        # send tasks.
-        # TODO: make the stride a parameter of the class.
-        stride = self.task_stride
-        n_tasks_sent = 0
-        for t in range(0, T, stride):
-            t1 = min(t + stride, T)
-            x_u = np.zeros((t1 - t, self.dim_x + self.dim_u))
-            x_u[:, :self.dim_x] = x_trj[t: t1]
-            x_u[:, self.dim_x:] = u_trj[t: t1]
-            # TODO: support 1-order and first-order computation of the gradient.
-            send_array(
-                self.sender, x_u,
-                t=np.arange(t, t1).tolist(),
-                n_samples=self.num_samples, std=std_u.tolist())
-            n_tasks_sent += 1
-
-        # receive tasks.
-        for _ in range(n_tasks_sent):
-            ABhat, t_list, _, _ = recv_array(self.receiver)
-            At[t_list] = ABhat[:, :, :self.dim_x]
-            Bt[t_list] = ABhat[:, :, self.dim_x:]
-
-        if self.decouple_AB:
-            At, Bt = self.decouple_AB_matrices(At, Bt)
-
-        # compute ct
-        for t in range(T):
-            x_next_nominal = self.q_dynamics.dynamics(x_trj[t], u_trj[t])
-            ct[t] = x_next_nominal - At[t].dot(x_trj[t]) - Bt[t].dot(u_trj[t])
-
-        return At, Bt, ct
-
-    def decouple_AB_matrices(self, At, Bt):
-        """
-        Receives a list containing At and Bt matrices and decouples the
-        off-diagonal entries corresponding to 0.0.
-        """
-        # At[:, self.indices_u_into_x, :] = 0.0
-        Bt[:, self.indices_u_into_x, :] = np.eye(self.dim_u)
-        At[:] = np.eye(At.shape[1])
-        At[:, :, self.indices_u_into_x] = 0.0
-        # At[:, :] = 0
-        return At, Bt
-
-    def local_descent(self, x_trj, u_trj):
+    def local_descent(self, x_trj: np.ndarray, u_trj: np.ndarray):
         """
         Forward pass using a TV-LQR controller on the linearized dynamics.
         - args:
-            x_trj (np.array, shape (T + 1) x n): nominal state trajectory.
-            u_trj (np.array, shape T x m) : nominal input trajectory
+            x_trj ((T + 1), dim_x): nominal state trajectory.
+            u_trj (T, dim_u) : nominal input trajectory
         """
-        if self.use_workers:
-            At, Bt, ct = self.get_TV_matrices_batch(x_trj, u_trj)
-        else:
-            At, Bt, ct = self.get_TV_matrices(x_trj, u_trj)
+        At, Bt, ct = self.calc_bundled_ABc(x_trj, u_trj)
 
         x_trj_new = np.zeros(x_trj.shape)
         x_trj_new[0, :] = x_trj[0, :]
@@ -311,7 +233,7 @@ class IrsLqrQuasistatic:
             u_bounds_rel[1] = self.u_bounds_rel[1]
 
         for t in range(self.T):
-            x_star, u_star = solve_tvlqr(
+            x_star, u_star = solve_mpc(
                 At[t:self.T],
                 Bt[t:self.T],
                 ct[t:self.T], self.Q, self.Qd,
@@ -330,19 +252,19 @@ class IrsLqrQuasistatic:
                 xinit=None,
                 uinit=None)
             u_trj_new[t, :] = u_star[0]
-            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(x_trj_new[t],
-                                                           u_trj_new[t])
+            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(
+                x_trj_new[t], u_trj_new[t])
 
         return x_trj_new, u_trj_new
 
     def iterate(self, max_iterations):
         # index into self.x_trj_list and self.u_trj_list. It starts at 1 because
         # self.x_trj_list is initialized with the initial guess.
-
         while True:
-            print('Iter {:02d},'.format(self.current_iter),
-                  'cost: {:0.4f}.'.format(self.cost),
-                  'time: {:0.2f}.'.format(time.time() - self.start_time))
+            self.logger.info(
+                'Iter {:02d}, '.format(self.current_iter) +
+                'cost: {:0.4f}, '.format(self.cost) +
+                'time: {:0.2f}.'.format(time.time() - self.start_time))
 
             x_trj_new, u_trj_new = self.local_descent(self.x_trj, self.u_trj)
             (cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final,

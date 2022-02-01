@@ -30,12 +30,16 @@ def f_worker_simple():
     # Process tasks forever
     i_tasks = 0
     while True:
-        A, t, n_samples, std = recv_array(receiver)
+        x_and_u, data = recv_x_and_u(receiver)
+        t = data['t']
+        n_samples = data['n_samples']
+        std = data['std']
+        irs_lqr_gradient_mode = BundleMode(data['bundle_mode'])
 
         # Pretending to do some work.
         time.sleep(n_samples / 1000)
         # Send results to sink
-        send_array(sender, A * 2, t=t, n_samples=n_samples, std=std)
+        send_bundled_AB(sender, x_and_u * 2, t)
 
         i_tasks += 1
         if i_tasks % 10 == 0:

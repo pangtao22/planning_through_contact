@@ -11,10 +11,10 @@ from dash.dependencies import Input, Output, State
 from dash_app_common import (add_goal_meshcat, hover_template_reachability,
                              layout, calc_principal_points,
                              create_pca_plots, calc_X_WG, create_q_u0_plot)
-from irs_lqr.irs_lqr_quasistatic import (IrsLqrQuasistatic)
-from irs_lqr.irs_lqr_params import IrsLqrQuasistaticParameters
-from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from planar_hand_setup import (h, quasistatic_model_path,
+from irs_mpc.irs_mpc_quasistatic import (IrsMpcQuasistatic)
+from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
+from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from planar_hand_setup import (h, q_model_path,
                                decouple_AB, use_workers, gradient_mode,
                                task_stride, num_samples,
                                robot_l_name, robot_r_name, object_name)
@@ -24,7 +24,7 @@ from rrt.utils import set_orthographic_camera_yz, sample_on_sphere
 
 #%% quasistatic dynamics
 q_dynamics = QuasistaticDynamics(h=h,
-                                 quasistatic_model_path=quasistatic_model_path,
+                                 q_model_path=q_model_path,
                                  internal_viz=True)
 plant = q_dynamics.plant
 q_sim_py = q_dynamics.q_sim_py
@@ -38,7 +38,7 @@ cspace = ConfigurationSpace(
     model_u=model_u, model_a_l=model_a_l, model_a_r=model_a_r, q_sim=q_sim_py)
 
 # %% irs-lqr
-params = IrsLqrQuasistaticParameters()
+params = IrsMpcQuasistaticParameters()
 params.Q_dict = {
     model_u: np.array([10, 10, 10]),
     model_a_l: np.array([1e-3, 1e-3]),
@@ -48,12 +48,12 @@ params.R_dict = {
     model_a_l: 5 * np.array([1, 1]),
     model_a_r: 5 * np.array([1, 1])}
 
-params.sampling = lambda u_initial, i: u_initial / (i ** 0.8)
+params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
 
 params.decouple_AB = decouple_AB
-params.use_workers = use_workers
-params.gradient_mode = gradient_mode
+params.use_zmq_workers = use_workers
+params.bundle_mode = gradient_mode
 params.task_stride = task_stride
 params.num_samples = num_samples
 params.u_bounds_abs = np.array(
@@ -64,7 +64,7 @@ T = int(round(2 / h))  # num of time steps to simulate forward.
 params.T = T
 duration = T * h
 
-irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
+irs_lqr_q = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
 
 # %% meshcat
 vis = q_dynamics.q_sim_py.viz.vis
@@ -236,7 +236,7 @@ def update_reachability(n_clicks, q_u0_json, q_a0_json):
 
     for i in tqdm.tqdm(range(n_samples)):
         u = u0 + du[i]
-        x_1 = q_dynamics.dynamics(x0, u, requires_grad=False)
+        x_1 = q_dynamics.dynamics(x0, u, gradient_mode=False)
         save_x(x_1)
 
     # PCA of 1-step reachable set.

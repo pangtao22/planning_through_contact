@@ -1,24 +1,27 @@
 from typing import Dict, Set, Union
+import os
 
 import numpy as np
+import spdlog
 from pydrake.all import (ModelInstanceIndex, MultibodyPlant,
                          PiecewisePolynomial)
-from qsim.parser import QuasistaticParser
+from qsim.parser import QuasistaticParser, GradientMode
 
 from .dynamical_system import DynamicalSystem
-from irs_lqr.irs_lqr_params import IrsLqrGradientMode
+from irs_mpc.irs_mpc_params import BundleMode
 
 
 class QuasistaticDynamics(DynamicalSystem):
-    def __init__(self, h: float, quasistatic_model_path: str,
+    def __init__(self, h: float, q_model_path: str,
                  internal_viz: bool):
         super().__init__()
-        parser = QuasistaticParser(quasistatic_model_path)
-        parser.set_quasi_dynamic(is_quasi_dynamic=True)
+        self.q_model_path = q_model_path
+        self.parser = QuasistaticParser(q_model_path)
+        self.parser.set_quasi_dynamic(is_quasi_dynamic=True)
 
         self.h = h
-        self.q_sim_py = parser.make_simulator_py(internal_vis=internal_viz)
-        self.q_sim = parser.make_simulator_cpp()
+        self.q_sim_py = self.parser.make_simulator_py(internal_vis=internal_viz)
+        self.q_sim = self.parser.make_simulator_cpp()
         self.plant = self.q_sim.get_plant()
         self.dim_x = self.plant.num_positions()
         self.dim_u = self.q_sim.num_actuated_dofs()
@@ -26,10 +29,9 @@ class QuasistaticDynamics(DynamicalSystem):
         self.models_all = self.q_sim.get_all_models()
         self.models_actuated = self.q_sim.get_actuated_models()
         self.models_unactuated = self.q_sim.get_unactuated_models()
-        # TODO: distinguish between position indices and velocity indices for
-        #  3D systems.
-        self.position_indices = self.q_sim.get_velocity_indices()
-        self.velocity_indices = self.position_indices
+
+        self.position_indices = self.q_sim.get_position_indices()
+        self.velocity_indices = self.q_sim.get_velocity_indices()
 
         # make sure that q_sim_py and q_sim have the same underlying plant.
         self.check_plants(
@@ -39,6 +41,23 @@ class QuasistaticDynamics(DynamicalSystem):
             models_all_b=self.q_sim_py.get_all_models(),
             velocity_indices_a=self.q_sim.get_velocity_indices(),
             velocity_indices_b=self.q_sim.get_velocity_indices())
+
+        # logger
+        self.logger = self.get_logger()
+
+    @staticmethod
+    def get_logger():
+        pid = str(os.getpid())
+        try:
+            logger = spdlog.ConsoleLogger(pid, True)
+        except RuntimeError:
+            '''
+            Accessing the console loggers with the same name from different 
+            processes seems to crash.
+            '''
+            logger = spdlog.ConsoleLogger('QD' + pid)
+
+        return logger
 
     @staticmethod
     def check_plants(plant_a: MultibodyPlant, plant_b: MultibodyPlant,
@@ -59,6 +78,9 @@ class QuasistaticDynamics(DynamicalSystem):
             idx_b = velocity_indices_b[model]
             assert idx_a == idx_b
 
+    # TODO (pang): consider moving functions that convert between state
+    #  dictionaries and state vectors to QuasistaticSimulator, together with
+    #  the relevant tests.
     def get_u_indices_into_x(self):
         u_indices = np.zeros(self.dim_u, dtype=int)
         i_start = 0
@@ -107,7 +129,7 @@ class QuasistaticDynamics(DynamicalSystem):
     def get_Q_from_Q_dict(self,
                           Q_dict: Dict[ModelInstanceIndex, np.ndarray]):
         Q = np.eye(self.dim_x)
-        for model, idx in self.velocity_indices.items():
+        for model, idx in self.position_indices.items():
             Q[idx, idx] = Q_dict[model]
         return Q
 
@@ -128,7 +150,7 @@ class QuasistaticDynamics(DynamicalSystem):
                                                 q_dict_traj=q_dict_traj)
 
     def dynamics_py(self, x: np.ndarray, u: np.ndarray, mode: str = 'qp_mp',
-                    requires_grad: bool = False):
+                    gradient_mode: GradientMode = GradientMode.kNone):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
@@ -142,13 +164,13 @@ class QuasistaticDynamics(DynamicalSystem):
 
         q_next_dict = self.q_sim_py.step(
             q_a_cmd_dict, tau_ext_dict, self.h,
-            mode=mode, requires_grad=requires_grad,
+            mode=mode, gradient_mode=gradient_mode,
             grad_from_active_constraints=True)
 
         return self.get_x_from_q_dict(q_next_dict)
 
     def dynamics(self, x: np.ndarray, u: np.ndarray,
-                 requires_grad: bool = False):
+                 gradient_mode: GradientMode = GradientMode.kNone):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
@@ -160,9 +182,11 @@ class QuasistaticDynamics(DynamicalSystem):
         tau_ext_dict = self.q_sim.calc_tau_ext([])
 
         self.q_sim.step(
-            q_a_cmd_dict, tau_ext_dict, self.h,
-            self.q_sim_py.sim_params.contact_detection_tolerance,
-            requires_grad=requires_grad,
+            q_a_cmd_dict=q_a_cmd_dict,
+            tau_ext_dict=tau_ext_dict,
+            h=self.h,
+            contact_detection_tolerance=self.q_sim_py.sim_params.contact_detection_tolerance,
+            gradient_mode=gradient_mode,
             grad_from_active_constraints=True)
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)
@@ -201,29 +225,46 @@ class QuasistaticDynamics(DynamicalSystem):
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)
 
-    def dynamics_batch(self, x, u):
-        """
-        Batch dynamics. Uses pytorch for
-        -args:
-            x (np.array, dim: B x n): batched state
-            u (np.array, dim: B x m): batched input
-        -returns:
-            x_next (np.array, dim: B x n): batched next state
-        """
-        n_batch = x.shape[0]
-        x_next = np.zeros((n_batch, self.dim_x))
-
-        for i in range(n_batch):
-            x_next[i] = self.dynamics(x[i], u[i])
-        return x_next
-
     def jacobian_xu(self, x, u):
         AB = np.zeros((self.dim_x, self.dim_x + self.dim_u))
-        self.dynamics(x, u, requires_grad=True)
+        self.dynamics(x, u, gradient_mode=GradientMode.kAB)
         AB[:, :self.dim_x] = self.q_sim.get_Dq_nextDq()
         AB[:, self.dim_x:] = self.q_sim.get_Dq_nextDqa_cmd()
 
         return AB
+
+    def calc_bundled_AB(
+            self, x_nominals: np.ndarray, u_nominals: np.ndarray,
+            n_samples: int, std_u: Union[np.ndarray, float],
+            bundle_mode: BundleMode):
+        """
+        x_nominals: (n, n_x) array, n states.
+        u_nominals: (n, n_u) array, n inputs.
+        mode: "first_order", "zero_order_B", "zero_order_AB", or "exact."
+        """
+        n = x_nominals.shape[0]
+        ABhat_list = np.zeros((n, self.dim_x, self.dim_x + self.dim_u))
+
+        if bundle_mode == BundleMode.kFirst:
+            for i in range(n):
+                ABhat_list[i] = self.calc_AB_first_order(
+                    x_nominals[i], u_nominals[i], n_samples, std_u)
+        elif bundle_mode == BundleMode.kZeroB:
+            for i in range(n):
+                ABhat_list[i] = self.calc_B_zero_order(
+                    x_nominals[i], u_nominals[i], n_samples, std_u)
+        elif bundle_mode == BundleMode.kZeroAB:
+            for i in range(n):
+                ABhat_list[i] = self.calc_AB_zero_order(
+                    x_nominals[i], u_nominals[i], n_samples, std_u)
+        elif bundle_mode == BundleMode.kExact:
+            for i in range(n):
+                ABhat_list[i] = self.calc_AB_exact(
+                    x_nominals[i], u_nominals[i])
+        else:
+            raise RuntimeError(f"AB mode {bundle_mode} is not supported.")
+
+        return ABhat_list
 
     def calc_AB_exact(self, x_nominal: np.ndarray, u_nominal: np.ndarray):
         return self.jacobian_xu(x_nominal, u_nominal)
@@ -237,47 +278,19 @@ class QuasistaticDynamics(DynamicalSystem):
         # np.random.seed(2021)
         du = np.random.normal(0, std_u, size=[n_samples, self.dim_u])
         ABhat = np.zeros((self.dim_x, self.dim_x + self.dim_u))
+        is_sample_good = np.ones(n_samples, dtype=bool)
         for i in range(n_samples):
-            self.dynamics(x_nominal, u_nominal + du[i], requires_grad=True)
-            ABhat[:, :self.dim_x] += self.q_sim.get_Dq_nextDq()
-            ABhat[:, self.dim_x:] += self.q_sim.get_Dq_nextDqa_cmd()
+            try:
+                self.dynamics(x_nominal, u_nominal + du[i],
+                              gradient_mode=GradientMode.kBOnly)
+                ABhat[:, :self.dim_x] += self.q_sim.get_Dq_nextDq()
+                ABhat[:, self.dim_x:] += self.q_sim.get_Dq_nextDqa_cmd()
+            except RuntimeError as err:
+                is_sample_good[i] = False
+                self.logger.warn(err.__str__())
 
-        ABhat /= n_samples
+        ABhat /= is_sample_good.sum()
         return ABhat
-
-    # TODO: rename this to calc_AB?
-    def calc_AB_batch(
-            self, x_nominals: np.ndarray, u_nominals: np.ndarray,
-            n_samples: int, std_u: Union[np.ndarray, float],
-            mode: IrsLqrGradientMode):
-        """
-        x_nominals: (n, n_x) array, n states.
-        u_nominals: (n, n_u) array, n inputs.
-        mode: "first_order", "zero_order_B", "zero_order_AB", or "exact."
-        """
-        n = x_nominals.shape[0]
-        ABhat_list = np.zeros((n, self.dim_x, self.dim_x + self.dim_u))
-
-        if mode == IrsLqrGradientMode.kFirst:
-            for i in range(n):
-                ABhat_list[i] = self.calc_AB_first_order(
-                    x_nominals[i], u_nominals[i], n_samples, std_u)
-        elif mode == IrsLqrGradientMode.kZeroB:
-            for i in range(n):
-                ABhat_list[i] = self.calc_B_zero_order(
-                    x_nominals[i], u_nominals[i], n_samples, std_u)
-        elif mode == IrsLqrGradientMode.kZeroAb:
-            for i in range(n):
-                ABhat_list[i] = self.calc_AB_zero_order(
-                    x_nominals[i], u_nominals[i], n_samples, std_u)                    
-        elif mode == IrsLqrGradientMode.kExact:
-            for i in range(n):
-                ABhat_list[i] = self.calc_AB_exact(
-                    x_nominals[i], u_nominals[i])
-        else:
-            raise RuntimeError(f"AB mode {mode} is not supported.")
-
-        return ABhat_list
 
     def calc_B_zero_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
                           n_samples: int, std_u: Union[np.ndarray, float]):
@@ -287,10 +300,10 @@ class QuasistaticDynamics(DynamicalSystem):
         :param std_u: standard deviation of the normal distribution when
             sampling u.
         """
-
         n_x = self.dim_x
         n_u = self.dim_u
-        x_next_nominal = self.dynamics(x_nominal, u_nominal, requires_grad=True)
+        x_next_nominal = self.dynamics(x_nominal, u_nominal,
+                                       gradient_mode=GradientMode.kBOnly)
         ABhat = np.zeros((n_x, n_x + n_u))
         ABhat[:, :n_x] = self.q_sim.get_Dq_nextDq()
 
