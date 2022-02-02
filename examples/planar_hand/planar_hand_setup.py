@@ -17,10 +17,10 @@ object_name = "sphere"
 h = 0.1
 
 # gradient computation
-gradient_mode = BundleMode.kFirst
-parallel_mode = ParallelizationMode.kCppBundledB
+bundle_mode = BundleMode.kFirst
+parallel_mode = ParallelizationMode.kZmq
 decouple_AB = True
 
-# IrsLqr
+# IrsMpc
 num_iters = 10
 num_samples = 100

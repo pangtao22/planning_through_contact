@@ -69,7 +69,7 @@ name: reachability_trj_opt_xx.pkl
 }
 '''
 
-with open('./data/reachability_trj_opt_01.pkl', 'rb') as f:
+with open('./data/reachability_trj_opt_02.pkl', 'rb') as f:
     reachability_trj_opt = pickle.load(f)
 
 du = reachability_trj_opt['reachable_set_data']['du']
@@ -93,13 +93,13 @@ plot_1_step = go.Scatter3d(x=qu['1_step'][:, 0],
                            mode='markers',
                            hovertemplate=hover_template_reachability,
                            marker=dict(size=2))
-plot_multi = go.Scatter3d(x=qu['multi_step'][:, 0],
-                          y=qu['multi_step'][:, 1],
-                          z=qu['multi_step'][:, 2],
-                          name='multi_step',
-                          mode='markers',
-                          hovertemplate=hover_template_reachability,
-                          marker=dict(size=2))
+# plot_multi = go.Scatter3d(x=qu['multi_step'][:, 0],
+#                           y=qu['multi_step'][:, 1],
+#                           z=qu['multi_step'][:, 2],
+#                           name='multi_step',
+#                           mode='markers',
+#                           hovertemplate=hover_template_reachability,
+#                           marker=dict(size=2))
 
 plot_trj = go.Scatter3d(
     x=q_u0[0] + dqu_goal[:, 0],
@@ -120,7 +120,7 @@ plot_qu0 = create_q_u0_plot(q_u0)
 
 # PCA lines
 principal_axes_plots = create_pca_plots(principal_points)
-fig = go.Figure(data=[plot_1_step, plot_multi, plot_trj, plot_qu0] + principal_axes_plots,
+fig = go.Figure(data=[plot_1_step, plot_trj, plot_qu0] + principal_axes_plots,
                 layout=layout)
 
 

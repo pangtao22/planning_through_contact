@@ -16,7 +16,7 @@ from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 from planar_hand_setup import (h, q_model_path,
-                               decouple_AB, gradient_mode, num_samples,
+                               decouple_AB, bundle_mode, num_samples,
                                robot_l_name, robot_r_name, object_name)
 
 from rrt.planner import ConfigurationSpace
@@ -26,7 +26,6 @@ from rrt.utils import set_orthographic_camera_yz, sample_on_sphere
 q_dynamics = QuasistaticDynamics(h=h,
                                  q_model_path=q_model_path,
                                  internal_viz=True)
-q_dynamics_p = QuasistaticDynamicsParallel(q_dynamics)
 
 plant = q_dynamics.plant
 q_sim_py = q_dynamics.q_sim_py
@@ -54,7 +53,7 @@ params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
 
 params.decouple_AB = decouple_AB
-params.bundle_mode = gradient_mode
+params.bundle_mode = bundle_mode
 params.num_samples = num_samples
 params.u_bounds_abs = np.array(
     [-np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
@@ -64,7 +63,8 @@ T = int(round(2 / h))  # num of time steps to simulate forward.
 params.T = T
 duration = T * h
 
-irs_lqr_q = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
+irs_mpc = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
+q_dynamics_p = irs_mpc.q_dynamics_parallel
 
 # %% meshcat
 vis = q_dynamics.q_sim_py.viz.vis
@@ -346,13 +346,13 @@ def calc_trajectory(n_clicks, q_u_goal_json, q_u0_json, q_a0_json):
     x0, u0, q_u0 = get_x0_and_u0_from_json(q_u0_json, q_a0_json)
     x_goal = np.array(x0)
     x_goal[q_dynamics.q_sim_py.velocity_indices[model_u]] = q_u_goal
-    irs_lqr_q.initialize_problem(
+    irs_mpc.initialize_problem(
         x0=x0,
         x_trj_d=np.tile(x_goal, (T + 1, 1)),
         u_trj_0=np.tile(u0, (T, 1)))
 
-    irs_lqr_q.iterate(max_iterations=10)
-    result = irs_lqr_q.package_solution()
+    irs_mpc.iterate(max_iterations=10)
+    result = irs_mpc.package_solution()
     q_dynamics.publish_trajectory(result['x_trj'])
     # --------------------------------------------------------------------
 
