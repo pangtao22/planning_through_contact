@@ -40,31 +40,21 @@ class PoissonTree(Tree):
         """
         q_now = node.q
         theta_samples = 2.0 * np.pi * np.random.rand(100)
+        
+        sample_coords = q_now[:,None] + np.array(
+            [np.cos(theta_samples), np.sin(theta_samples)])
+        sample_coords = sample_coords.transpose()
 
-        max_sample_dist = 0.0
-        max_sample = None
+        existing_coords = self.get_valid_q_matrix()
 
-        for i in range(len(theta_samples)):
-            # For each sample, find minimum distance.
-            theta = theta_samples[i]
-            min_dist = np.inf
-            for j in range(self.size):
-                dist = np.linalg.norm(
-                    np.array(q_now + [np.cos(theta), np.sin(theta)]) - 
-                    self.graph.nodes[j]["node"].q
-                )
+        pairwise_distance = np.linalg.norm(
+            sample_coords[:,None,:] - existing_coords[None,:,:], axis=-1)
 
-                if dist < min_dist:
-                    min_dist = dist
+        best_idx = np.argmax(np.min(pairwise_distance, axis=1), axis=0)
 
-            if min_dist > max_sample_dist:
-                max_sample_dist = min_dist
-                max_sample = i
-
-        # Construct node.
-        theta_best = theta_samples[max_sample]
         new_node = Node()
-        new_node.q = q_now + np.array([np.cos(theta_best), np.sin(theta_best)])
+        new_node.q = sample_coords[best_idx,:]
+
         return new_node
 
     def termination(self):
@@ -83,6 +73,7 @@ goal = 100.0 * np.ones(2)
 params = PoissonParams()
 params.root_node = root_node
 params.goal = goal
+params.eps = 2.0
 
 tree = PoissonTree(params)
 tree.iterate()
