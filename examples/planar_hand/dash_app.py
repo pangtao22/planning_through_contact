@@ -26,7 +26,7 @@ from dash_app_common import (add_goal_meshcat, hover_template_reachability,
 q_dynamics = QuasistaticDynamics(h=h,
                                  q_model_path=q_model_path,
                                  internal_viz=True)
-
+q_sim_py = q_dynamics.q_sim_py
 plant = q_dynamics.plant
 
 model_a_l = plant.GetModelInstanceByName(robot_l_name)
