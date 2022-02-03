@@ -2,6 +2,7 @@ from typing import Dict
 import numpy as np
 import networkx as nx
 from scipy.spatial import KDTree
+from tqdm import tqdm
 import time
 
 """
@@ -10,8 +11,8 @@ Add to nx.Digraph() using
 G.add_node(1, node=Node())
 """
 class Node:
-    def __init__(self):
-        self.q = None # np.array of states.
+    def __init__(self, q):
+        self.q = q # np.array of states.
         self.value = None # float.
         self.id = None # int
 
@@ -34,8 +35,7 @@ Base tree class.
 """
 class TreeParams:
     def __init__(self):
-        self.max_size = 1000
-        self.system = None
+        self.max_size = 200
         self.goal = None # q_goal.
         self.root_node = None
         self.eps = np.inf # radius of norm ball for NN queries.
@@ -44,7 +44,6 @@ class Tree:
     def __init__(self, params: TreeParams):
         self.graph = nx.DiGraph()
         self.size = 0 # variable to keep track of nodes.
-        self.system = params.system
         self.max_size = params.max_size
         self.goal = params.goal
         self.root_node = params.root_node
@@ -133,18 +132,21 @@ class Tree:
 
         # Linear search over the neighbors.
         # TODO(terry-suh): Can this be replaced with batch computation?
+        # Maybe not, if reachability cannot be checked in batch....
         for idx in neighbor_idx:
-            parent_candidate_node = self.graph.nodes[idx]["node"]
-            candidate_edge_cost = self.compute_edge_cost(
-                parent_candidate_node, child_node)
+            parent_candidate_node = self.get_node_from_id(idx)
+            # Check for reachability from the child node.
+            if parent_candidate_node.is_reachable(child_node):
+                candidate_edge_cost = self.compute_edge_cost(
+                    parent_candidate_node, child_node)
 
-            candidate_value = (
-                parent_candidate_node.value + candidate_edge_cost)
+                candidate_value = (
+                    parent_candidate_node.value + candidate_edge_cost)
 
-            if (candidate_value < best_value):
-                best_value = candidate_value
-                best_cost = candidate_edge_cost
-                new_parent = parent_candidate_node
+                if (candidate_value < best_value):
+                    best_value = candidate_value
+                    best_cost = candidate_edge_cost
+                    new_parent = parent_candidate_node
 
         # Replace edge.
         self.remove_edge(
@@ -153,26 +155,19 @@ class Tree:
         new_edge = Edge()
         new_edge.parent = new_parent
         new_edge.child = child_node
-        new_edge.cost = candidate_edge_cost
+        new_edge.cost = best_cost
 
         self.add_edge(new_edge)
 
     def iterate(self):
-        while (self.size < self.max_size):
+        for _ in tqdm(range(self.max_size - 1)):
             # 1. Sample some node from the current tree.
-            time_start = time.time()            
             parent_node = self.sample_node_from_tree()
-            print("time to sample: " + str(time.time() - time_start))
 
             # 2. Sample a new child node from the selected node and add 
             #    to the graph.
-            time_start = time.time()
             child_node = self.extend(parent_node)
-            print("time to extend: " + str(time.time() - time_start))
-
-            time_start = time.time()
             self.add_node(child_node)
-            print("time to add: " + str(time.time() - time_start))
             
             edge = Edge()
             edge.parent = parent_node
@@ -184,10 +179,16 @@ class Tree:
             self.add_edge(edge)
 
             # 3. Attempt to rewire the extended node.
-            time_start = time.time()            
+            # NOTE(terry-suh): In order to guarantee optimality, rewiring
+            # should not only run on the current node, but also on the child 
+            # nodes. We skip this step to save computation.
             self.rewire(child_node)
-            print("time to rewire: " + str(time.time() - time_start))
 
             # 4. Terminate
             if self.termination():
                 break
+
+class ContactSampler():
+    def __init__(self, system):
+        # TODO(terry-suh): all the grasp methods should come here.
+        raise NotImplementedError("")

@@ -40,7 +40,7 @@ class PoissonTree(Tree):
         """
         q_now = node.q
         theta_samples = 2.0 * np.pi * np.random.rand(100)
-        
+
         sample_coords = q_now[:,None] + np.array(
             [np.cos(theta_samples), np.sin(theta_samples)])
         sample_coords = sample_coords.transpose()
@@ -52,9 +52,7 @@ class PoissonTree(Tree):
 
         best_idx = np.argmax(np.min(pairwise_distance, axis=1), axis=0)
 
-        new_node = Node()
-        new_node.q = sample_coords[best_idx,:]
-
+        new_node = Node(sample_coords[best_idx,:])
         return new_node
 
     def termination(self):
@@ -64,8 +62,7 @@ class PoissonTree(Tree):
                 return True
         return False
 
-root_node = Node()
-root_node.q = np.zeros(2)
+root_node = Node(np.zeros(2))
 root_node.value = 0.0
 
 goal = 100.0 * np.ones(2)
@@ -73,7 +70,7 @@ goal = 100.0 * np.ones(2)
 params = PoissonParams()
 params.root_node = root_node
 params.goal = goal
-params.eps = 2.0
+params.eps = 1.5
 
 tree = PoissonTree(params)
 tree.iterate()
@@ -84,5 +81,15 @@ for i in range(tree.size):
 node_lst = np.array(node_lst)
 
 plt.figure()
+for edge_tuple in tree.graph.edges:
+    qu = tree.get_node_from_id(edge_tuple[0]).q
+    qv = tree.get_node_from_id(edge_tuple[1]).q
+    plt.plot([qu[0], qv[0]], [qu[1], qv[1]], 'k-')
+
+for node_idx in tree.graph.nodes:
+    plt.annotate(str(tree.get_node_from_id(node_idx).value),
+        xy=tree.get_node_from_id(node_idx).q)
+
+
 plt.scatter(node_lst[:,0], node_lst[:,1])
 plt.show()
