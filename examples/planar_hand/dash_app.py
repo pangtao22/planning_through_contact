@@ -69,7 +69,7 @@ name: reachability_trj_opt_xx.pkl
 }
 '''
 
-with open('./data/reachability_trj_opt_02.pkl', 'rb') as f:
+with open('./data/reachability_trj_opt_00.pkl', 'rb') as f:
     reachability_trj_opt = pickle.load(f)
 
 du = reachability_trj_opt['reachable_set_data']['du']
