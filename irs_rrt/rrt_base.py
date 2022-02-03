@@ -16,7 +16,7 @@ class Node:
         self.value = None # float.
         self.id = None # int
 
-    def is_reachable(self, q):
+    def is_reachable(self, q_query):
         return True
 
 """
@@ -105,7 +105,7 @@ class Tree:
     def compute_edge_cost(self, parent_node: Node, child_node: Node):
         raise NotImplementedError("This method is virtual.")
 
-    def sample_node_from_tree(self):
+    def select_node_from_tree(self):
         raise NotImplementedError("This method is virtual.")
 
     def extend(self, node: Node):
@@ -162,7 +162,7 @@ class Tree:
     def iterate(self):
         for _ in tqdm(range(self.max_size - 1)):
             # 1. Sample some node from the current tree.
-            parent_node = self.sample_node_from_tree()
+            parent_node = self.select_node_from_tree()
 
             # 2. Sample a new child node from the selected node and add 
             #    to the graph.

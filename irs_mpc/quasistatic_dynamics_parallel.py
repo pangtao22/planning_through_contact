@@ -76,6 +76,26 @@ class QuasistaticDynamicsParallel:
             x_batch, u_batch, self.q_dynamics.h, GradientMode.kNone)
         return x_next
 
+    def dynamics_bundled_from_samples(self, x_nominal, u_batch):
+        """
+        Compute bundled dynamics given samples of u_batch.
+        u_batch must be of shape (n_samples, dim_u).
+        """
+        n_samples = u_batch.shape[0]
+        x_batch = np.tile(x_nominal[:,None], (1, n_samples)).transpose()
+        xnext_batch = self.dynamics_batch(x_batch, u_batch)
+        return np.mean(xnext_batch, axis=0)
+
+    def dynamics_bundled(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
+                         n_samples: int,
+                         std_u: Union[np.ndarray, float]):
+        """
+        Compute bundled dynamics using dynamics_batch function.
+        """
+        u_batch = np.random.normal(
+            u_nominal, std_u, size=[n_samples, self.dim_u])
+        return self.dynamics_bundled_from_samples(x_nominal, u_batch)
+
     def calc_bundled_ABc(self, x_trj: np.ndarray, u_trj: np.ndarray,
                          n_samples: int,
                          std_u: Union[np.ndarray, float], decouple_AB: bool,

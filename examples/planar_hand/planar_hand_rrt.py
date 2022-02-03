@@ -64,15 +64,13 @@ q0_dict = {idx_u: q_u0,
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 
 #%% RRT testing
-params = IrsTreeParams()
-params.q_dynamics = q_dynamics
-params.q_dynamics_p = QuasistaticDynamicsParallel(q_dynamics)
+params = IrsTreeParams(q_dynamics)
 params.n_samples = 10000
-params.std_u = 0.1 
+params.std_u = 0.1
 
 node = IrsNode(x0, params)
-print(node.Bhat @ node.Bhat.T)
-#print(node.chat)
 
 du = 0.1 * np.ones(4)
 du_batch = 0.1 * np.ones((100, 4))
+
+print(node.eval_gaussian(node.q))

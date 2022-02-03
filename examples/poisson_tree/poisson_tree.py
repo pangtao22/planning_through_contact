@@ -18,7 +18,7 @@ class PoissonTree(Tree):
         x_child = child_node.q
         return np.linalg.norm(x_parent - x_child)
 
-    def sample_node_from_tree(self):
+    def select_node_from_tree(self):
         # Choose the sample furthest away from origin.
 
         max_sample_dist = 0.0
