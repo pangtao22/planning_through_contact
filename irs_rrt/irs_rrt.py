@@ -10,20 +10,17 @@ from irs_rrt.rrt_base import Node, Edge, Tree, TreeParams
 from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 
-"""
-IrsNode. Each node is responsible for keeping a copy of the bundled dynamics
-and the Gaussian parametrized by the bundled dynamics.
-"""
+
 class IrsTreeParams(TreeParams):
     def __init__(self, q_dynamics):
         super().__init__()
-        self.q_dynamics = q_dynamics # QuasistaticDynamics class.
+        self.q_dynamics = q_dynamics  # QuasistaticDynamics class.
         self.q_dynamics_p = QuasistaticDynamicsParallel(
             self.q_dynamics)
 
         # Options for computing bundled dynamics.
         self.n_samples = 100
-        self.std_u = 0.1 * np.array(self.q_dynamics.dim_u) # std_u for input.
+        self.std_u = 0.1 * np.array(self.q_dynamics.dim_u)  # std_u for input.
         self.decouple_AB = True
         self.bundle_mode = BundleMode.kFirst
         self.parallel_mode = ParallelizationMode.kZmq
@@ -73,13 +70,17 @@ class IrsTreeParams(TreeParams):
 
 
 class IrsNode(Node):
+    """
+    IrsNode. Each node is responsible for keeping a copy of the bundled dynamics
+    and the Gaussian parametrized by the bundled dynamics.
+    """
     def __init__(self, q: np.array, params: IrsTreeParams):
         super().__init__(q)
         # Bundled dynamics parameters.
         self.params = params
-        self.q_dynamics = params.q_dynamics # QuasistaticDynamics class.        
-        self.q_dynamics_p = params.q_dynamics_p # QuasistaticDynamics class.
-        self.std_u = params.std_u # Injected noise for input.
+        self.q_dynamics = params.q_dynamics  # QuasistaticDynamics class.
+        self.q_dynamics_p = params.q_dynamics_p  # QuasistaticDynamics class.
+        self.std_u = params.std_u  # Injected noise for input.
 
         self.ubar = self.q[self.q_dynamics.get_u_indices_into_x()]
 
@@ -106,14 +107,14 @@ class IrsNode(Node):
         x_trj = np.zeros((2, self.q_dynamics_p.dim_x))
         u_trj = np.zeros((1, self.q_dynamics_p.dim_u))
 
-        x_trj[0,:] = self.q
-        u_trj[0,:] = self.ubar
+        x_trj[0, :] = self.q
+        u_trj[0, :] = self.ubar
 
         Ahat, Bhat = self.q_dynamics_p.calc_bundled_AB_cpp(
             x_trj, u_trj, self.params.std_u, self.params.n_samples, False)
         chat = fhat
 
-        return Bhat[0,:,:], chat
+        return Bhat[0, :, :], chat
 
     def compute_metric_parameters(self):
         """
@@ -122,13 +123,13 @@ class IrsNode(Node):
         This computation is separated out as a method for users to allow
         first-order (B @ B.T) or zero-order (SVD) variants.
         TODO(terry-suh): This should always be B @ B.T. The difference should 
-        be whether or not B comes from first / zero order compuation.
+        be whether or not B comes from first / zero order computation.
         Ask me for derivation of why.
         """
         cov = self.Bhat @ self.Bhat.T + self.params.regularization * np.eye(
             self.q_dynamics.dim_x)
         mu = self.chat
-        return mu, cov 
+        return mu, cov
 
     def eval_bundled_dynamics(self, du: np.array):
         """
@@ -145,7 +146,7 @@ class IrsNode(Node):
         """
         dim_b = du_batch.shape[0]
         xhat_next_batch = (
-            self.Bhat.dot(du_batch.transpose()).transpose() + self.chat)
+                self.Bhat.dot(du_batch.transpose()).transpose() + self.chat)
         return xhat_next_batch
 
     def eval_metric(self, q_query):
@@ -162,7 +163,7 @@ class IrsNode(Node):
         q_query_batch: (dim_b, dim_x)
         returns: (dim_b)
         """
-        batch_error = q_query_batch - self.mu[None,:]
+        batch_error = q_query_batch - self.mu[None, :]
         metric_batch = np.diagonal(
             batch_error @ self.covinv @ batch_error.T)
         return metric_batch
@@ -173,7 +174,7 @@ class IrsNode(Node):
         according to exact dynamic rollouts.
         """
         u_batch = np.random.normal(self.ubar, std_u)
-        x_batch = np.tile(self.q[:,None], (1, n_samples)).transpose()
+        x_batch = np.tile(self.q[:, None], (1, n_samples)).transpose()
         xnext_batch = self.dynamics_p.dynamics_batch(x_batch, u_batch)
         return xnext_batch
 
@@ -194,10 +195,10 @@ class IrsNode(Node):
         # Normalize du by step_size then add back ubar to bring to nominal
         # coordinates.
         u_batch = np.random.rand(n_samples, self.q_dynamics.dim_u) - 0.5
-        u_batch = u_batch / np.linalg.norm(u_batch, axis=1)[:,None]
+        u_batch = u_batch / np.linalg.norm(u_batch, axis=1)[:, None]
         u_batch = step_size * u_batch + self.u_bar
 
-        x_batch = np.tile(self.q[:,None], (1, n_samples)).transpose()
+        x_batch = np.tile(self.q[:, None], (1, n_samples)).transpose()
         xnext_batch = self.dynamics_p.dynamics_batch(x_batch, u_batch)
         return xnext_batch
 
@@ -207,7 +208,7 @@ class IrsNode(Node):
         according to bundled dynamic rollouts.
         """
         du_batch = np.random.rand(n_samples, self.q_dynamics.dim_u) - 0.5
-        du_batch = du_batch / np.linalg.norm(du_batch, axis=1)[:,None]
+        du_batch = du_batch / np.linalg.norm(du_batch, axis=1)[:, None]
         du_batch = step_size * du_batch
 
         xnext_hat_batch = self.eval_bundled_dynamics_batch(du_batch)
@@ -234,16 +235,17 @@ class IrsNode(Node):
         return (dist < self.params.rewire_tolerance)
 
 
-"""
-IrsEdge.
-"""
 class IrsEdge(Edge):
+    """
+    IrsEdge.
+    """
     def __init__(self):
         super().__init__()
         self.du = None
         # NOTE(terry-suh): It is possible to store trajectories in the edge
         # class. We won't do that here because we don't solve trajopt during
         # extend.
+
 
 class IrsTree(Tree):
     def __init__(self, params: TreeParams):
@@ -263,6 +265,7 @@ class IrsTree(Tree):
     """
     Methods for selecting node from the existing tree.
     """
+
     def select_node_random(self):
         """
         Select randomly from existing nodes in the tree.
@@ -276,7 +279,7 @@ class IrsTree(Tree):
         distance metric.
         """
         # Compute distance metric in batch.
-        diff = self.get_valid_q_matrix() - self.root_node.q[None,:]
+        diff = self.get_valid_q_matrix() - self.root_node.q[None, :]
         dist_batch = np.diagonal(
             diff @ np.diag(self.params.global_metric) @ diff.T)
         max_idx = np.argmax(dist_batch)
@@ -292,7 +295,7 @@ class IrsTree(Tree):
         dist_batch = np.diagonal(
             diff @ np.diag(self.params.global_metric) @ diff.T)
         min_idx = np.argmin(dist_batch)
-        return self.get_node_from_id(min_idx)        
+        return self.get_node_from_id(min_idx)
 
     def select_node(self):
         """
@@ -301,7 +304,7 @@ class IrsTree(Tree):
         """
         mode = np.random.choice(
             list(self.params.select_prob.keys()), 1,
-            p = list(self.params.select_prob.values()))
+            p=list(self.params.select_prob.values()))
 
         if (mode == "explore"):
             selected_node = self.select_node_explore()
@@ -337,7 +340,7 @@ class IrsTree(Tree):
 
         for i in range(self.size):
             node = self.get_node_from_id(i)
-            pairwise_distance[i,:] = node.eval_metric_batch(xnext_batch)
+            pairwise_distance[i, :] = node.eval_metric_batch(xnext_batch)
 
         # Evaluate inner minimum over q.
         sample_distance = np.min(pairwise_distance, axis=0)
@@ -345,7 +348,7 @@ class IrsTree(Tree):
         # Evaluate outer maximum over q'.
         idx = np.argmax(sample_distance)
 
-        return IrsNode(xnext_batch[idx,:], self.params)
+        return IrsNode(xnext_batch[idx, :], self.params)
 
     def extend_contact(self, node: Node):
         """
@@ -360,12 +363,12 @@ class IrsTree(Tree):
         to the goal configuration using the global distance metric.
         """
         xnext_batch = node.sample_bundled_step(
-                    self.params.n_samples, self.params.stepsize)
-        diff = xnext_batch - self.goal[None,:]
+            self.params.n_samples, self.params.stepsize)
+        diff = xnext_batch - self.goal[None, :]
         dist_batch = np.diagonal(
             diff @ np.diag(self.params.global_metric) @ diff.T)
         idx = np.argmin(dist_batch)
-        return IrsNode(xnext_batch[idx,:], self.params)
+        return IrsNode(xnext_batch[idx, :], self.params)
 
     def extend_random(self, node: Node):
         """
@@ -374,14 +377,14 @@ class IrsTree(Tree):
         to the goal configuration using the global distance metric.
         """
         xnext_batch = node.sample_bundled_step(
-                    self.params.n_samples, self.params.stepsize)
+            self.params.n_samples, self.params.stepsize)
         idx = np.random.randint(self.params.n_samples)
-        return IrsNode(xnext_batch[idx,:], self.params)
+        return IrsNode(xnext_batch[idx, :], self.params)
 
     def extend(self, node: Node):
         mode = np.random.choice(
             list(self.params.extend_prob.keys()), 1,
-            p = list(self.params.extend_prob.values()))
+            p=list(self.params.extend_prob.values()))
 
         if (mode == "explore"):
             selected_node = self.extend_explore(node)
@@ -394,4 +397,4 @@ class IrsTree(Tree):
         else:
             selected_node = self.extend_random(node)
 
-        return selected_node        
+        return selected_node
