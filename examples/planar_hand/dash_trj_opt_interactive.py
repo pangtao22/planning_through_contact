@@ -8,9 +8,9 @@ import plotly.graph_objects as go
 import tqdm
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
-from dash_app_common import (add_goal_meshcat, hover_template_reachability,
-                             layout, calc_principal_points,
-                             create_pca_plots, calc_X_WG, create_q_u0_plot)
+from dash_common import (add_goal_meshcat, hover_template_reachability,
+                         layout, calc_principal_points,
+                         create_pca_plots, calc_X_WG, create_q_u0_plot)
 from irs_mpc.irs_mpc_quasistatic import (IrsMpcQuasistatic)
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
