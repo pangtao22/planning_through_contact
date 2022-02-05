@@ -22,7 +22,7 @@ class IrsTreeParams(TreeParams):
             self.q_dynamics)
 
         # Options for computing bundled dynamics.
-        self.n_samples = 1000
+        self.n_samples = 100
         self.std_u = 0.1 * np.array(self.q_dynamics.dim_u) # std_u for input.
         self.decouple_AB = True
         self.bundle_mode = BundleMode.kFirst
@@ -54,21 +54,21 @@ class IrsTreeParams(TreeParams):
 
         # Stepsize.
         # TODO(terry-suh): the selection of this parameter should be automated.
-        self.stepsize = 0.1
+        self.stepsize = 0.3
 
         # Probability to choose between different strategies for selection.
         self.select_prob = {
-            "explore": 0.5,
-            "random": 0.3,
-            "towards_goal": 0.2
+            "explore": 0.3,
+            "random": 0.2,
+            "towards_goal": 0.5
         }
 
         # Probability to choose between different strategies for extend.
         self.extend_prob = {
-            "explore": 0.5,
+            "explore": 0.7,
             "random": 0.1,
             "contact": 0.0,
-            "towards_goal": 0.4
+            "towards_goal": 0.2
         }
 
 
@@ -89,7 +89,7 @@ class IrsNode(Node):
         self.Bhat, self.chat = self.compute_bundled_Bc()
 
         # Parameters of the Gaussian based on computed Bhat / chat.
-        self.mu, self.cov = self.compute_Gaussian_parameters()
+        self.mu, self.cov = self.compute_metric_parameters()
         self.covinv = np.linalg.inv(self.cov)
 
     def compute_bundled_Bc(self):
@@ -154,7 +154,7 @@ class IrsNode(Node):
         the L2 norm on the basis that spans the bundled B matrix.
         This is also known as the Mahalanobis distance.
         """
-        return (q - self.mu).T @ self.covinv @ (q - self.mu)
+        return (q_query - self.mu).T @ self.covinv @ (q_query - self.mu)
 
     def eval_metric_batch(self, q_query_batch):
         """
@@ -162,8 +162,10 @@ class IrsNode(Node):
         q_query_batch: (dim_b, dim_x)
         returns: (dim_b)
         """
-        batch_error = q - self.mu[:,None].transpose() # (dim_b, dim_x)
-        return batch_error.T @ np.linalg.inv(self.covinv) @ batch_error
+        batch_error = q_query_batch - self.mu[None,:]
+        metric_batch = np.diagonal(
+            batch_error @ self.covinv @ batch_error.T)
+        return metric_batch
 
     def sample_exact_gaussian(self, n_samples: int, std_u: np.array):
         """
@@ -223,13 +225,14 @@ class IrsNode(Node):
         """
         raise NotImplementedError("Need to implement this.")
 
-    def is_reachable(self, q_query):
+    def is_reachable(self, child_node):
         """
         Is q_query reachable from self.q? Implement thresholding according to
         the Mahalanobis distance on bundled B matrix.
         """
-        dist = self.eval_metric(q_query)
+        dist = self.eval_metric(child_node.q)
         return (dist < self.params.rewire_tolerance)
+
 
 """
 IrsEdge.
@@ -251,49 +254,47 @@ class IrsTree(Tree):
         diff = parent_node.q - child_node.q
         return diff.T @ np.diag(self.params.global_metric) @ diff
 
-    def termination(self, node: Node):
-        diff = node.q - self.params.goal
-        dist = diff.T @ np.diag(self.parmas.global_metric) @ diff
-        return (dist < self.params.termination_criteria)
+    def is_close_to_goal(self):
+        diff = self.get_valid_q_matrix() - self.params.goal
+        dist_batch = np.diagonal(
+            diff @ np.diag(self.params.global_metric) @ diff.T)
+        return np.min(dist_batch) < self.params.termination_tolerance
 
     """
     Methods for selecting node from the existing tree.
     """
-    def select_node_from_tree_random(self):
+    def select_node_random(self):
         """
         Select randomly from existing nodes in the tree.
         """
         node_idx = np.random.randint(self.size)
         return self.get_node_from_id(node_idx)
 
-    def select_node_from_tree_explore(self):
+    def select_node_explore(self):
         """
         Select node that is furthest away from the origin by the global
         distance metric.
         """
         # Compute distance metric in batch.
-        root_batch = np.tile(self.root_node[:,None],
-            (1, self.size)).transpose()
-        diff = self.q_matrix - root_batch
+        diff = self.get_valid_q_matrix() - self.root_node.q[None,:]
         dist_batch = np.diagonal(
             diff @ np.diag(self.params.global_metric) @ diff.T)
         max_idx = np.argmax(dist_batch)
         return self.get_node_from_id(max_idx)
 
-    def select_node_from_tree_towards_goal(self):
+    def select_node_towards_goal(self):
         """
         Select node that is closest from the goal as judged by the global
         distance metric.
         """
         # Compute distance metric in batch.
-        goal_batch = np.tile(self.goal[:,None], (1, self.size)).transpose()
-        diff = self.q_matrix - goal_batch
+        diff = self.get_valid_q_matrix() - self.params.goal
         dist_batch = np.diagonal(
             diff @ np.diag(self.params.global_metric) @ diff.T)
         min_idx = np.argmin(dist_batch)
         return self.get_node_from_id(min_idx)        
 
-    def select_node_from_tree(self):
+    def select_node(self):
         """
         Wrapper method that tosses a dice to decide between the strategies 
         according to self.params.select_prob dictionary.
@@ -303,13 +304,13 @@ class IrsTree(Tree):
             p = list(self.params.select_prob.values()))
 
         if (mode == "explore"):
-            selected_node = self.select_node_from_tree_explore()
+            selected_node = self.select_node_explore()
         elif (mode == "random"):
-            selected_node = self.select_node_from_tree_random()
+            selected_node = self.select_node_random()
         elif (mode == "towards_goal"):
-            selected_node = self.select_node_from_tree_towards_goal()
+            selected_node = self.select_node_towards_goal()
         else:
-            selected_node = self.select_node_from_tree_random()
+            selected_node = self.select_node_random()
 
         return selected_node
 
@@ -332,24 +333,19 @@ class IrsTree(Tree):
         xnext_batch = node.sample_bundled_step(
             self.params.n_samples, self.params.stepsize)
 
-        pairwise_distance = np.zeros((self.size - 1, self.params.n_samples))
+        pairwise_distance = np.zeros((self.size, self.params.n_samples))
 
-        count = 0
-        for i in range(self.size-1):
-            # Leave out the node we are sampling from....
-            if (count is not node.id):
-                node = self.get_node_from_id(count)
-                pairwise_distance[count,:] = node.eval_metric_batch(
-                    xnext_batch)
-                count = count + 1
+        for i in range(self.size):
+            node = self.get_node_from_id(i)
+            pairwise_distance[i,:] = node.eval_metric_batch(xnext_batch)
 
         # Evaluate inner minimum over q.
-        sample_distance = np.min(pairwise_distance, axis=1)
+        sample_distance = np.min(pairwise_distance, axis=0)
 
         # Evaluate outer maximum over q'.
         idx = np.argmax(sample_distance)
 
-        return Node(xnext_batch[idx,:])
+        return IrsNode(xnext_batch[idx,:], self.params)
 
     def extend_contact(self, node: Node):
         """
@@ -365,12 +361,11 @@ class IrsTree(Tree):
         """
         xnext_batch = node.sample_bundled_step(
                     self.params.n_samples, self.params.stepsize)
-        goal_batch = np.tile(self.goal[:,None], (1, self.size)).transpose()
-        diff = xnext_batch - goal_batch
+        diff = xnext_batch - self.goal[None,:]
         dist_batch = np.diagonal(
             diff @ np.diag(self.params.global_metric) @ diff.T)
         idx = np.argmin(dist_batch)
-        return Node(xnext_batch[idx,:])
+        return IrsNode(xnext_batch[idx,:], self.params)
 
     def extend_random(self, node: Node):
         """
@@ -381,7 +376,7 @@ class IrsTree(Tree):
         xnext_batch = node.sample_bundled_step(
                     self.params.n_samples, self.params.stepsize)
         idx = np.random.randint(self.params.n_samples)
-        return Node(xnext_batch[idx,:])
+        return IrsNode(xnext_batch[idx,:], self.params)
 
     def extend(self, node: Node):
         mode = np.random.choice(

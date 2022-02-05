@@ -48,6 +48,7 @@ class Tree:
         self.goal = params.goal
         self.root_node = params.root_node
         self.eps = params.eps
+        self.params = params
 
         self.dim_q = len(self.root_node.q)
 
@@ -105,13 +106,13 @@ class Tree:
     def compute_edge_cost(self, parent_node: Node, child_node: Node):
         raise NotImplementedError("This method is virtual.")
 
-    def select_node_from_tree(self):
+    def select_node(self):
         raise NotImplementedError("This method is virtual.")
 
     def extend(self, node: Node):
         raise NotImplementedError("This method is virtual.")
 
-    def termination(self, node: Node):
+    def is_close_to_goal(self, node: Node):
         raise NotImplementedError("This method is virtual.")
 
     """ Get neighbors of the current node in the norm ball. """
@@ -162,7 +163,7 @@ class Tree:
     def iterate(self):
         for _ in tqdm(range(self.max_size - 1)):
             # 1. Sample some node from the current tree.
-            parent_node = self.select_node_from_tree()
+            parent_node = self.select_node()
 
             # 2. Sample a new child node from the selected node and add 
             #    to the graph.
@@ -185,7 +186,8 @@ class Tree:
             self.rewire(child_node)
 
             # 4. Terminate
-            if self.termination():
+            if self.is_close_to_goal():
+                print("done!")
                 break
 
 class ContactSampler():

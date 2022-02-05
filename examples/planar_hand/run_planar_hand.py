@@ -9,6 +9,8 @@ from qsim.simulator import QuasistaticSimulator, GradientMode
 from qsim_cpp import QuasistaticSimulatorCpp
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from irs_mpc.quasistatic_dynamics_parallel import (
+    QuasistaticDynamicsParallel)
 from irs_mpc.irs_mpc_quasistatic import (
     IrsMpcQuasistatic)
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
@@ -57,6 +59,7 @@ q0_dict = {idx_u: q_u0,
 
 
 #%% try running the dynamics.
+
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u_traj_0 = np.zeros((T, dim_u))
 

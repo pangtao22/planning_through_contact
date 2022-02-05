@@ -3,6 +3,8 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
+import cProfile
+
 from pydrake.all import PiecewisePolynomial
 
 from qsim.simulator import QuasistaticSimulator, GradientMode
@@ -15,7 +17,7 @@ from irs_mpc.irs_mpc_quasistatic import (
     IrsMpcQuasistatic)
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
-from irs_rrt.irs_rrt import IrsNode, IrsTreeParams
+from irs_rrt.irs_rrt import IrsTree, IrsNode, IrsTreeParams
 
 from planar_hand_setup import *
 
@@ -62,15 +64,27 @@ q0_dict = {idx_u: q_u0,
            idx_a_r: qa_r_knots[0]}
 
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
+print(x0)
+
 
 #%% RRT testing
 params = IrsTreeParams(q_dynamics)
-params.n_samples = 10000
-params.std_u = 0.1
+params.root_node = IrsNode(x0, params)
+params.root_node.value = 0.0
+params.max_size = 1000
+params.eps = 3.0
+params.goal = np.copy(x0)
+params.goal[6] = np.pi
+params.termination_tolerance = 1e-3
 
-node = IrsNode(x0, params)
+tree = IrsTree(params)
+tree.iterate()
 
-du = 0.1 * np.ones(4)
-du_batch = 0.1 * np.ones((100, 4))
+np.save("q_mat_large.npy", tree.q_matrix)
 
-print(node.eval_gaussian(node.q))
+"""
+cProfile.runctx('tree.iterate()',
+                 globals=globals(), locals=locals(),
+                 filename='irs_rrt_profile.stat')
+tree.iterate()
+"""
