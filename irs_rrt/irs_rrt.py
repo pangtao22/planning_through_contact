@@ -398,3 +398,45 @@ class IrsTree(Tree):
             selected_node = self.extend_random(node)
 
         return selected_node
+
+    def serialize(self):
+        """
+        Converts self.graph into a hashable object with necessary node
+        attributes, such as q, and reachable set information.
+
+        TODO: it seems possible to convert both the Node and Edge classes in
+         rrt_base.py into dictionaries, which can be saved as attributes as
+         part of a networkx node/edge. The computational methods in the
+         Node class can be moved into a "reachable set" class.
+         This conversion has a few benefits:
+         - self.graph becomes hashable, rendering this function unnecessary,
+         - accessing attributes becomes easier:
+            self.graph[node_id]['node'].attribute_name  will become
+            self.graph[node_id]['attribute_name']
+         - saves a little bit of memory?
+        """
+        # TODO: include information about the system (q_sys yaml file?) in
+        #  graph attributes.
+        hashable_graph = nx.DiGraph()
+
+        for node in self.graph.nodes:
+            node_object = self.graph.nodes[node]["node"]
+            node_attributes = dict(
+                q=node_object.q,
+                value=node_object.value,
+                std_u=node_object.std_u,
+                ubar=node_object.ubar,
+                Bhat=node_object.Bhat,
+                chat=node_object.chat,
+                mu=node_object.mu,
+                cov=node_object.cov,
+                covinv=node_object.covinv)
+            hashable_graph.add_node(node, **node_attributes)
+
+        for edge in self.graph.edges:
+            # edge is a 2-tuple of integer node indices.
+            hashable_graph.add_edge(edge[0], edge[1],
+                                    weight=self.graph.edges[edge]["edge"].cost)
+
+        return hashable_graph
+
