@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 import tqdm
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
-from dash_common import (add_goal_meshcat, hover_template_reachability,
+from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
                          layout, calc_principal_points,
                          create_pca_plots, calc_X_WG, create_q_u0_plot)
 from irs_mpc.irs_mpc_quasistatic import (IrsMpcQuasistatic)
@@ -255,7 +255,7 @@ def update_reachability(n_clicks, q_u0_json, q_a0_json):
                                z=qu_samples[:, 2],
                                name='1_step',
                                mode='markers',
-                               hovertemplate=hover_template_reachability,
+                               hovertemplate=hover_template_y_z_theta,
                                marker=dict(size=2))
 
     plot_goals = go.Scatter3d(
@@ -264,7 +264,7 @@ def update_reachability(n_clicks, q_u0_json, q_a0_json):
         z=q_u_goal_samples[:, 2],
         name="goals",
         mode="markers",
-        hovertemplate=hover_template_reachability,
+        hovertemplate=hover_template_y_z_theta,
         marker=dict(size=6, opacity=0.8, color='gray'))
 
     fig = go.Figure(

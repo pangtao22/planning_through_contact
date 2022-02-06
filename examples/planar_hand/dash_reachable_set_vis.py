@@ -18,7 +18,7 @@ from planar_hand_setup import (q_model_path, h,
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from rrt.utils import set_orthographic_camera_yz
 
-from dash_common import (add_goal_meshcat, hover_template_reachability,
+from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
                          hover_template_trj, layout, calc_principal_points,
                          create_pca_plots, calc_X_WG, create_q_u0_plot)
 
@@ -91,7 +91,7 @@ plot_1_step = go.Scatter3d(x=qu['1_step'][:, 0],
                            z=qu['1_step'][:, 2],
                            name='1_step',
                            mode='markers',
-                           hovertemplate=hover_template_reachability,
+                           hovertemplate=hover_template_y_z_theta,
                            marker=dict(size=2))
 # plot_multi = go.Scatter3d(x=qu['multi_step'][:, 0],
 #                           y=qu['multi_step'][:, 1],

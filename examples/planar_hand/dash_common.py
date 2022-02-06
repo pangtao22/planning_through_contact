@@ -33,12 +33,12 @@ def calc_X_WG(y: float, z: float , theta: float):
 
 
 #%% hover templates and layout
-hover_template_reachability = (
+hover_template_y_z_theta = (
         '<i>y</i>: %{x:.4f}<br>' +
         '<i>z</i>: %{y:.4f}<br>' +
         '<i>theta</i>: %{z:.4f}')
 
-hover_template_trj = (hover_template_reachability +
+hover_template_trj = (hover_template_y_z_theta +
                       '<br><i>cost</i>: %{marker.color:.4f}')
 
 layout = go.Layout(autosize=True, height=900,
@@ -82,11 +82,11 @@ def create_pca_plots(principal_points: np.ndarray):
 
 
 #%% plotly figure components
-def create_q_u0_plot(q_u0: np.ndarray):
+def create_q_u0_plot(q_u0: np.ndarray, name='q_u0'):
     return go.Scatter3d(x=[q_u0[0]],
                         y=[q_u0[1]],
                         z=[q_u0[2]],
-                        name='q_u0',
+                        name=name,
                         mode='markers',
-                        hovertemplate=hover_template_reachability,
+                        hovertemplate=hover_template_y_z_theta,
                         marker=dict(size=12, symbol='cross', opacity=1.0))

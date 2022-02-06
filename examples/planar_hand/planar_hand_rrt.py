@@ -2,6 +2,7 @@ import os.path
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+import pickle
 
 import cProfile
 
@@ -79,9 +80,14 @@ params.termination_tolerance = 1e-3
 
 tree = IrsTree(params)
 tree.iterate()
+# np.save("q_mat_large.npy", tree.q_matrix)
 
-np.save("q_mat_large.npy", tree.q_matrix)
+#%%
+G = tree.serialize()
+with open('tree_1000.pkl', 'wb') as f:
+    pickle.dump(G, f)
 
+#%%
 """
 cProfile.runctx('tree.iterate()',
                  globals=globals(), locals=locals(),
