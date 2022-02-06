@@ -27,15 +27,21 @@ from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
 with open('tree_1000.pkl', 'rb') as f:
     tree = pickle.load(f)
 
+q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
+                                 internal_viz=True)
+
 #%%
 n_nodes = len(tree.nodes)
 n_q_u = 3
-q_u_nodes = np.zeros((n_nodes, n_q_u))
+q_nodes = np.zeros((n_nodes, 7))
 
 # node coordinates.
 for i in range(n_nodes):
     node = tree.nodes[i]
-    q_u_nodes[i] = node['q'][-3:]
+    q_nodes[i] = node['q']
+
+q_u_nodes = q_nodes[:, -3:]
+
 
 # edges.
 y_edges = []
@@ -95,7 +101,7 @@ app.layout = dbc.Container([
         ),
         dbc.Col(
             html.Iframe(src='http://127.0.0.1:7000/static/',
-                        height=800, width=800),
+                        height=800, width=1000),
             width={'size': 6, 'offset': 0, 'order': 0},
         )
     ])
@@ -105,6 +111,8 @@ app.layout = dbc.Container([
 @app.callback(
     Output('tree-fig', 'figure'), Input('tree-fig', 'clickData'))
 def click_callback(click_data):
+    print(click_data)
+
     if click_data is None:
         return fig
 
@@ -112,16 +120,18 @@ def click_callback(click_data):
     if fig.data[point['curveNumber']]['name'] != 'nodes':
         return fig
 
-    # find path.
+    # trace back to root to get path.
     y_path = []
     z_path = []
     theta_path = []
+    idx_path = []
     i_node = point['pointNumber']
 
     while True:
         y_path.append(q_u_nodes[i_node, 0])
         z_path.append(q_u_nodes[i_node, 1])
         theta_path.append(q_u_nodes[i_node, 2])
+        idx_path.append(i_node)
 
         i_parents = list(tree.predecessors(i_node))
         assert len(i_parents) <= 1
@@ -133,7 +143,10 @@ def click_callback(click_data):
     fig.update_traces(x=y_path, y=z_path, z=theta_path,
                       selector=dict(name='path'))
 
-    print(click_data)
+    # show path in meshcat
+    idx_path.reverse()
+    q_dynamics.publish_trajectory(q_nodes[idx_path], h=2 / len(idx_path))
+
     return fig
 
 
