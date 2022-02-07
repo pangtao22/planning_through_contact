@@ -12,7 +12,7 @@ from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 
 
 class IrsTreeParams(TreeParams):
-    def __init__(self, q_dynamics):
+    def __init__(self, q_dynamics, joint_limits):
         super().__init__()
         self.q_dynamics = q_dynamics  # QuasistaticDynamics class.
         self.q_dynamics_p = QuasistaticDynamicsParallel(
@@ -25,6 +25,11 @@ class IrsTreeParams(TreeParams):
         self.bundle_mode = BundleMode.kFirst
         self.parallel_mode = ParallelizationMode.kZmq
 
+        # State-space limits for sampling, provided as a bounding box.
+        # During tree expansion, samples that go outside of this limit will be
+        # rejected, implicitly enforcing the constraint.
+        self.x_lb, self.x_ub = self.joint_limit_to_x_bounds(joint_limits)
+
         # Regularization for computing inverse of covariance matrices.
         # NOTE(terry-suh): Note that if the covariance matrix is singular,
         # then the Mahalanobis distance metric is infinity. One interpretation
@@ -35,19 +40,19 @@ class IrsTreeParams(TreeParams):
         # Rewiring tolerance. If the distance from qi to qj is less than this
         # tolerance as evaluated by the local distance metric on qi, then
         # qi will be included in the candidate for rewiring.
-        self.rewire_tolerance = 10.0
+        self.rewire_tolerance = 1e3
 
         # Termination tolerance. Algorithm will terminate if there exists a
         # node such that the norm between the node and the goal is less than
         # this threshold.
-        self.termination_tolerance = 10.0
+        self.termination_tolerance = 1.0
 
         # The global distance metric that compares qi and qj in configuration
         # space. This metric is not used for reachability criterion, but is
         # used for assigning costs to each edge of RRT, as well as termination
         # criteria. The metric should be a vector of dim_x, which will be 
         # diagonalized and put into matrix norm form.
-        self.global_metric = np.ones(self.q_dynamics.dim_x)
+        self.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 1.0, 1.0, 3.0])
 
         # Stepsize.
         # TODO(terry-suh): the selection of this parameter should be automated.
@@ -55,19 +60,30 @@ class IrsTreeParams(TreeParams):
 
         # Probability to choose between different strategies for selection.
         self.select_prob = {
-            "explore": 0.3,
-            "random": 0.2,
-            "towards_goal": 0.5
+            "explore": 0.0,
+            "random": 0.7,
+            "towards_goal": 0.3
         }
 
         # Probability to choose between different strategies for extend.
         self.extend_prob = {
-            "explore": 0.7,
-            "random": 0.1,
+            "explore": 0.2,
+            "random": 0.5,
             "contact": 0.0,
-            "towards_goal": 0.2
+            "towards_goal": 0.3
         }
 
+    def joint_limit_to_x_bounds(self, joint_limits):
+        joint_limit_ub = {}
+        joint_limit_lb = {}
+
+        for model_idx in joint_limits.keys():
+            joint_limit_lb[model_idx] = joint_limits[model_idx][:,0]
+            joint_limit_ub[model_idx] = joint_limits[model_idx][:,1]
+
+        x_lb = self.q_dynamics.get_x_from_q_dict(joint_limit_lb)
+        x_ub = self.q_dynamics.get_x_from_q_dict(joint_limit_ub)
+        return x_lb, x_ub
 
 class IrsNode(Node):
     """
@@ -168,24 +184,14 @@ class IrsNode(Node):
             batch_error @ self.covinv @ batch_error.T)
         return metric_batch
 
-    def sample_exact_gaussian(self, n_samples: int, std_u: np.array):
+    def get_sample_idx_within_joint_limit(self, x_batch):
         """
-        Given number of samples and standard deviation, sample around the node
-        according to exact dynamic rollouts.
+        Given x_batch of shape (N, n), return x_new_batch that obey joint
+        limit constraints between self.params.x_lb and self.params.x_ub.
         """
-        u_batch = np.random.normal(self.ubar, std_u)
-        x_batch = np.tile(self.q[:, None], (1, n_samples)).transpose()
-        xnext_batch = self.dynamics_p.dynamics_batch(x_batch, u_batch)
-        return xnext_batch
-
-    def sample_bundled_gaussian(self, n_samples: int, std_u: np.array):
-        """
-        Given number of samples and standard deviation, sample around the node
-        according to bundled dynamics.
-        """
-        du_batch = np.random.normal(np.zeros(self.q_dynamics.dim_u), std_u)
-        xnext_hat_batch = self.eval_bundled_dynamics_batch(du_batch)
-        return xnext_hat_batch
+        inidx = np.all(np.logical_and(self.params.x_lb <= x_batch,
+                                      x_batch <= self.params.x_ub), axis=1)
+        return inidx
 
     def sample_exact_step(self, n_samples: int, step_size: float):
         """
@@ -196,11 +202,12 @@ class IrsNode(Node):
         # coordinates.
         u_batch = np.random.rand(n_samples, self.q_dynamics.dim_u) - 0.5
         u_batch = u_batch / np.linalg.norm(u_batch, axis=1)[:, None]
+
         u_batch = step_size * u_batch + self.u_bar
 
         x_batch = np.tile(self.q[:, None], (1, n_samples)).transpose()
         xnext_batch = self.dynamics_p.dynamics_batch(x_batch, u_batch)
-        return xnext_batch
+        return xnext_batch, u_batch
 
     def sample_bundled_step(self, n_samples: int, step_size: float):
         """
@@ -210,9 +217,11 @@ class IrsNode(Node):
         du_batch = np.random.rand(n_samples, self.q_dynamics.dim_u) - 0.5
         du_batch = du_batch / np.linalg.norm(du_batch, axis=1)[:, None]
         du_batch = step_size * du_batch
+        u_batch = self.ubar + du_batch
 
         xnext_hat_batch = self.eval_bundled_dynamics_batch(du_batch)
-        return xnext_hat_batch
+        inidx = self.get_sample_idx_within_joint_limit(xnext_hat_batch)
+        return xnext_hat_batch, u_batch
 
     def find_step_size(self, n_samples: int, max_tolerance: float):
         """
@@ -333,14 +342,16 @@ class IrsTree(Tree):
         the distance metric here is evaluated based on the local distance
         metric.
         """
-        xnext_batch = node.sample_bundled_step(
+        xnext_batch, unext_batch = node.sample_bundled_step(
             self.params.n_samples, self.params.stepsize)
 
-        pairwise_distance = np.zeros((self.size, self.params.n_samples))
+        batch_size = xnext_batch.shape[0]
+
+        pairwise_distance = np.zeros((self.size, batch_size))
 
         for i in range(self.size):
-            node = self.get_node_from_id(i)
-            pairwise_distance[i, :] = node.eval_metric_batch(xnext_batch)
+            node_i = self.get_node_from_id(i)
+            pairwise_distance[i, :] = node_i.eval_metric_batch(xnext_batch)
 
         # Evaluate inner minimum over q.
         sample_distance = np.min(pairwise_distance, axis=0)
@@ -348,7 +359,11 @@ class IrsTree(Tree):
         # Evaluate outer maximum over q'.
         idx = np.argmax(sample_distance)
 
-        return IrsNode(xnext_batch[idx, :], self.params)
+        # Evaluate action and roll out dynamics. 
+        ustar = unext_batch[idx, :]
+        xnext = self.q_dynamics.dynamics(node.q, ustar)
+
+        return IrsNode(xnext, self.params)
 
     def extend_contact(self, node: Node):
         """
@@ -362,13 +377,18 @@ class IrsTree(Tree):
         Given q', the samples from this node, choose the one that is closest
         to the goal configuration using the global distance metric.
         """
-        xnext_batch = node.sample_bundled_step(
+        xnext_batch, unext_batch = node.sample_bundled_step(
             self.params.n_samples, self.params.stepsize)
         diff = xnext_batch - self.goal[None, :]
         dist_batch = np.diagonal(
             diff @ np.diag(self.params.global_metric) @ diff.T)
         idx = np.argmin(dist_batch)
-        return IrsNode(xnext_batch[idx, :], self.params)
+
+        # Evaluate action and roll out dynamics.
+        ustar = unext_batch[idx, :]
+        xnext = self.q_dynamics.dynamics(node.q, ustar)
+
+        return IrsNode(xnext, self.params)
 
     def extend_random(self, node: Node):
         """
@@ -376,26 +396,36 @@ class IrsTree(Tree):
         Given q', the samples from this node, choose the one that is closest
         to the goal configuration using the global distance metric.
         """
-        xnext_batch = node.sample_bundled_step(
+        xnext_batch, unext_batch = node.sample_bundled_step(
             self.params.n_samples, self.params.stepsize)
-        idx = np.random.randint(self.params.n_samples)
-        return IrsNode(xnext_batch[idx, :], self.params)
+        
+        batch_size = xnext_batch.shape[0]
+        idx = np.random.randint(batch_size)
+
+        # Evaluate action and roll out dynamics.
+        ustar = unext_batch[idx,:]
+        xnext = self.q_dynamics.dynamics(node.q, ustar)
+        
+        return IrsNode(xnext, self.params)
 
     def extend(self, node: Node):
         mode = np.random.choice(
             list(self.params.extend_prob.keys()), 1,
             p=list(self.params.extend_prob.values()))
 
-        if (mode == "explore"):
-            selected_node = self.extend_explore(node)
-        elif (mode == "random"):
-            selected_node = self.extend_random(node)
-        elif (mode == "towards_goal"):
-            selected_node = self.extend_towards_goal(node)
-        elif (mode == "contact"):
-            selected_node = self.extend_contact(node)
-        else:
-            selected_node = self.extend_random(node)
+        try:
+            if (mode == "explore"):
+                selected_node = self.extend_explore(node)
+            elif (mode == "random"):
+                selected_node = self.extend_random(node)
+            elif (mode == "towards_goal"):
+                selected_node = self.extend_towards_goal(node)
+            elif (mode == "contact"):
+                selected_node = self.extend_contact(node)
+            else:
+                selected_node = self.extend_random(node)
+        except:
+            selected_node = node
 
         return selected_node
 

@@ -67,16 +67,22 @@ q0_dict = {idx_u: q_u0,
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 print(x0)
 
+joint_limits = {
+    idx_u: np.array([[-0.5, 0.5], [0.3, 0.6], [-np.pi, np.pi]]),
+    idx_a_l: np.array([[-np.pi / 2, np.pi / 2], [-np.pi / 2, 0]]),
+    idx_a_r: np.array([[-np.pi / 2, np.pi / 2], [0, np.pi / 2]])
+}
 
 #%% RRT testing
-params = IrsTreeParams(q_dynamics)
+params = IrsTreeParams(q_dynamics, joint_limits)
 params.root_node = IrsNode(x0, params)
 params.root_node.value = 0.0
 params.max_size = 1000
-params.eps = 3.0
+params.eps = 1.0
 params.goal = np.copy(x0)
 params.goal[6] = np.pi
 params.termination_tolerance = 1e-3
+
 
 tree = IrsTree(params)
 tree.iterate()
