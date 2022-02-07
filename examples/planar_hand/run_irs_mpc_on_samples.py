@@ -9,8 +9,7 @@ from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 from planar_hand_setup import *
 
-from rrt.planner import ConfigurationSpace
-from rrt.utils import sample_on_sphere
+from .contact_sampler import sample_on_sphere, ContactSampler
 
 import plotly.io as pio
 pio.renderers.default = "browser"  # see plotly charts in pycharm.
@@ -27,8 +26,8 @@ plant = q_dynamics.plant
 model_a_l = plant.GetModelInstanceByName(robot_l_name)
 model_a_r = plant.GetModelInstanceByName(robot_r_name)
 model_u = plant.GetModelInstanceByName(object_name)
-cspace = ConfigurationSpace(model_u=model_u, model_a_l=model_a_l,
-                            model_a_r=model_a_r, q_sim=q_sim_py)
+cspace = ContactSampler(model_u=model_u, model_a_l=model_a_l,
+                        model_a_r=model_a_r, q_sim=q_sim_py)
 
 #%% Irs-Mpc
 params = IrsMpcQuasistaticParameters()

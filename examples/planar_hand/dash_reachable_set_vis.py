@@ -16,11 +16,11 @@ from planar_hand_setup import (q_model_path, h,
                                robot_l_name, robot_r_name, object_name)
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from rrt.utils import set_orthographic_camera_yz
 
 from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
                          hover_template_trj, layout, calc_principal_points,
-                         create_pca_plots, calc_X_WG, create_q_u0_plot)
+                         create_pca_plots, calc_X_WG, create_q_u0_plot,
+                         set_orthographic_camera_yz)
 
 # %% quasistatic dynamics
 q_dynamics = QuasistaticDynamics(h=h,
