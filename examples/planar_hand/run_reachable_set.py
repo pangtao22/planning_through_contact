@@ -59,7 +59,7 @@ for i in range(n_samples):
     x_next = q_dynamics.dynamics_py(x=x0, u=u0)
     save_x(x_next, i)
     contact_results.append(
-        copy.deepcopy(q_dynamics.q_sim_py.get_contact_results()))
+        copy.deepcopy(q_dynamics.q_sim_py.serialize_my_contact_results()))
 
 
 #%%
