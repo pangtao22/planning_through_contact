@@ -16,7 +16,6 @@ from planar_hand_setup import (q_model_path, h,
                                robot_l_name, robot_r_name, object_name)
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from rrt.utils import set_orthographic_camera_yz
 
 from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
                          hover_template_trj, layout, calc_principal_points,
@@ -24,7 +23,7 @@ from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
 
 
 #%%
-with open('tree_1000.pkl', 'rb') as f:
+with open('./data/tree_1000.pkl', 'rb') as f:
     tree = pickle.load(f)
 
 q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
@@ -109,8 +108,9 @@ app.layout = dbc.Container([
 
 
 @app.callback(
-    Output('tree-fig', 'figure'), Input('tree-fig', 'clickData'))
-def click_callback(click_data):
+    Output('tree-fig', 'figure'), Input('tree-fig', 'clickData'),
+    State('tree-fig', 'relayoutData'))
+def click_callback(click_data, relayout_data):
     print(click_data)
 
     if click_data is None:
@@ -142,6 +142,10 @@ def click_callback(click_data):
 
     fig.update_traces(x=y_path, y=z_path, z=theta_path,
                       selector=dict(name='path'))
+    try:
+        fig.update_layout(scene_camera=relayout_data['scene.camera'])
+    except KeyError:
+        pass
 
     # show path in meshcat
     idx_path.reverse()

@@ -33,7 +33,7 @@ contact_sampler = ContactSampler(model_u=model_u, model_a_l=model_a_l,
 
 
 #%% random 1-step forward sim for reachable set computation.
-n_samples = 20
+n_samples = 10
 radius = 0.2
 du = np.random.rand(n_samples, 4) * radius * 2 - radius
 qu_samples = np.zeros((n_samples, 3))
@@ -56,12 +56,20 @@ u0 = q_dynamics.get_u_from_q_cmd_dict(q0_dict)
 
 
 for i in range(n_samples):
-    x_next = q_dynamics.dynamics_py(x=x0, u=u0)
+    x_next = q_dynamics.dynamics_py(x=x0, u=u0 + du[i])
     save_x(x_next, i)
     contact_results.append(
         copy.deepcopy(q_dynamics.q_sim_py.serialize_my_contact_results(
-            f_threshold=0.001)))
+            f_threshold=0.1)))
 
 
 for i, my_contact_results in enumerate(contact_results):
     print(i, len(my_contact_results))
+
+
+#%%
+n_c = q_dynamics.q_sim_py.contact_results.num_point_pair_contacts()
+for i in range(n_c):
+    print(q_dynamics.q_sim_py.contact_results.point_pair_contact_info(
+        i).contact_force())
+
