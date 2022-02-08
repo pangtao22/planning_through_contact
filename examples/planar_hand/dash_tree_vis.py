@@ -21,10 +21,11 @@ from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
                          hover_template_trj, layout, calc_principal_points,
                          create_pca_plots, calc_X_WG, create_q_u0_plot,
                          make_ellipsoid_plotly)
+from matplotlib import cm
 
 
 #%%
-with open('./data/tree_1000.pkl', 'rb') as f:
+with open('tree_1000.pkl', 'rb') as f:
     tree = pickle.load(f)
 
 q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
@@ -78,18 +79,39 @@ path_plot = go.Scatter3d(x=[],
 
 root_plot = create_q_u0_plot(q_u_nodes[0], name='root')
 
-go_list = [nodes_plot, edges_plot, root_plot, path_plot]
+tree_plot_list = [nodes_plot, edges_plot, root_plot, path_plot]
 
 # Draw ellipsoids.
+ellipsoid_mesh_points = []
+ellipsoid_volumes = []
 for i in range(n_nodes):
     node = tree.nodes[i]
     B_u = node['Bhat'][-3:, :]
     cov_inv = np.linalg.inv(B_u @ B_u.T + 1e-6 * np.eye(3))
     p_center = node['q'][-3:]
-    go_list.append(make_ellipsoid_plotly(cov_inv, p_center, 0.05, 10))
+    e_points, volume = make_ellipsoid_plotly(cov_inv, p_center, 0.05, 10)
+    ellipsoid_mesh_points.append(e_points)
+    ellipsoid_volumes.append(volume)
 
+# compute color
+ellipsoid_volumes = np.array(ellipsoid_volumes)
+v_normalized = ellipsoid_volumes / np.max(ellipsoid_volumes)
+e_plot_list = []
+for i, (x, v) in enumerate(zip(ellipsoid_mesh_points, v_normalized)):
+    r, g, b = cm.jet(v)[:3]
+    r = int(r * 255)
+    g = int(g * 255)
+    b = int(b * 255)
+    e_plot_list.append(
+        go.Mesh3d(dict(x=x[0], y=x[1], z=x[2], alphahull=0, name=f"ellip{i}",
+                       color=f"rgb({r}, {g}, {b})", opacity=0.5)))
 
-fig = go.Figure(data=go_list,
+'''
+It is important to put the ellipsoid list in the front, so that the 
+curveNumber of the first ellipsoid is 0, which can be used to index into tree 
+nodes.
+'''
+fig = go.Figure(data=e_plot_list + tree_plot_list,
                 layout=layout)
 
 # %% dash app
@@ -128,7 +150,13 @@ def click_callback(click_data, relayout_data):
         return fig
 
     point = click_data['points'][0]
-    if fig.data[point['curveNumber']]['name'] != 'nodes':
+    curve = fig.data[point['curveNumber']]
+    if curve['name'] == 'nodes':
+        i_node = point['pointNumber']
+
+    elif curve['name'].startswith('ellip'):
+        i_node = point['curveNumber']
+    else:
         return fig
 
     # trace back to root to get path.
@@ -136,7 +164,6 @@ def click_callback(click_data, relayout_data):
     z_path = []
     theta_path = []
     idx_path = []
-    i_node = point['pointNumber']
 
     while True:
         y_path.append(q_u_nodes[i_node, 0])

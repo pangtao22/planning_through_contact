@@ -41,12 +41,12 @@ class IrsTreeParams(TreeParams):
         # Rewiring tolerance. If the distance from qi to qj is less than this
         # tolerance as evaluated by the local distance metric on qi, then
         # qi will be included in the candidate for rewiring.
-        self.rewire_tolerance = 1e3
+        self.rewire_tolerance = 1e1
 
         # Termination tolerance. Algorithm will terminate if there exists a
         # node such that the norm between the node and the goal is less than
         # this threshold.
-        self.termination_tolerance = 1.0
+        self.termination_tolerance = 0.1
 
         # The global distance metric that compares qi and qj in configuration
         # space. This metric is not used for reachability criterion, but is
@@ -64,7 +64,7 @@ class IrsTreeParams(TreeParams):
 
         # If the "subgoal" strategy is selected, probability of setting the 
         # actual goal as the subgoal.
-        self.subgoal_prob = 0.6
+        self.subgoal_prob = 0.3
 
         # Probability to choose between different strategies for selection.
         # NOTE(terry-suh): if you choose subgoal as your strategy, you must
@@ -298,17 +298,22 @@ class IrsTree(Tree):
     def get_valid_chat_matrix(self):
         return self.chat_matrix[:self.size]
 
-    def add_node(self, node: Node):
-        super().add_node(node)
+    def add_node(self, node: Node, id=None):
+        super().add_node(node, id)
         # In addition to the add_node operation, we'll have to add the
         # B and c matrices of the node into our batch tensor.
 
         # Note we use self.size-1 here since the parent method increments
         # size by 1.
         if (self.size > 1):
-            self.Bhat_tensor[self.size-1,:] = node.Bhat
-            self.covinv_tensor[self.size-1,:] = node.covinv
-            self.chat_matrix[self.size-1,:] = node.chat
+            if (id == None):
+                self.Bhat_tensor[self.size-1] = node.Bhat
+                self.covinv_tensor[self.size-1] = node.covinv
+                self.chat_matrix[self.size-1] = node.chat
+            else:
+                self.Bhat_tensor[id] = node.Bhat
+                self.covinv_tensor[id] = node.covinv
+                self.chat_matrix[id] = node.chat
 
     def compute_edge_cost(self, parent_node: Node, child_node: Node):
         if (self.params.metric_mode == "global"):
@@ -496,21 +501,24 @@ class IrsTree(Tree):
         """
         raise NotImplementedError("not implemented yet.")
 
-    def extend_subgoal(self, node: Node):
+    def extend_towards_q(self, node: Node, q: np.array):
         """
-        Extend towards a self.subgoal object. This is evaluated analytically.
+        Extend towards a specified configuration q.
         """
         # Compute least-squares solution.
-        du = np.linalg.lstsq(node.Bhat, self.subgoal - node.q)[0]
+        du = np.linalg.lstsq(node.Bhat, q - node.chat)[0]
 
         # Normalize least-squares solution.
         du = du / np.linalg.norm(du)
         ustar = node.ubar + self.params.stepsize * du
-
-        # Roll out dynamics and unregister subgoal.
         xnext = self.q_dynamics.dynamics(node.q, ustar)
-
         return IrsNode(xnext, self.params)
+
+    def extend_subgoal(self, node: Node):
+        """
+        Extend towards a self.subgoal object. This is evaluated analytically.
+        """
+        return self.extend_towards_q(node, self.subgoal)
 
     def extend_towards_goal(self, node: Node):
         """
@@ -518,18 +526,7 @@ class IrsTree(Tree):
         Given q', the samples from this node, choose the one that is closest
         to the goal configuration using the global distance metric.
         """
-        xnext_batch, unext_batch = node.sample_bundled_step(
-            self.params.n_samples, self.params.stepsize)
-        diff = xnext_batch - self.goal[None, :]
-        dist_batch = np.diagonal(
-            diff @ np.diag(self.params.global_metric) @ diff.T)
-        idx = np.argmin(dist_batch)
-
-        # Evaluate action and roll out dynamics.
-        ustar = unext_batch[idx, :]
-        xnext = self.q_dynamics.dynamics(node.q, ustar)
-
-        return IrsNode(xnext, self.params)
+        return self.extend_towards_q(node, self.params.goal)
 
     def extend_random(self, node: Node):
         """
@@ -571,6 +568,45 @@ class IrsTree(Tree):
             selected_node = node
 
         return selected_node
+
+    def rewire(self, child_node: Node):
+        # Get parent node of the child node.
+        parent_node_id = list(self.graph.predecessors(child_node.id))[0]
+        parent_node = self.get_node_from_id(parent_node_id)
+        edge = self.get_edge_from_id(parent_node.id, child_node.id)
+
+        best_value = parent_node.value + edge.cost
+        best_cost = edge.cost
+        new_parent = parent_node
+
+        neighbor_idx = self.get_neighbors(child_node, self.eps)
+
+        # Linear search over the neighbors.
+        for idx in neighbor_idx:
+            parent_candidate_node = self.get_node_from_id(idx)
+            # Check for reachability from the child node.
+            if parent_candidate_node.is_reachable(child_node):
+                candidate_edge_cost = self.compute_edge_cost(
+                    parent_candidate_node, child_node)
+
+                candidate_value = (
+                    parent_candidate_node.value + candidate_edge_cost)
+
+                if (candidate_value < best_value):
+                    best_value = candidate_value
+                    best_cost = candidate_edge_cost
+                    new_parent = parent_candidate_node
+
+        # Replace node.
+        new_node = self.extend_towards_q(new_parent, child_node.q)
+        self.replace_node(new_node, child_node.id)
+
+        # Make new edge.
+        new_edge = Edge()
+        new_edge.parent = new_parent
+        new_edge.child = new_node
+        new_edge.cost = self.compute_edge_cost(new_edge.parent, new_edge.child)
+        self.add_edge(new_edge)
 
     def serialize(self):
         """

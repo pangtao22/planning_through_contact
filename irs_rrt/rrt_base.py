@@ -79,19 +79,27 @@ class Tree:
     def get_valid_q_matrix(self):
         return self.q_matrix[:self.size, :]
 
-    def add_node(self, node: Node):
+    def add_node(self, node: Node, id=None):
         # Check for missing fields and add them.
-        if (node.id == None):
+        if (id == None):
+            self.graph.add_node(self.size, node=node)
+            self.q_matrix[self.size,:] = node.q
             node.id = self.size
+            self.size += 1
 
-        self.graph.add_node(self.size, node=node)
-        self.q_matrix[self.size,:] = node.q
-        self.size += 1
+        else:
+            self.graph.add_node(id, node=node)
+            self.q_matrix[id,:] = node.q            
+            node.id = id
 
         # NOTE(terry-suh): We construct a KDTree from scratch because the tree
         # is not built for incremental updates. This results in increased 
         # computation time for adding a node linearly in the size of the tree.
         self.kdtree = KDTree(self.get_valid_q_matrix())
+
+    def replace_node(self, node: Node, id: int):
+        self.graph.remove_node(id)
+        self.add_node(node, id)
 
     def add_edge(self, edge: Edge):
         if (edge.cost == None):
@@ -177,7 +185,7 @@ class Tree:
             edge.parent = parent_node
             edge.child = child_node
             edge.cost = self.compute_edge_cost(edge.parent, edge.child)
-
+            
             child_node.value = parent_node.value + edge.cost
 
             self.add_edge(edge)
