@@ -55,7 +55,7 @@ class IrsTreeParams(TreeParams):
         # diagonalized and put into matrix norm form.
         self.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 1.0, 1.0, 3.0])
 
-        # If this mode is local, it uses
+        # If this mode is local, it does not use the global metric at all.
         self.metric_mode = "local"
 
         # Stepsize.
