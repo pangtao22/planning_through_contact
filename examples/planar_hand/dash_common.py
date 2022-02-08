@@ -114,6 +114,8 @@ def make_ellipsoid_plotly(A: np.ndarray, p_center: np.ndarray, r: float,
 
     The original ellipsoid becomes z.T @ Sigma @ z = r**2, which is axis-aligned
      and centered around the origin.
+
+     Returns: (points of the ellipsoid mesh, ellipsoid volume)
     """
     # Points for sphere.
     phi = np.linspace(0, 2 * np.pi, n)
@@ -133,4 +135,4 @@ def make_ellipsoid_plotly(A: np.ndarray, p_center: np.ndarray, r: float,
     R = U.T
     x = R.T @ z + p_center[:, None]
 
-    return go.Mesh3d({'x': x[0], 'y': x[1], 'z': x[2], 'alphahull': 0})
+    return x, 1 / np.prod(np.sqrt(Sigma))
