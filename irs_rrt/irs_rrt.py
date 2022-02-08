@@ -9,6 +9,7 @@ import time
 from irs_rrt.rrt_base import Node, Edge, Tree, TreeParams
 from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
+from qsim_cpp import GradientMode
 
 
 class IrsTreeParams(TreeParams):
@@ -103,34 +104,36 @@ class IrsNode(Node):
         # NOTE(terry-suh): This should ideally use calc_Bundled_ABc from the
         # quasistatic dynamics class, but we are not doing this here because
         # the ct returned by calc_bundled_ABc works on exact dynamics.
-        self.Bhat, self.chat = self.compute_bundled_Bc()
+        self.Bhat, self.chat = self.calc_bundled_Bc()
 
         # Parameters of the Gaussian based on computed Bhat / chat.
         self.mu, self.cov = self.compute_metric_parameters()
         self.covinv = np.linalg.inv(self.cov)
 
-    def compute_bundled_Bc(self):
+    def calc_bundled_Bc(self):
         """
         Compute bundled dynamics on Bc. 
         TODO(terry-suh): accept user input on BundleMode and 
         ParallelizationMode.
         """
-        # Compute bundled dynamics.
-        fhat = self.q_dynamics_p.dynamics_bundled(
-            self.q, self.ubar, self.params.n_samples, self.params.std_u)
 
-        # Get the B matrix.
-        x_trj = np.zeros((2, self.q_dynamics_p.dim_x))
-        u_trj = np.zeros((1, self.q_dynamics_p.dim_u))
+        x_batch = np.tile(self.q[None,:], (self.params.n_samples,1))
+        u_batch = np.random.normal(self.ubar, self.std_u, (
+            self.params.n_samples, self.q_dynamics.dim_u))
 
-        x_trj[0, :] = self.q
-        u_trj[0, :] = self.ubar
+        (x_next_batch, B_batch, is_valid_batch
+        ) = self.q_dynamics_p.q_sim_batch.calc_dynamics_parallel(
+            x_batch, u_batch, self.q_dynamics.h, GradientMode.kBOnly
+        )
 
-        Ahat, Bhat = self.q_dynamics_p.calc_bundled_AB_cpp(
-            x_trj, u_trj, self.params.std_u, self.params.n_samples, False)
-        chat = fhat
+        is_valid_batch = np.array(is_valid_batch)
+        x_next_batch = np.array(x_next_batch)
+        B_batch = np.array(B_batch)
 
-        return Bhat[0, :, :], chat
+        fhat = np.mean(x_next_batch[is_valid_batch], axis=0)
+        Bhat = np.mean(B_batch[is_valid_batch], axis=0)
+
+        return Bhat, fhat
 
     def compute_metric_parameters(self):
         """
@@ -147,7 +150,7 @@ class IrsNode(Node):
         mu = self.chat
         return mu, cov
 
-    def eval_bundled_dynamics(self, du: np.array):
+    def calc_bundled_dynamics(self, du: np.array):
         """
         Evaluate effect of applying du on the bundle-linearized dynamics.
         du: shape (dim_u,)
@@ -155,17 +158,16 @@ class IrsNode(Node):
         xhat_next = self.Bhat.dot(du) + self.chat
         return xhat_next
 
-    def eval_bundled_dynamics_batch(self, du_batch: np.array):
+    def calc_bundled_dynamics_batch(self, du_batch: np.array):
         """
         Evaluate effect of applying du on the bundle-linearized dynamics.
         du: shape (dim_b, dim_u)
         """
-        dim_b = du_batch.shape[0]
         xhat_next_batch = (
                 self.Bhat.dot(du_batch.transpose()).transpose() + self.chat)
         return xhat_next_batch
 
-    def eval_metric(self, q_query):
+    def calc_metric(self, q_query):
         """
         Evaluate the distance between the q_query and self.q, as informed by
         the L2 norm on the basis that spans the bundled B matrix.
@@ -173,9 +175,9 @@ class IrsNode(Node):
         """
         return (q_query - self.mu).T @ self.covinv @ (q_query - self.mu)
 
-    def eval_metric_batch(self, q_query_batch):
+    def calc_metric_batch(self, q_query_batch):
         """
-        Do eval_metric in batch.
+        Do calc_metric in batch.
         q_query_batch: (dim_b, dim_x)
         returns: (dim_b)
         """
@@ -219,7 +221,7 @@ class IrsNode(Node):
         du_batch = step_size * du_batch
         u_batch = self.ubar + du_batch
 
-        xnext_hat_batch = self.eval_bundled_dynamics_batch(du_batch)
+        xnext_hat_batch = self.calc_bundled_dynamics_batch(du_batch)
         inidx = self.get_sample_idx_within_joint_limit(xnext_hat_batch)
         return xnext_hat_batch, u_batch
 
@@ -240,7 +242,7 @@ class IrsNode(Node):
         Is q_query reachable from self.q? Implement thresholding according to
         the Mahalanobis distance on bundled B matrix.
         """
-        dist = self.eval_metric(child_node.q)
+        dist = self.calc_metric(child_node.q)
         return (dist < self.params.rewire_tolerance)
 
 
@@ -351,7 +353,7 @@ class IrsTree(Tree):
 
         for i in range(self.size):
             node_i = self.get_node_from_id(i)
-            pairwise_distance[i, :] = node_i.eval_metric_batch(xnext_batch)
+            pairwise_distance[i, :] = node_i.calc_metric_batch(xnext_batch)
 
         # Evaluate inner minimum over q.
         sample_distance = np.min(pairwise_distance, axis=0)
