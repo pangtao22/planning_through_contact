@@ -19,7 +19,8 @@ from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 
 from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
                          hover_template_trj, layout, calc_principal_points,
-                         create_pca_plots, calc_X_WG, create_q_u0_plot)
+                         create_pca_plots, calc_X_WG, create_q_u0_plot,
+                         make_ellipsoid_plotly)
 
 
 #%%
@@ -77,8 +78,18 @@ path_plot = go.Scatter3d(x=[],
 
 root_plot = create_q_u0_plot(q_u_nodes[0], name='root')
 
+go_list = [nodes_plot, edges_plot, root_plot, path_plot]
 
-fig = go.Figure(data=[nodes_plot, edges_plot, root_plot, path_plot],
+# Draw ellipsoids.
+for i in range(n_nodes):
+    node = tree.nodes[i]
+    B_u = node['Bhat'][-3:, :]
+    cov_inv = np.linalg.inv(B_u @ B_u.T + 1e-6 * np.eye(3))
+    p_center = node['q'][-3:]
+    go_list.append(make_ellipsoid_plotly(cov_inv, p_center, 0.05, 10))
+
+
+fig = go.Figure(data=go_list,
                 layout=layout)
 
 # %% dash app
@@ -155,4 +166,4 @@ def click_callback(click_data, relayout_data):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=False)

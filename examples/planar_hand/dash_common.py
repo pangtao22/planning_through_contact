@@ -101,3 +101,36 @@ def create_q_u0_plot(q_u0: np.ndarray, name='q_u0'):
                         mode='markers',
                         hovertemplate=hover_template_y_z_theta,
                         marker=dict(size=12, symbol='cross', opacity=1.0))
+
+
+def make_ellipsoid_plotly(A: np.ndarray, p_center: np.ndarray, r: float,
+                          n: int = 20):
+    """
+    Make a plotly 3d mesh object for an ellipsoid described by
+     (x - p_center).T @ A @ (x - p_center) = r**2.
+
+    A = R.T @ Sigma @ R, as A is symmetric.
+    Let z = R * (x - p_center), i.e. x = R.T @ z + p_center.
+
+    The original ellipsoid becomes z.T @ Sigma @ z = r**2, which is axis-aligned
+     and centered around the origin.
+    """
+    # Points for sphere.
+    phi = np.linspace(0, 2 * np.pi, n)
+    theta = np.linspace(-np.pi / 2, np.pi / 2, n)
+    phi, theta = np.meshgrid(phi, theta)
+
+    z = np.zeros([3, n**2])
+    z[0] = (np.cos(theta) * np.sin(phi)).ravel()
+    z[1] = (np.cos(theta) * np.cos(phi)).ravel()
+    z[2] = np.sin(theta).ravel()
+
+    # Find shape of ellipsoid.
+    U, Sigma, Vh = np.linalg.svd(A)
+    z[0] *= r / np.sqrt(Sigma[0])
+    z[1] *= r / np.sqrt(Sigma[1])
+    z[2] *= r / np.sqrt(Sigma[2])
+    R = U.T
+    x = R.T @ z + p_center[:, None]
+
+    return go.Mesh3d({'x': x[0], 'y': x[1], 'z': x[2], 'alphahull': 0})
