@@ -85,6 +85,7 @@ class IrsTreeParams(TreeParams):
         x_lb = self.q_dynamics.get_x_from_q_dict(joint_limit_lb)
         x_ub = self.q_dynamics.get_x_from_q_dict(joint_limit_ub)
         return x_lb, x_ub
+        
 
 class IrsNode(Node):
     """
@@ -471,4 +472,3 @@ class IrsTree(Tree):
                                     weight=self.graph.edges[edge]["edge"].cost)
 
         return hashable_graph
-

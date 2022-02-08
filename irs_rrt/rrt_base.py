@@ -19,6 +19,7 @@ class Node:
     def is_reachable(self, q_query):
         return True
 
+
 """
 Base edge class. Owns all the attributes and methods related to an edge. 
 Add to nx.Digraph() using
@@ -30,6 +31,7 @@ class Edge:
         self.child = None # Node class.
         self.cost = None # float
 
+
 """
 Base tree class.
 """
@@ -39,6 +41,7 @@ class TreeParams:
         self.goal = None # q_goal.
         self.root_node = None
         self.eps = np.inf # radius of norm ball for NN queries.
+
 
 class Tree:
     def __init__(self, params: TreeParams):
@@ -189,6 +192,7 @@ class Tree:
             if self.is_close_to_goal():
                 print("done!")
                 break
+
 
 class ContactSampler():
     def __init__(self, system):
