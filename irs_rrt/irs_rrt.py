@@ -55,23 +55,35 @@ class IrsTreeParams(TreeParams):
         # diagonalized and put into matrix norm form.
         self.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 1.0, 1.0, 3.0])
 
+        # If this mode is local, it uses
+        self.metric_mode = "local"
+
         # Stepsize.
         # TODO(terry-suh): the selection of this parameter should be automated.
         self.stepsize = 0.3
 
+        # If the "subgoal" strategy is selected, probability of setting the 
+        # actual goal as the subgoal.
+        self.subgoal_prob = 0.6
+
         # Probability to choose between different strategies for selection.
+        # NOTE(terry-suh): if you choose subgoal as your strategy, you must
+        # have 1.0 as subgoal probability here, and as 1.0 as extend
+        # probability. This will be relaxed in later iterations.
         self.select_prob = {
             "explore": 0.0,
-            "random": 0.7,
-            "towards_goal": 0.3
+            "random": 0.0,
+            "towards_goal": 0.0,
+            "subgoal": 1.0
         }
 
         # Probability to choose between different strategies for extend.
         self.extend_prob = {
-            "explore": 0.2,
-            "random": 0.5,
+            "explore": 0.0,
+            "random": 0.0,
             "contact": 0.0,
-            "towards_goal": 0.3
+            "subgoal": 1.0,
+            "towards_goal": 0.0
         }
 
     def joint_limit_to_x_bounds(self, joint_limits):
@@ -183,8 +195,9 @@ class IrsNode(Node):
         returns: (dim_b)
         """
         batch_error = q_query_batch - self.mu[None, :]
-        metric_batch = np.diagonal(
-            batch_error @ self.covinv @ batch_error.T)
+
+        intsum = np.einsum('Bj,ij->Bi', batch_error, self.covinv)
+        metric_batch = np.einsum('Bi,Bi->B', intsum, batch_error)
         return metric_batch
 
     def get_sample_idx_within_joint_limit(self, x_batch):
@@ -264,15 +277,99 @@ class IrsTree(Tree):
         super().__init__(params)
         self.q_dynamics = params.q_dynamics
 
+        # Initialize tensors for batch computation.
+        self.Bhat_tensor = np.zeros((self.max_size,
+            self.q_dynamics.dim_x, self.q_dynamics.dim_u))
+        self.covinv_tensor = np.zeros((self.max_size,
+            self.q_dynamics.dim_x, self.q_dynamics.dim_x))
+        self.chat_matrix = np.zeros((self.max_size,
+            self.q_dynamics.dim_x))
+
+        self.Bhat_tensor[0] = self.root_node.Bhat
+        self.covinv_tensor[0] = self.root_node.covinv
+        self.chat_matrix[0] = self.root_node.chat
+
+    def get_valid_Bhat_tensor(self):
+        return self.Bhat_tensor[:self.size]
+
+    def get_valid_covinv_tensor(self):
+        return self.covinv_tensor[:self.size]
+
+    def get_valid_chat_matrix(self):
+        return self.chat_matrix[:self.size]
+
+    def add_node(self, node: Node):
+        super().add_node(node)
+        # In addition to the add_node operation, we'll have to add the
+        # B and c matrices of the node into our batch tensor.
+
+        # Note we use self.size-1 here since the parent method increments
+        # size by 1.
+        if (self.size > 1):
+            self.Bhat_tensor[self.size-1,:] = node.Bhat
+            self.covinv_tensor[self.size-1,:] = node.covinv
+            self.chat_matrix[self.size-1,:] = node.chat
+
     def compute_edge_cost(self, parent_node: Node, child_node: Node):
-        diff = parent_node.q - child_node.q
-        return diff.T @ np.diag(self.params.global_metric) @ diff
+        if (self.params.metric_mode == "global"):
+            diff = parent_node.q - child_node.q
+            cost = diff.T @ np.diag(self.params.global_metric) @ diff
+        else:
+            cost = parent_node.calc_metric(child_node.q)
+        return cost 
 
     def is_close_to_goal(self):
-        diff = self.get_valid_q_matrix() - self.params.goal
-        dist_batch = np.diagonal(
-            diff @ np.diag(self.params.global_metric) @ diff.T)
-        return np.min(dist_batch) < self.params.termination_tolerance
+        """
+        Evaluate termination criteria for RRT using global distance metric.
+        """
+        # If the metric is global, terminate if there is a node in the tree
+        # such that \|q - q_g\| \leq termination.
+        if (self.params.metric_mode == "global"):
+            diff = self.get_valid_q_matrix() - self.params.goal
+            dist_batch = np.diagonal(
+                diff @ np.diag(self.params.global_metric) @ diff.T)
+            return np.min(dist_batch) < self.params.termination_tolerance
+        # If the metric is global, terminate if there is a node in the tree
+        # such that \|q_g - q\|_q \leq termination.
+        else:
+            dist_batch = self.calc_metric_batch(self.params.goal)
+            return np.min(dist_batch) < self.params.termination_tolerance
+
+    def calc_metric_batch(self, q_query):
+        """
+        Given q_query, return a np.array of \|q_query - q\|_{\Sigma}^{-1}_q,
+        local distances from all the existing nodes in the tree to q_query.
+        """
+
+        mu_batch = self.get_valid_chat_matrix() # B x n
+        covinv_tensor = self.get_valid_covinv_tensor() # B x n x n
+
+        error_batch = q_query[None,:] - mu_batch # B x n
+
+        int_batch = np.einsum('Bij,Bi -> Bj', covinv_tensor, error_batch)
+        metric_batch = np.einsum('Bi,Bi -> B', int_batch, error_batch)
+
+        return metric_batch
+
+    def calc_metric_batch_query(self, q_query_batch):
+        """
+        Given q_query_batch of shape (N,n), 
+        return a np.array of \|q_query - q\|_{\Sigma}^{-1}_q, a (N,B) pairwise
+        local distances from all the existing nodes in the tree to q_query.
+        """
+        # q_query_batch is of shape (N,n)
+        mu_batch = self.get_valid_chat_matrix() # (B,n)
+
+        # (N,B,n)
+        pairwise_error_batch = q_query_batch[:,None,:] - mu_batch[None,:,:]
+        covinv_tensor = self.get_valid_covinv_tensor() # B x n x n
+
+        pairwise_int_batch = np.einsum('NBi,Bij->NBj',
+            pairwise_error_batch, covinv_tensor) # N x B x n
+        pairwise_metric_batch = np.einsum('NBi,NBi->NB',
+            pairwise_int_batch, pairwise_error_batch)
+
+        return pairwise_metric_batch
 
     """
     Methods for selecting node from the existing tree.
@@ -309,6 +406,29 @@ class IrsTree(Tree):
         min_idx = np.argmin(dist_batch)
         return self.get_node_from_id(min_idx)
 
+    def select_node_subgoal(self):
+        """
+        Select a subgoal from a configuration space, and find the node that
+        is closest from the subgoal.
+        """
+        # 1. Generate subgoal.
+        sample_goal = np.random.choice(
+            [0, 1], 1, p=[
+                1 - self.params.subgoal_prob, self.params.subgoal_prob])
+        
+        if (sample_goal):
+            self.subgoal = self.params.goal
+        else:
+            self.subgoal = np.random.rand(self.q_dynamics.dim_x)
+            self.subgoal = self.params.x_lb + (
+                self.params.x_ub - self.params.x_lb) * self.subgoal
+
+        # 2. Find a node that is closest to the subgoal.
+        metric_batch = self.calc_metric_batch(self.subgoal)
+        selected_node = self.get_node_from_id(np.argmin(metric_batch))
+    
+        return selected_node
+
     def select_node(self):
         """
         Wrapper method that tosses a dice to decide between the strategies 
@@ -324,6 +444,8 @@ class IrsTree(Tree):
             selected_node = self.select_node_random()
         elif (mode == "towards_goal"):
             selected_node = self.select_node_towards_goal()
+        elif (mode == "subgoal"):
+            selected_node = self.select_node_subgoal()
         else:
             selected_node = self.select_node_random()
 
@@ -374,6 +496,22 @@ class IrsTree(Tree):
         """
         raise NotImplementedError("not implemented yet.")
 
+    def extend_subgoal(self, node: Node):
+        """
+        Extend towards a self.subgoal object. This is evaluated analytically.
+        """
+        # Compute least-squares solution.
+        du = np.linalg.lstsq(node.Bhat, self.subgoal - node.q)[0]
+
+        # Normalize least-squares solution.
+        du = du / np.linalg.norm(du)
+        ustar = node.ubar + self.params.stepsize * du
+
+        # Roll out dynamics and unregister subgoal.
+        xnext = self.q_dynamics.dynamics(node.q, ustar)
+
+        return IrsNode(xnext, self.params)
+
     def extend_towards_goal(self, node: Node):
         """
         Extend from the selected node using the goal criteria.
@@ -414,7 +552,7 @@ class IrsTree(Tree):
     def extend(self, node: Node):
         mode = np.random.choice(
             list(self.params.extend_prob.keys()), 1,
-            p=list(self.params.extend_prob.values()))
+            p=list(self.params.extend_prob.values()))[0]
 
         try:
             if (mode == "explore"):
@@ -423,6 +561,8 @@ class IrsTree(Tree):
                 selected_node = self.extend_random(node)
             elif (mode == "towards_goal"):
                 selected_node = self.extend_towards_goal(node)
+            elif (mode == "subgoal"):
+                selected_node = self.extend_subgoal(node)
             elif (mode == "contact"):
                 selected_node = self.extend_contact(node)
             else:
