@@ -7,6 +7,17 @@ import plotly.graph_objects as go
 X_WG0 = meshcat.transformations.rotation_matrix(np.pi/2, [0, 0, 1])
 
 
+def set_orthographic_camera_yz(vis: meshcat.Visualizer) -> None:
+    # use orthographic camera, show YZ plane.
+    camera = meshcat.geometry.OrthographicCamera(
+        left=-1, right=0.5, bottom=-0.5, top=1, near=-1000, far=1000)
+    vis['/Cameras/default/rotated'].set_object(camera)
+    vis['/Cameras/default/rotated/<object>'].set_property(
+        "position", [0, 0, 0])
+    vis['/Cameras/default'].set_transform(
+        meshcat.transformations.translation_matrix([1, 0, 0]))
+
+
 def add_goal_meshcat(vis: meshcat.Visualizer):
     # goal
     vis["goal/cylinder"].set_object(
@@ -33,12 +44,12 @@ def calc_X_WG(y: float, z: float , theta: float):
 
 
 #%% hover templates and layout
-hover_template_reachability = (
+hover_template_y_z_theta = (
         '<i>y</i>: %{x:.4f}<br>' +
         '<i>z</i>: %{y:.4f}<br>' +
         '<i>theta</i>: %{z:.4f}')
 
-hover_template_trj = (hover_template_reachability +
+hover_template_trj = (hover_template_y_z_theta +
                       '<br><i>cost</i>: %{marker.color:.4f}')
 
 layout = go.Layout(autosize=True, height=900,
@@ -82,11 +93,11 @@ def create_pca_plots(principal_points: np.ndarray):
 
 
 #%% plotly figure components
-def create_q_u0_plot(q_u0: np.ndarray):
+def create_q_u0_plot(q_u0: np.ndarray, name='q_u0'):
     return go.Scatter3d(x=[q_u0[0]],
                         y=[q_u0[1]],
                         z=[q_u0[2]],
-                        name='q_u0',
+                        name=name,
                         mode='markers',
-                        hovertemplate=hover_template_reachability,
+                        hovertemplate=hover_template_y_z_theta,
                         marker=dict(size=12, symbol='cross', opacity=1.0))

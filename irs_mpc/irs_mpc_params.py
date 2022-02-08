@@ -31,7 +31,7 @@ class ParallelizationMode(enum.Enum):
     # ZMQ-based implementation.
     kCppDebug = enum.auto()
 
-    # TODO (pang) is this reall necessary? It seems like comparing cpp
+    # TODO (pang) is this really necessary? It seems like comparing batch cpp
     #  against serial python is sufficient?
     # sends sampled du to the workers, instead of
     # having the works do the sampling, so that the result is deterministic.
@@ -66,4 +66,4 @@ class IrsMpcQuasistaticParameters:
         self.solver_name = "gurobi"
         self.publish_every_iteration = False
         self.bundle_mode = BundleMode.kFirst
-        self.parallel_mode = ParallelizationMode.kZmq
+        self.parallel_mode = ParallelizationMode.kCppBundledB

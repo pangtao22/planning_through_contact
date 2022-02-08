@@ -144,9 +144,9 @@ class QuasistaticDynamics(DynamicalSystem):
             i_start += n_v_i
         return R
 
-    def publish_trajectory(self, x_traj):
+    def publish_trajectory(self, x_traj, h=None):
         q_dict_traj = [self.get_q_dict_from_x(x) for x in x_traj]
-        self.q_sim_py.animate_system_trajectory(h=self.h,
+        self.q_sim_py.animate_system_trajectory(h=self.h if h is None else h,
                                                 q_dict_traj=q_dict_traj)
 
     def dynamics_py(self, x: np.ndarray, u: np.ndarray, mode: str = 'qp_mp',

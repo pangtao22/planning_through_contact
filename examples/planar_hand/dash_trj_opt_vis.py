@@ -16,17 +16,17 @@ from planar_hand_setup import (q_model_path, h,
                                robot_l_name, robot_r_name, object_name)
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from rrt.utils import set_orthographic_camera_yz
 
-from dash_app_common import (add_goal_meshcat, hover_template_reachability,
-                             hover_template_trj, layout, calc_principal_points,
-                             create_pca_plots, calc_X_WG, create_q_u0_plot)
+from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
+                         hover_template_trj, layout, calc_principal_points,
+                         create_pca_plots, calc_X_WG, create_q_u0_plot,
+                         set_orthographic_camera_yz)
 
 # %% quasistatic dynamics
 q_dynamics = QuasistaticDynamics(h=h,
                                  q_model_path=q_model_path,
                                  internal_viz=True)
-
+q_sim_py = q_dynamics.q_sim_py
 plant = q_dynamics.plant
 
 model_a_l = plant.GetModelInstanceByName(robot_l_name)
@@ -69,7 +69,7 @@ name: reachability_trj_opt_xx.pkl
 }
 '''
 
-with open('./data/reachability_trj_opt_01.pkl', 'rb') as f:
+with open('./data/reachability_trj_opt_00.pkl', 'rb') as f:
     reachability_trj_opt = pickle.load(f)
 
 du = reachability_trj_opt['reachable_set_data']['du']
@@ -91,15 +91,15 @@ plot_1_step = go.Scatter3d(x=qu['1_step'][:, 0],
                            z=qu['1_step'][:, 2],
                            name='1_step',
                            mode='markers',
-                           hovertemplate=hover_template_reachability,
+                           hovertemplate=hover_template_y_z_theta,
                            marker=dict(size=2))
-plot_multi = go.Scatter3d(x=qu['multi_step'][:, 0],
-                          y=qu['multi_step'][:, 1],
-                          z=qu['multi_step'][:, 2],
-                          name='multi_step',
-                          mode='markers',
-                          hovertemplate=hover_template_reachability,
-                          marker=dict(size=2))
+# plot_multi = go.Scatter3d(x=qu['multi_step'][:, 0],
+#                           y=qu['multi_step'][:, 1],
+#                           z=qu['multi_step'][:, 2],
+#                           name='multi_step',
+#                           mode='markers',
+#                           hovertemplate=hover_template_reachability,
+#                           marker=dict(size=2))
 
 plot_trj = go.Scatter3d(
     x=q_u0[0] + dqu_goal[:, 0],
@@ -120,7 +120,7 @@ plot_qu0 = create_q_u0_plot(q_u0)
 
 # PCA lines
 principal_axes_plots = create_pca_plots(principal_points)
-fig = go.Figure(data=[plot_1_step, plot_multi, plot_trj, plot_qu0] + principal_axes_plots,
+fig = go.Figure(data=[plot_1_step, plot_trj, plot_qu0] + principal_axes_plots,
                 layout=layout)
 
 

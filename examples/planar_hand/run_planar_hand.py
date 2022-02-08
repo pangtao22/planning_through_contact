@@ -9,6 +9,8 @@ from qsim.simulator import QuasistaticSimulator, GradientMode
 from qsim_cpp import QuasistaticSimulatorCpp
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from irs_mpc.quasistatic_dynamics_parallel import (
+    QuasistaticDynamicsParallel)
 from irs_mpc.irs_mpc_quasistatic import (
     IrsMpcQuasistatic)
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
@@ -57,6 +59,7 @@ q0_dict = {idx_u: q_u0,
 
 
 #%% try running the dynamics.
+
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u_traj_0 = np.zeros((T, dim_u))
 
@@ -111,10 +114,10 @@ params.std_u_initial = np.ones(dim_u) * 0.3
 
 params.decouple_AB = decouple_AB
 params.num_samples = num_samples
-params.bundle_mode = gradient_mode
+params.bundle_mode = bundle_mode
 params.parallel_mode = parallel_mode
 
-irs_lqr_q = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
+irs_mpc = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
 
 #%%
 xd_dict = {idx_u: q_u0 + np.array([-0.3, 0, 0.3]),
@@ -122,7 +125,7 @@ xd_dict = {idx_u: q_u0 + np.array([-0.3, 0, 0.3]),
            idx_a_r: qa_r_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
-irs_lqr_q.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_traj_0)
+irs_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_traj_0)
 
 
 #%% compare zero-order and first-order gradient estimation.
@@ -137,7 +140,7 @@ ABhat0 = q_dynamics.calc_B_zero_order(x, u, 100, std_u=std_u)
 
 #%%
 t0 = time.time()
-irs_lqr_q.iterate(num_iters)
+irs_mpc.iterate(num_iters)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")
@@ -152,7 +155,7 @@ print(f"iterate took {t1 - t0} seconds.")
 
 
 #%%
-x_traj_to_publish = irs_lqr_q.x_trj_best
+x_traj_to_publish = irs_mpc.x_trj_best
 q_dynamics.publish_trajectory(x_traj_to_publish)
 print('x_goal:', xd)
 print('x_final:', x_traj_to_publish[-1])
@@ -160,12 +163,12 @@ print('x_final:', x_traj_to_publish[-1])
 
 #%% plot different components of the cost for all iterations.
 plt.figure()
-plt.plot(irs_lqr_q.cost_all_list, label='all')
-plt.plot(irs_lqr_q.cost_Qa_list, label='Qa')
-plt.plot(irs_lqr_q.cost_Qu_list, label='Qu')
-plt.plot(irs_lqr_q.cost_Qa_final_list, label='Qa_f')
-plt.plot(irs_lqr_q.cost_Qu_final_list, label='Qu_f')
-plt.plot(irs_lqr_q.cost_R_list, label='R')
+plt.plot(irs_mpc.cost_all_list, label='all')
+plt.plot(irs_mpc.cost_Qa_list, label='Qa')
+plt.plot(irs_mpc.cost_Qu_list, label='Qu')
+plt.plot(irs_mpc.cost_Qa_final_list, label='Qa_f')
+plt.plot(irs_mpc.cost_Qu_final_list, label='Qu_f')
+plt.plot(irs_mpc.cost_R_list, label='R')
 
 plt.title('Trajectory cost')
 plt.xlabel('Iterations')

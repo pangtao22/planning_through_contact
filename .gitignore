@@ -8,3 +8,5 @@
 *.pdf
 *stats*
 *.html
+*.npy
+*.pkl
