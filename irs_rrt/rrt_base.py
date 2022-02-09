@@ -1,7 +1,6 @@
 from typing import Dict
 import numpy as np
 import networkx as nx
-from scipy.spatial import KDTree
 from tqdm import tqdm
 import time
 import pickle

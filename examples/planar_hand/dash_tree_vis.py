@@ -25,7 +25,7 @@ from matplotlib import cm
 
 
 #%%
-with open('tree_1000.pkl', 'rb') as f:
+with open('examples/planar_hand/data/tree_2000.pkl', 'rb') as f:
     tree = pickle.load(f)
 
 q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,

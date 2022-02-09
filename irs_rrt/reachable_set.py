@@ -1,14 +1,7 @@
 from typing import Dict
 import numpy as np
 import networkx as nx
-from scipy.spatial import KDTree
-from scipy.stats import multivariate_normal
-from tqdm import tqdm
-import time
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-
-from irs_rrt.rrt_base import Node, Edge, Tree, TreeParams
-from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 from qsim_cpp import GradientMode
 

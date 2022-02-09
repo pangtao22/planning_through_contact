@@ -1,8 +1,6 @@
 from typing import Dict
 import numpy as np
 import networkx as nx
-from scipy.spatial import KDTree
-from scipy.stats import multivariate_normal
 from tqdm import tqdm
 import time
 
@@ -157,7 +155,8 @@ class IrsTree(Tree):
         Extend towards a specified configuration q.
         """
         # Compute least-squares solution.
-        du = np.linalg.lstsq(node.Bhat, q - node.chat)[0]
+        du = np.linalg.lstsq(
+            node.Bhat, q - node.chat, rcond=None)[0]
 
         # Normalize least-squares solution.
         du = du / np.linalg.norm(du)
