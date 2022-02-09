@@ -19,8 +19,8 @@ from planar_hand_setup import (h, q_model_path,
                                decouple_AB, bundle_mode, num_samples,
                                robot_l_name, robot_r_name, object_name)
 
-from rrt.planner import ConfigurationSpace
-from rrt.utils import set_orthographic_camera_yz, sample_on_sphere
+from contact_sampler import ContactSampler, sample_on_sphere
+from dash_common import set_orthographic_camera_yz
 
 #%% quasistatic dynamics
 q_dynamics = QuasistaticDynamics(h=h,
@@ -35,7 +35,7 @@ model_a_l = plant.GetModelInstanceByName(robot_l_name)
 model_a_r = plant.GetModelInstanceByName(robot_r_name)
 model_u = plant.GetModelInstanceByName(object_name)
 
-cspace = ConfigurationSpace(
+cspace = ContactSampler(
     model_u=model_u, model_a_l=model_a_l, model_a_r=model_a_r, q_sim=q_sim_py)
 
 # %% irs-lqr

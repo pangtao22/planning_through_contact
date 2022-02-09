@@ -20,7 +20,7 @@ from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
                          hover_template_trj, layout, calc_principal_points,
                          create_pca_plots, calc_X_WG, create_q_u0_plot,
-                         make_ellipsoid_plotly)
+                         make_ellipsoid_plotly, set_orthographic_camera_yz)
 from matplotlib import cm
 
 
@@ -31,6 +31,7 @@ with open('./data/tree_1000.pkl', 'rb') as f:
 q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
                                  internal_viz=True)
 q_sim_py = q_dynamics.q_sim_py
+set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
 
 #%%
 n_nodes = len(tree.nodes)
