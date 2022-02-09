@@ -30,6 +30,7 @@ with open('./data/tree_1000.pkl', 'rb') as f:
 
 q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
                                  internal_viz=True)
+q_sim_py = q_dynamics.q_sim_py
 
 #%%
 n_nodes = len(tree.nodes)
@@ -89,13 +90,14 @@ for i in range(n_nodes):
     B_u = node['Bhat'][-3:, :]
     cov_inv = np.linalg.inv(B_u @ B_u.T + 1e-6 * np.eye(3))
     p_center = node['q'][-3:]
-    e_points, volume = make_ellipsoid_plotly(cov_inv, p_center, 0.05, 10)
+    e_points, volume = make_ellipsoid_plotly(cov_inv, p_center, 0.05, 8)
     ellipsoid_mesh_points.append(e_points)
     ellipsoid_volumes.append(volume)
 
 # compute color
 ellipsoid_volumes = np.array(ellipsoid_volumes)
-v_normalized = ellipsoid_volumes / np.max(ellipsoid_volumes)
+v_99 = np.percentile(ellipsoid_volumes, 99)
+v_normalized = np.minimum(ellipsoid_volumes / v_99, 1)
 e_plot_list = []
 for i, (x, v) in enumerate(zip(ellipsoid_mesh_points, v_normalized)):
     r, g, b = cm.jet(v)[:3]
@@ -136,8 +138,50 @@ app.layout = dbc.Container([
                         height=800, width=1000),
             width={'size': 6, 'offset': 0, 'order': 0},
         )
-    ])
+    ]),
+    dbc.Row([
+        dbc.Col([
+            dcc.Markdown("""
+                **Hover Data**
+
+                Mouse over values in the graph.
+            """),
+            html.Pre(id='hover-data', style=styles['pre'])],
+            width={'size': 3, 'offset': 0, 'order': 0}
+        )
+    ]),
 ], fluid=True)
+
+
+def get_tree_node_idx(point, curve):
+    if curve['name'] == 'nodes':
+        return point['pointNumber']
+
+    if curve['name'].startswith('ellip'):
+        return point['curveNumber']
+
+    return None
+
+
+@app.callback(
+    Output('hover-data', 'children'),
+    Input('tree-fig', 'hoverData'))
+def display_config_in_meshcat(hover_data):
+    hover_data_json = json.dumps(hover_data, indent=2)
+    if hover_data is None:
+        return hover_data_json
+
+    point = hover_data['points'][0]
+    curve = fig.data[point['curveNumber']]
+
+    i_node = get_tree_node_idx(point, curve)
+    if i_node is None:
+        return hover_data_json
+
+    q_sim_py.update_mbp_positions_from_vector(tree.nodes[i_node]['q'])
+    q_sim_py.draw_current_configuration()
+
+    return hover_data_json
 
 
 @app.callback(
@@ -151,12 +195,8 @@ def click_callback(click_data, relayout_data):
 
     point = click_data['points'][0]
     curve = fig.data[point['curveNumber']]
-    if curve['name'] == 'nodes':
-        i_node = point['pointNumber']
-
-    elif curve['name'].startswith('ellip'):
-        i_node = point['curveNumber']
-    else:
+    i_node = get_tree_node_idx(point, curve)
+    if i_node is None:
         return fig
 
     # trace back to root to get path.
@@ -193,4 +233,4 @@ def click_callback(click_data, relayout_data):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False)
+    app.run_server(debug=True)
