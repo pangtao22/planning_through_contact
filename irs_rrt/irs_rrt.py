@@ -4,21 +4,22 @@ import networkx as nx
 from tqdm import tqdm
 import time
 
-from irs_rrt.rrt_base import Node, Edge, Tree, TreeParams
-from irs_rrt.reachable_set import ReachableSetComputation
+from irs_rrt.rrt_base import Node, Edge, Rrt, RrtParams
+from irs_rrt.reachable_set import ReachableSet
 from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 from qsim_cpp import GradientMode
 
 
-class IrsTreeParams(TreeParams):
-    def __init__(self, q_dynamics, joint_limits):
+class IrsRrtParams(RrtParams):
+    def __init__(self, q_model_path, joint_limits):
         super().__init__()
         # Options for computing bundled dynamics.
+        self.h = 0.1
         self.n_samples = 100
-        self.q_dynamics = q_dynamics
-        self.std_u = 0.1 * np.array(self.q_dynamics.dim_u)  # std_u for input.
+        self.q_model_path = q_model_path
+        self.std_u = 0.1
 
         # kFirst and kExact are supported.
         self.bundle_mode = BundleMode.kFirst
@@ -26,7 +27,7 @@ class IrsTreeParams(TreeParams):
         # State-space limits for sampling, provided as a bounding box.
         # During tree expansion, samples that go outside of this limit will be
         # rejected, implicitly enforcing the constraint.
-        self.x_lb, self.x_ub = self.joint_limit_to_x_bounds(joint_limits)
+        self.joint_limits = joint_limits
 
         # Regularization for computing inverse of covariance matrices.
         # NOTE(terry-suh): Note that if the covariance matrix is singular,
@@ -38,18 +39,6 @@ class IrsTreeParams(TreeParams):
         # Stepsize.
         # TODO(terry-suh): the selection of this parameter should be automated.
         self.stepsize = 0.3
-
-    def joint_limit_to_x_bounds(self, joint_limits):
-        joint_limit_ub = {}
-        joint_limit_lb = {}
-
-        for model_idx in joint_limits.keys():
-            joint_limit_lb[model_idx] = joint_limits[model_idx][:,0]
-            joint_limit_ub[model_idx] = joint_limits[model_idx][:,1]
-
-        x_lb = self.q_dynamics.get_x_from_q_dict(joint_limit_lb)
-        x_ub = self.q_dynamics.get_x_from_q_dict(joint_limit_ub)
-        return x_lb, x_ub
         
 
 class IrsNode(Node):
@@ -80,11 +69,19 @@ class IrsEdge(Edge):
         # extend.
 
 
-class IrsTree(Tree):
-    def __init__(self, q_dynamics: QuasistaticDynamics, params: TreeParams):
-        self.q_dynamics = params.q_dynamics        
-        self.rsc = ReachableSetComputation(q_dynamics, params)
+class IrsRrt(Rrt):
+    def __init__(self, params: RrtParams):
+
+        self.q_dynamics = QuasistaticDynamics(
+            h = params.h,
+            q_model_path = params.q_model_path,
+            internal_viz=True)
+
+        self.reachable_set = ReachableSet(self.q_dynamics, params)
         self.max_size = params.max_size
+
+        self.x_lb, self.x_ub = self.joint_limit_to_x_bounds(
+            params.joint_limits)
 
         # Initialize tensors for batch computation.
         self.Bhat_tensor = np.zeros((self.max_size,
@@ -96,6 +93,18 @@ class IrsTree(Tree):
 
         super().__init__(params)
 
+    def joint_limit_to_x_bounds(self, joint_limits):
+        joint_limit_ub = {}
+        joint_limit_lb = {}
+
+        for model_idx in joint_limits.keys():
+            joint_limit_lb[model_idx] = joint_limits[model_idx][:,0]
+            joint_limit_ub[model_idx] = joint_limits[model_idx][:,1]
+
+        x_lb = self.q_dynamics.get_x_from_q_dict(joint_limit_lb)
+        x_ub = self.q_dynamics.get_x_from_q_dict(joint_limit_ub)
+        return x_lb, x_ub
+
     def populate_node_parameters(self, node):
         """
         Given a node which has a q, this method populates the rest of the
@@ -104,13 +113,13 @@ class IrsTree(Tree):
         node.ubar = node.q[self.q_dynamics.get_u_indices_into_x()]
 
         if self.params.bundle_mode == BundleMode.kExact:
-            node.Bhat, node.chat = self.rsc.calc_exact_Bc(
+            node.Bhat, node.chat = self.reachable_set.calc_exact_Bc(
                 node.q, node.ubar)
         else:
-            node.Bhat, node.chat = self.rsc.calc_bundled_Bc(
+            node.Bhat, node.chat = self.reachable_set.calc_bundled_Bc(
                 node.q, node.ubar)
                 
-        node.cov, node.mu = self.rsc.calc_metric_parameters(
+        node.cov, node.mu = self.reachable_set.calc_metric_parameters(
             node.Bhat, node.chat)
         node.covinv = np.linalg.inv(node.cov)
 
@@ -137,7 +146,7 @@ class IrsTree(Tree):
         self.chat_matrix[node.id] = node.chat
 
     def compute_edge_cost(self, parent_node: Node, child_node: Node):
-        cost = self.rsc.calc_node_metric(
+        cost = self.reachable_set.calc_node_metric(
             parent_node.covinv, parent_node.mu, child_node.q)
         return cost
 
@@ -146,8 +155,7 @@ class IrsTree(Tree):
         Sample a subgoal from the configuration space.
         """
         subgoal = np.random.rand(self.q_dynamics.dim_x)
-        subgoal = self.params.x_lb + (
-            self.params.x_ub - self.params.x_lb) * subgoal
+        subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
         return subgoal
 
     def extend_towards_q(self, node: Node, q: np.array):

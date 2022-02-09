@@ -28,7 +28,7 @@ class Edge:
         self.cost = np.nan # float
 
 
-class TreeParams:
+class RrtParams:
     """
     Base tree parameters class. Only "yaml'-able parameters should be stored
     in the parameters.
@@ -41,11 +41,11 @@ class TreeParams:
         self.termination_tolerance = 0.1
 
 
-class Tree:
+class Rrt:
     """
     Base tress class.
     """
-    def __init__(self, params: TreeParams):
+    def __init__(self, params: RrtParams):
         self.graph = nx.DiGraph()
         self.size = 0 # variable to keep track of nodes.
         self.max_size = params.max_size

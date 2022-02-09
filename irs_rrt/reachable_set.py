@@ -6,7 +6,7 @@ from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 from qsim_cpp import GradientMode
 
 
-class ReachableSetComputation():
+class ReachableSet():
     """
     Computation class that computes parameters and metrics of reachable sets.
     """
@@ -36,7 +36,6 @@ class ReachableSetComputation():
 
         c = np.array(x_next).squeeze(0)
         B = np.array(B).squeeze(0)
-
         return B, c
 
     def calc_bundled_Bc(self, q, ubar):
@@ -52,8 +51,6 @@ class ReachableSetComputation():
             x_batch, u_batch, self.q_dynamics.h, GradientMode.kBOnly
         )
 
-        is_valid_batch = np.array(is_valid_batch)
-        x_next_batch = np.array(x_next_batch)
         B_batch = np.array(B_batch)
 
         chat = np.mean(x_next_batch[is_valid_batch], axis=0)

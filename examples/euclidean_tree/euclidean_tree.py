@@ -2,17 +2,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 
-from irs_rrt.rrt_base import Node, Edge, TreeParams, Tree
+from irs_rrt.rrt_base import Node, Edge, RrtParams, Rrt
 
-class EuclideanTreeParams(TreeParams):
+class EuclideanRrtParams(RrtParams):
     def __init__(self):
         super().__init__()
         self.x_lb = np.array([-20,-20])
         self.x_ub = np.array([20, 20])
         self.radius = 0.1
 
-class EuclideanTree(Tree):
-    def __init__(self, params: TreeParams):
+class EuclideanRrt(Rrt):
+    def __init__(self, params: RrtParams):
         super().__init__(params)
 
     def sample_subgoal(self):
@@ -45,13 +45,13 @@ def plot_result():
 
     goal = 10.0 * np.ones(2)
 
-    params = EuclideanTreeParams()
+    params = EuclideanRrtParams()
     params.root_node = root_node
     params.goal = goal
     params.subgoal_prob = 0.01
     params.max_size = 3000
 
-    tree = EuclideanTree(params)
+    tree = EuclideanRrt(params)
     tree.iterate()
 
     node_lst = []

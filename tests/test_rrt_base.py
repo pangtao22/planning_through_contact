@@ -7,25 +7,27 @@ from context import examples, irs_mpc, irs_rrt
 from irs_rrt.rrt_base import Node
 
 from examples.euclidean_tree.euclidean_tree import (
-    EuclideanTreeParams, EuclideanTree)
+    EuclideanRrtParams, EuclideanRrt)
 
 
 class TestRRTBase(unittest.TestCase):
     """
-    The tests compare various conversions between state dictionaries and
-    state vectors are consistent between the python and cpp implementations.
+    The tests compare the numpy storage used for batch computations against
+    information in the invidiual nodes of network x to make sure they are 
+    consistent.
     """
     def setUp(self):
+        np.random.seed(940923)
         root_node = Node(np.zeros(2))
         goal = 10.0 * np.ones(2)
 
-        self.params = EuclideanTreeParams()
+        self.params = EuclideanRrtParams()
         self.params.root_node = root_node
         self.params.goal = goal
         self.params.subgoal_prob = 0.1
         self.params.max_size = 200
 
-        self.tree = EuclideanTree(self.params)
+        self.tree = EuclideanRrt(self.params)
         self.tree.iterate()
 
     def test_q_matrix(self):
