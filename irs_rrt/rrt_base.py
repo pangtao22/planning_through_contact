@@ -4,6 +4,7 @@ import networkx as nx
 from scipy.spatial import KDTree
 from tqdm import tqdm
 import time
+import pickle
 
 
 class Node:
@@ -188,7 +189,7 @@ class Tree:
         # NOTE(terry-suh): this is "conservative rewiring" that does not
         # require user input of rewiring tolerance. In practice, this feels
         # better since there is one less arbitrary hyperparameter.
-        neighbor_idx = np.where(dist_lst <= dist_lst[parent_node.id])
+        neighbor_idx = np.argwhere(dist_lst <= dist_lst[parent_node.id])
         min_idx = np.argmin(value_candidate_lst[neighbor_idx])
 
         new_parent = self.get_node_from_id(neighbor_idx[min_idx][0])
@@ -200,7 +201,11 @@ class Tree:
         """
         Main method for iteration.
         """
+        pbar = tqdm(total = self.max_size)
+
         while(self.size < self.params.max_size):
+            pbar.update(1)
+
             # 1. Sample a subgoal.
             sample_goal = self.cointoss_for_goal()
             if (sample_goal):
@@ -231,3 +236,9 @@ class Tree:
             # 6. Check for termination.
             if self.is_close_to_goal():
                 break
+
+        pbar.close()
+
+    def save_tree(self, filename):
+        with open(filename, 'wb') as f:
+            pickle.dump(self.graph, f)

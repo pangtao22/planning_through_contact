@@ -76,4 +76,4 @@ def plot_result():
     plt.xlim([-15, 15])
     plt.ylim([-15, 15])
 
-    plt.show()    
+    plt.show()

@@ -15,11 +15,15 @@ from qsim_cpp import GradientMode
 
 
 class IrsTreeParams(TreeParams):
-    def __init__(self, joint_limits):
+    def __init__(self, q_dynamics, joint_limits):
         super().__init__()
         # Options for computing bundled dynamics.
         self.n_samples = 100
+        self.q_dynamics = q_dynamics
         self.std_u = 0.1 * np.array(self.q_dynamics.dim_u)  # std_u for input.
+
+        # kFirst and kExact are supported.
+        self.bundle_mode = BundleMode.kFirst
 
         # State-space limits for sampling, provided as a bounding box.
         # During tree expansion, samples that go outside of this limit will be
@@ -80,9 +84,9 @@ class IrsEdge(Edge):
 
 class IrsTree(Tree):
     def __init__(self, q_dynamics: QuasistaticDynamics, params: TreeParams):
-        super().__init__(params)
-        self.q_dynamics = params.q_dynamics
+        self.q_dynamics = params.q_dynamics        
         self.rsc = ReachableSetComputation(q_dynamics, params)
+        self.max_size = params.max_size
 
         # Initialize tensors for batch computation.
         self.Bhat_tensor = np.zeros((self.max_size,
@@ -92,9 +96,7 @@ class IrsTree(Tree):
         self.chat_matrix = np.zeros((self.max_size,
             self.q_dynamics.dim_x))
 
-        self.Bhat_tensor[0] = self.root_node.Bhat
-        self.covinv_tensor[0] = self.root_node.covinv
-        self.chat_matrix[0] = self.root_node.chat
+        super().__init__(params)
 
     def populate_node_parameters(self, node):
         """
@@ -102,8 +104,14 @@ class IrsTree(Tree):
         node parameters using reachable set computations.
         """
         node.ubar = node.q[self.q_dynamics.get_u_indices_into_x()]
-        node.Bhat, node.chat = self.rsc.calc_bundled_Bc(
-            node.q, node.ubar)
+
+        if self.params.bundle_mode == BundleMode.kExact:
+            node.Bhat, node.chat = self.rsc.calc_exact_Bc(
+                node.q, node.ubar)
+        else:
+            node.Bhat, node.chat = self.rsc.calc_bundled_Bc(
+                node.q, node.ubar)
+                
         node.cov, node.mu = self.rsc.calc_metric_parameters(
             node.Bhat, node.chat)
         node.covinv = np.linalg.inv(node.cov)
@@ -176,7 +184,6 @@ class IrsTree(Tree):
         """
         Converts self.graph into a hashable object with necessary node
         attributes, such as q, and reachable set information.
-
         TODO: it seems possible to convert both the Node and Edge classes in
          rrt_base.py into dictionaries, which can be saved as attributes as
          part of a networkx node/edge. The computational methods in the
@@ -197,7 +204,6 @@ class IrsTree(Tree):
             node_attributes = dict(
                 q=node_object.q,
                 value=node_object.value,
-                std_u=node_object.std_u,
                 ubar=node_object.ubar,
                 Bhat=node_object.Bhat,
                 chat=node_object.chat,

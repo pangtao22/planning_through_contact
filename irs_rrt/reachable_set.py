@@ -8,7 +8,6 @@ import time
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 
 from irs_rrt.rrt_base import Node, Edge, Tree, TreeParams
-from irs_rrt.irs_rrt import IrsTreeParams
 from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 from qsim_cpp import GradientMode
@@ -18,8 +17,7 @@ class ReachableSetComputation():
     """
     Computation class that computes parameters and metrics of reachable sets.
     """
-    def __init__(self, q_dynamics: QuasistaticDynamics, 
-        params: IrsTreeParams):
+    def __init__(self, q_dynamics: QuasistaticDynamics, params):
 
         self.q_dynamics = q_dynamics
         self.q_dynamics_p = QuasistaticDynamicsParallel(
@@ -30,6 +28,23 @@ class ReachableSetComputation():
         self.n_samples = self.params.n_samples
         self.std_u = self.params.std_u
         self.regularization = self.params.regularization
+
+    def calc_exact_Bc(self, q, ubar):
+        """
+        Compute exact dynamics.
+        """
+        x = q[None,:]
+        u = ubar[None,:]
+
+        (x_next, B, is_valid
+        ) = self.q_dynamics_p.q_sim_batch.calc_dynamics_parallel(
+            x, u, self.q_dynamics.h, GradientMode.kBOnly
+        )
+
+        c = np.array(x_next).squeeze(0)
+        B = np.array(B).squeeze(0)
+
+        return B, c
 
     def calc_bundled_Bc(self, q, ubar):
         """
