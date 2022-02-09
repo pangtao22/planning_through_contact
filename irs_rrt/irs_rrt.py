@@ -23,8 +23,8 @@ class IrsTreeParams(TreeParams):
         self.n_samples = 100
         self.std_u = 0.1 * np.array(self.q_dynamics.dim_u)  # std_u for input.
         self.decouple_AB = True
-        self.bundle_mode = BundleMode.kFirst
-        self.parallel_mode = ParallelizationMode.kZmq
+        #self.bundle_mode = BundleMode.kFirst
+        #self.parallel_mode = ParallelizationMode.kZmq
 
         # State-space limits for sampling, provided as a bounding box.
         # During tree expansion, samples that go outside of this limit will be
@@ -41,7 +41,7 @@ class IrsTreeParams(TreeParams):
         # Rewiring tolerance. If the distance from qi to qj is less than this
         # tolerance as evaluated by the local distance metric on qi, then
         # qi will be included in the candidate for rewiring.
-        self.rewire_tolerance = 1e1
+        self.rewire_tolerance = 1e3
 
         # Termination tolerance. Algorithm will terminate if there exists a
         # node such that the norm between the node and the goal is less than

@@ -37,7 +37,7 @@ Base tree class.
 """
 class TreeParams:
     def __init__(self):
-        self.max_size = 200
+        self.max_size = 100
         self.goal = None # q_goal.
         self.root_node = None
         self.eps = np.inf # radius of norm ball for NN queries.
@@ -85,7 +85,7 @@ class Tree:
             self.graph.add_node(self.size, node=node)
             self.q_matrix[self.size,:] = node.q
             node.id = self.size
-            self.size += 1
+            self.size += 1                        
 
         else:
             self.graph.add_node(id, node=node)
@@ -172,13 +172,14 @@ class Tree:
         self.add_edge(new_edge)
 
     def iterate(self):
-        for _ in tqdm(range(self.max_size - 1)):
+        for iter in tqdm(range(self.max_size-1)):
             # 1. Sample some node from the current tree.
             parent_node = self.select_node()
 
             # 2. Sample a new child node from the selected node and add 
             #    to the graph.
             child_node = self.extend(parent_node)
+
             self.add_node(child_node)
             
             edge = Edge()
@@ -200,7 +201,6 @@ class Tree:
             if self.is_close_to_goal():
                 print("done!")
                 break
-
 
 class ContactSampler():
     def __init__(self, system):
