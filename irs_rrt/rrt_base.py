@@ -5,206 +5,229 @@ from scipy.spatial import KDTree
 from tqdm import tqdm
 import time
 
-"""
-Base node class. Owns all the attributes and methods related to a single node.
-Add to nx.Digraph() using 
-G.add_node(1, node=Node())
-"""
+
 class Node:
+    """
+    Base node class. Owns all the attributes and methods related to a 
+    single node. Add to nx.Digraph() using G.add_node(1, node=Node())
+    """    
     def __init__(self, q):
         self.q = q # np.array of states.
-        self.value = None # float.
-        self.id = None # int
-
-    def is_reachable(self, q_query):
-        return True
+        self.value = np.nan # float.
+        self.id = np.nan # int
 
 
-"""
-Base edge class. Owns all the attributes and methods related to an edge. 
-Add to nx.Digraph() using
-G.add_edge(1, 2, edge=Edge())
-"""
 class Edge:
+    """
+    Base edge class. Owns all the attributes and methods related to an edge.
+    Add to nx.Digraph() using G.add_edge(1, 2, edge=Edge())
+    """    
     def __init__(self):
         self.parent = None # Node class.
         self.child = None # Node class.
-        self.cost = None # float
+        self.cost = np.nan # float
 
 
-"""
-Base tree class.
-"""
 class TreeParams:
+    """
+    Base tree parameters class. Only "yaml'-able parameters should be stored
+    in the parameters.
+    """
     def __init__(self):
         self.max_size = 100
         self.goal = None # q_goal.
         self.root_node = None
-        self.eps = np.inf # radius of norm ball for NN queries.
+        self.subgoal_prob = 0.5
+        self.termination_tolerance = 0.1
 
 
 class Tree:
+    """
+    Base tress class.
+    """
     def __init__(self, params: TreeParams):
         self.graph = nx.DiGraph()
         self.size = 0 # variable to keep track of nodes.
         self.max_size = params.max_size
         self.goal = params.goal
         self.root_node = params.root_node
-        self.eps = params.eps
+        self.termination_tolerance = params.termination_tolerance
+        self.subgoal_prob = params.subgoal_prob        
         self.params = params
 
         self.dim_q = len(self.root_node.q)
 
-        # We keep two data structures over nodes in memory to allow fast
-        # batch computation / fast nearest-neighbor queries.
 
-        # First is q_matrix, which is N x n matrix where N is # of nodes, and 
+        # We keep a matrix over node configurations for batch computation.
+        # This is a N x n matrix where N is # of nodes, and 
         # n is dim(q). Used for batch computation. Note that we initialize to
         # max_size to save computation time while adding nodes, but only the
         # first N columns of this matrix are "valid".
-        self.q_matrix = np.zeros((self.max_size, self.dim_q))
-        self.kdtree = None # initialize to empty.
+        self.q_matrix = np.nan * np.zeros((self.max_size, self.dim_q))
+
+        # Additionally, keep a storage of values.
+        self.value_lst = np.nan * np.zeros(self.max_size)
+        self.root_node.value = 0.0 # by definition, root node has value of 0.
+        self.value_lst[self.size] = self.root_node.value
 
         # Add root node to the graph to finish initialization.
         self.add_node(self.root_node)
 
     def get_node_from_id(self, id: int):
+        """ Return node from the graph given id. """
         node = self.graph.nodes[id]["node"]
         return node
 
     def get_edge_from_id(self, parent_id: int, child_id: int):
+        """ Return edge from the graph given id of parent and child. """
         edge = self.graph.edges[parent_id, child_id]["edge"]
         return edge
 
     def get_valid_q_matrix(self):
+        """ Get slice of q matrix with valid components."""
         return self.q_matrix[:self.size, :]
 
-    def add_node(self, node: Node, id=None):
-        # Check for missing fields and add them.
-        if (id == None):
-            self.graph.add_node(self.size, node=node)
-            self.q_matrix[self.size,:] = node.q
-            node.id = self.size
-            self.size += 1                        
+    def get_valid_value_lst(self):
+        """ Get slice of value_lst with valid components."""
+        return self.value_lst[:self.size]
 
-        else:
-            self.graph.add_node(id, node=node)
-            self.q_matrix[id,:] = node.q            
-            node.id = id
-
-        # NOTE(terry-suh): We construct a KDTree from scratch because the tree
-        # is not built for incremental updates. This results in increased 
-        # computation time for adding a node linearly in the size of the tree.
-        self.kdtree = KDTree(self.get_valid_q_matrix())
+    def add_node(self, node: Node):
+        """ 
+        Add a new node to the networkx graph and the relevant data structures
+        that does batch computation. This also populates the id parameter of
+        the node.
+        """
+        self.graph.add_node(self.size, node=node)
+        self.q_matrix[self.size,:] = node.q
+        node.id = self.size
+        self.size += 1
 
     def replace_node(self, node: Node, id: int):
+        """
+        Replaces a node in a graph with id with a new given node. Also 
+        changes the relevant data structures.
+        """
         self.graph.remove_node(id)
-        self.add_node(node, id)
+        self.graph.add_node(id, node=node)
+        self.q_matrix[id,:] = node.q
+        node.id = id
 
     def add_edge(self, edge: Edge):
-        if (edge.cost == None):
-            edge.cost = self.compute_edge_cost(edge.parent, edge.child)
-
+        """
+        Add an edge to the graph. This computes the cost of the edge and
+        populates the value of the connected child.
+        """
+        edge.cost = self.compute_edge_cost(edge.parent, edge.child)
         self.graph.add_edge(edge.parent.id, edge.child.id, edge=edge)
         edge.child.value = edge.parent.value + edge.cost
+        self.value_lst[edge.child.id] = edge.child.value
 
     def remove_edge(self, edge: Edge):
+        """ Remove edge from the graph. """
         self.graph.remove_edge(edge.parent.id, edge.child.id)
-        # This is like an assert statement that disconnected nodes do not have
-        # any value properties.
         edge.child.value = np.nan
+        self.value_lst[edge.child.value] = edge.child.value
 
     def compute_edge_cost(self, parent_node: Node, child_node: Node):
+        """ Provide a metric of computing a cost for the edge. """
         raise NotImplementedError("This method is virtual.")
 
-    def select_node(self):
+    def cointoss_for_goal(self):
+        sample_goal = np.random.choice(
+            [0, 1], 1, p=[
+                1 - self.params.subgoal_prob, self.params.subgoal_prob])
+        return sample_goal
+
+    def sample_subgoal(self):
+        """ Provide a method to sample the a subgoal. """
         raise NotImplementedError("This method is virtual.")
 
-    def extend(self, node: Node):
+    def select_node(self, subgoal: np.array):
+        """
+        Select a subgoal from a configuration space, and find the node that
+        is closest from the subgoal.
+        """
+        metric_batch = self.calc_metric_batch(subgoal)
+        selected_node = self.get_node_from_id(np.argmin(metric_batch))
+        return selected_node
+
+    def extend_towards_q(self, node: Node, q: np.array):
+        """ Extend towards a specified configuration q. """
         raise NotImplementedError("This method is virtual.")
 
-    def is_close_to_goal(self, node: Node):
+    def extend(self, node: Node, subgoal: np.array):
+        """
+        Extend towards a self.subgoal object. This is evaluated analytically.
+        """
+        return self.extend_towards_q(node, subgoal)
+
+    def calc_metric_batch(self, q_query: np.array):
+        """
+        Given q_query, return a np.array of \|q_query - q\| according to some
+        local distances from all the existing nodes in the tree to q_query.
+        """
         raise NotImplementedError("This method is virtual.")
 
-    """ Get neighbors of the current node in the norm ball. """
-    def get_neighbors(self, node: Node, eps: float):
-        neighbor_idx = self.kdtree.query_ball_point(node.q, eps)
-        return neighbor_idx
+    def is_close_to_goal(self):
+        """
+        Evaluate termination criteria for RRT using global distance metric.
+        """
+        dist_batch = self.calc_metric_batch(self.params.goal)
+        return np.min(dist_batch) < self.params.termination_tolerance        
         
-    def rewire(self, child_node: Node):
-        parent_node_id = list(self.graph.predecessors(child_node.id))[0]
-        parent_node = self.get_node_from_id(parent_node_id)
-        edge = self.get_edge_from_id(parent_node.id, child_node.id)
+    def rewire(self, parent_node: Node, child_node: Node):
+        """
+        Rewiring step. Loop over neighbors, query for the new value after
+        rewiring to candidate parents, and rewire if the value is lower.
+        """
+        # Compute distance from candidate child_node to all the nodes.
+        dist_lst = self.calc_metric_batch(child_node.q)
+        value_candidate_lst = self.get_valid_value_lst() + dist_lst
 
-        best_value = parent_node.value + edge.cost
-        best_cost = edge.cost
-        new_parent = parent_node
+        # Get neighboring indices.
+        # NOTE(terry-suh): this is "conservative rewiring" that does not
+        # require user input of rewiring tolerance. In practice, this feels
+        # better since there is one less arbitrary hyperparameter.
+        neighbor_idx = np.where(dist_lst <= dist_lst[parent_node.id])
+        min_idx = np.argmin(value_candidate_lst[neighbor_idx])
 
-        neighbor_idx = self.get_neighbors(child_node, self.eps)
+        new_parent = self.get_node_from_id(neighbor_idx[min_idx][0])
+        new_child = self.extend_towards_q(new_parent, child_node.q)
 
-        # Linear search over the neighbors.
-        # TODO(terry-suh): Can this be replaced with batch computation?
-        # Maybe not, if reachability cannot be checked in batch....
-        for idx in neighbor_idx:
-            parent_candidate_node = self.get_node_from_id(idx)
-            # Check for reachability from the child node.
-            if parent_candidate_node.is_reachable(child_node):
-                candidate_edge_cost = self.compute_edge_cost(
-                    parent_candidate_node, child_node)
-
-                candidate_value = (
-                    parent_candidate_node.value + candidate_edge_cost)
-
-                if (candidate_value < best_value):
-                    best_value = candidate_value
-                    best_cost = candidate_edge_cost
-                    new_parent = parent_candidate_node
-
-        # Replace edge.
-        self.remove_edge(
-            self.graph.edges[parent_node.id, child_node.id]["edge"])
-
-        new_edge = Edge()
-        new_edge.parent = new_parent
-        new_edge.child = child_node
-        new_edge.cost = best_cost
-
-        self.add_edge(new_edge)
+        return new_parent, new_child
 
     def iterate(self):
+        """
+        Main method for iteration.
+        """
         while(self.size < self.params.max_size):
-            # 1. Sample some node from the current tree.
-            parent_node = self.select_node()
+            # 1. Sample a subgoal.
+            sample_goal = self.cointoss_for_goal()
+            if (sample_goal):
+                subgoal = self.params.goal
+            else:
+                subgoal = self.sample_subgoal()
 
-            # 2. Sample a new child node from the selected node and add 
-            #    to the graph.
-            child_node = self.extend(parent_node)
+            # 2. Sample closest node to subgoal
+            parent_node = self.select_node(subgoal)
 
-            self.add_node(child_node)
-            
+            # 3. Extend to subgoal.
+            child_node = self.extend(parent_node, subgoal)
+
+            # 4. Attempt to rewire a candidate child node.
+            new_parent, new_child = self.rewire(parent_node, child_node)
+            #new_parent, new_child = parent_node, child_node
+
+            # 5. Register the new node to the graph.
+            self.add_node(new_child)
+
             edge = Edge()
-            edge.parent = parent_node
-            edge.child = child_node
+            edge.parent = new_parent
+            edge.child = new_child
             edge.cost = self.compute_edge_cost(edge.parent, edge.child)
-            
-            child_node.value = parent_node.value + edge.cost
-
+            new_child.value = new_parent.value + edge.cost
             self.add_edge(edge)
 
-            # 3. Attempt to rewire the extended node.
-            # NOTE(terry-suh): In order to guarantee optimality, rewiring
-            # should not only run on the current node, but also on the child 
-            # nodes. We skip this step to save computation.
-
-            #size_before = np.copy(self.size)
-            #self.rewire(child_node)
-
-            # 4. Terminate
+            # 6. Check for termination.
             if self.is_close_to_goal():
-                print("done!")
                 break
-
-class ContactSampler():
-    def __init__(self, system):
-        # TODO(terry-suh): all the grasp methods should come here.
-        raise NotImplementedError("")
