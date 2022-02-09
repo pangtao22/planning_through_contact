@@ -64,7 +64,7 @@ class IrsTreeParams(TreeParams):
 
         # If the "subgoal" strategy is selected, probability of setting the 
         # actual goal as the subgoal.
-        self.subgoal_prob = 0.3
+        self.subgoal_prob = 0.2
 
         # Probability to choose between different strategies for selection.
         # NOTE(terry-suh): if you choose subgoal as your strategy, you must

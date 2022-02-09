@@ -172,7 +172,7 @@ class Tree:
         self.add_edge(new_edge)
 
     def iterate(self):
-        for iter in tqdm(range(self.max_size-1)):
+        while(self.size < self.params.max_size):
             # 1. Sample some node from the current tree.
             parent_node = self.select_node()
 
@@ -195,7 +195,9 @@ class Tree:
             # NOTE(terry-suh): In order to guarantee optimality, rewiring
             # should not only run on the current node, but also on the child 
             # nodes. We skip this step to save computation.
-            self.rewire(child_node)
+
+            #size_before = np.copy(self.size)
+            #self.rewire(child_node)
 
             # 4. Terminate
             if self.is_close_to_goal():
