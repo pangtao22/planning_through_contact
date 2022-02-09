@@ -87,9 +87,7 @@ tree.iterate()
 # np.save("q_mat_large.npy", tree.q_matrix)
 
 #%%
-G = tree.serialize()
-with open('tree_1000.pkl', 'wb') as f:
-    pickle.dump(G, f)
+tree.save_tree("tree_1000.pkl")
 
 #%%
 

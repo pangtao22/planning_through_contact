@@ -25,7 +25,7 @@ from matplotlib import cm
 
 
 #%%
-with open('./data/tree_1000.pkl', 'rb') as f:
+with open('tree_1000.pkl', 'rb') as f:
     tree = pickle.load(f)
 
 q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
@@ -40,8 +40,8 @@ q_nodes = np.zeros((n_nodes, 7))
 
 # node coordinates.
 for i in range(n_nodes):
-    node = tree.nodes[i]
-    q_nodes[i] = node['q']
+    node = tree.nodes[i]["node"]
+    q_nodes[i] = node.q
 
 q_u_nodes = q_nodes[:, -3:]
 
@@ -87,10 +87,10 @@ tree_plot_list = [nodes_plot, edges_plot, root_plot, path_plot]
 ellipsoid_mesh_points = []
 ellipsoid_volumes = []
 for i in range(n_nodes):
-    node = tree.nodes[i]
-    B_u = node['Bhat'][-3:, :]
+    node = tree.nodes[i]["node"]
+    B_u = node.Bhat[-3:, :]
     cov_inv = np.linalg.inv(B_u @ B_u.T + 1e-6 * np.eye(3))
-    p_center = node['q'][-3:]
+    p_center = node.q[-3:]
     e_points, volume = make_ellipsoid_plotly(cov_inv, p_center, 0.05, 8)
     ellipsoid_mesh_points.append(e_points)
     ellipsoid_volumes.append(volume)
@@ -179,7 +179,7 @@ def display_config_in_meshcat(hover_data):
     if i_node is None:
         return hover_data_json
 
-    q_sim_py.update_mbp_positions_from_vector(tree.nodes[i_node]['q'])
+    q_sim_py.update_mbp_positions_from_vector(tree.nodes[i_node]["node"].q)
     q_sim_py.draw_current_configuration()
 
     return hover_data_json

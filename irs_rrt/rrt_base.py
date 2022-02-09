@@ -240,5 +240,15 @@ class Tree:
         pbar.close()
 
     def save_tree(self, filename):
+        """
+        NOTE: it seems possible to convert both the Node and Edge classes in
+         rrt_base.py into dictionaries, which can be saved as attributes as
+         part of a networkx node/edge. The computational methods in the
+         Node class can be moved into a "reachable set" class.
+         This conversion has a few benefits:
+         - accessing attributes becomes easier:
+            self.graph[node_id]['node'].attribute_name  will become
+            self.graph[node_id]['attribute_name']
+        """
         with open(filename, 'wb') as f:
             pickle.dump(self.graph, f)
