@@ -83,7 +83,6 @@ params.subgoal_prob = 0.5
 
 tree = IrsRrt(params)
 tree.iterate()
-# np.save("q_mat_large.npy", tree.q_matrix)
 
 #%%
 tree.save_tree("examples/planar_hand/data/tree_2000.pkl")

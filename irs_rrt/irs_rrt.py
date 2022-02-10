@@ -34,7 +34,7 @@ class IrsRrtParams(RrtParams):
         # then the Mahalanobis distance metric is infinity. One interpretation
         # of the regularization term is to cap the infinity distance to some
         # value that scales with inverse of regularization.
-        self.regularization = 1e-5
+        self.regularization = 1e-6
 
         # Stepsize.
         # TODO(terry-suh): the selection of this parameter should be automated.
@@ -110,7 +110,7 @@ class IrsRrt(Rrt):
         Given a node which has a q, this method populates the rest of the
         node parameters using reachable set computations.
         """
-        node.ubar = node.q[self.q_dynamics.get_u_indices_into_x()]
+        node.ubar = node.q[self.q_dynamics.get_q_a_indices_into_x()]
 
         if self.params.bundle_mode == BundleMode.kExact:
             node.Bhat, node.chat = self.reachable_set.calc_exact_Bc(
