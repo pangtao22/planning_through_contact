@@ -19,7 +19,7 @@ from planar_hand_setup import (h, q_model_path,
                                decouple_AB, bundle_mode, num_samples,
                                robot_l_name, robot_r_name, object_name)
 
-from contact_sampler import ContactSampler, sample_on_sphere
+from contact_sampler import PlanarHandContactSampler, sample_on_sphere
 from dash_common import set_orthographic_camera_yz
 
 #%% quasistatic dynamics
@@ -35,7 +35,7 @@ model_a_l = plant.GetModelInstanceByName(robot_l_name)
 model_a_r = plant.GetModelInstanceByName(robot_r_name)
 model_u = plant.GetModelInstanceByName(object_name)
 
-cspace = ContactSampler(
+cspace = PlanarHandContactSampler(
     model_u=model_u, model_a_l=model_a_l, model_a_r=model_a_r, q_sim=q_sim_py)
 
 # %% irs-lqr
@@ -184,7 +184,7 @@ def update_qa0(n_clicks, q_u0_json):
         return json.dumps({'qa_l': [0., 0.], 'qa_r': [0., 0.]}), html.Div('')
     q_u0_dict = json.loads(q_u0_json)
     q_u0 = np.array([q_u0_dict['y'], q_u0_dict['z'], q_u0_dict['theta']])
-    q_dict = cspace.sample_contact(q_u=q_u0)
+    q_dict = cspace.calc_enveloping_grasp(q_u=q_u0)
     q_sim_py.update_mbp_positions(q_dict)
     q_sim_py.draw_current_configuration()
 

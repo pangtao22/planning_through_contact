@@ -3,44 +3,26 @@ from typing import Dict
 import numpy as np
 import meshcat
 
-from qsim.simulator import QuasistaticSimulator
 from pydrake.all import ModelInstanceIndex
 
-
-def sample_on_sphere(radius: float, n_samples: int):
-    """
-    Uniform sampling on a sphere with radius r.
-    http://corysimon.github.io/articles/uniformdistn-on-sphere/
-    """
-    u = np.random.rand(n_samples, 2)  # uniform samples.
-    u_theta = u[:, 0]
-    u_phi = u[:, 1]
-    theta = u_theta * 2 * np.pi
-    phi = np.arccos(1 - 2 * u_phi)
-
-    xyz_samples = np.zeros((n_samples, 3))
-    xyz_samples[:, 0] = radius * np.sin(phi) * np.cos(theta)
-    xyz_samples[:, 1] = radius * np.sin(phi) * np.sin(theta)
-    xyz_samples[:, 2] = radius * np.cos(phi)
-
-    return xyz_samples
+from planar_hand_setup import robot_l_name, robot_r_name, object_name
+from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 
 
-class ContactSampler:
+class PlanarHandContactSampler:
     """
     !!!FOR THE TWO-FINGER AND ONE BALL SYSTEM ONLY!!!
     For each model instance with n DOFs,
     joint_limits[model] is an (n, 2) array, where joint_limits[model][i, 0] is the
     lower bound of joint i and joint_limits[model][i, 1] the upper bound.
     """
-    def __init__(self, model_u: ModelInstanceIndex,
-                 model_a_l: ModelInstanceIndex,
-                 model_a_r: ModelInstanceIndex,
-                 q_sim: QuasistaticSimulator):
-        self.q_sim = q_sim
-        self.model_u = model_u
-        self.model_a_l = model_a_l
-        self.model_a_r = model_a_r
+    def __init__(self, q_dynamics: QuasistaticDynamics):
+        self.q_dynamics = q_dynamics
+        self.q_sim = q_dynamics.q_sim_py
+        n2i_map = q_dynamics.q_sim.get_model_instance_name_to_index_map()
+        self.model_u = n2i_map[object_name]
+        self.model_a_l = n2i_map[robot_l_name]
+        self.model_a_r = n2i_map[robot_r_name]
         '''
         Suggested joint limits for left and right fingers:
         Left (reversed)
@@ -52,14 +34,25 @@ class ContactSampler:
         '''
         # joint limits
         self.joint_limits = {
-            model_u: np.array([[-0.5, 0.5], [0.3, 0.6], [-np.pi, np.pi]]),
-            model_a_l: np.array([[-np.pi / 2, np.pi / 2], [-np.pi / 2, 0]]),
-            model_a_r: np.array([[-np.pi / 2, np.pi / 2], [0, np.pi / 2]])}
+            self.model_u: np.array([[-0.5, 0.5], [0.3, 0.6], [-np.pi, np.pi]]),
+            self.model_a_l: np.array(
+                [[-np.pi / 2, np.pi / 2], [-np.pi / 2, 0]]),
+            self.model_a_r: np.array([[-np.pi / 2, np.pi / 2], [0, np.pi / 2]])}
 
-    def sample_contact(self, q_u: np.ndarray):
+        # some constants for solving finger IK.
+        self.r_u = 0.25
+        self.r_a = 0.05
+        self.r = self.r_u + self.r_a + 0.001
+        self.l1 = 6 * self.r_a  # length of the first link.
+        self.l2 = 4 * self.r_a  # length of the second link.
+        self.p_WBr = np.array([0, 0.1, 0])  # right base
+        self.p_WBl = np.array([0, -0.1, 0])  # left base.
+
+    def calc_enveloping_grasp(self, q_u: np.ndarray):
         """
-        For a given configuration of the ball, q_u, this function finds configurations
-        of the fingers such that both fingers (and links?) contact the surface of ball.
+        For a given configuration of the ball, q_u, this function finds
+        configurations of the fingers such that both fingers (and links?)
+        contact the surface of ball.
         Suggested range of q_u:
             y: [-0.3, 0.3]
             z: [0.3, 0.8]
@@ -77,14 +70,14 @@ class ContactSampler:
             for i_joint in [0, 1]:
                 # For each joint.
                 '''
-                It is assumed that qi_down is always collision-free, and qi_up is in 
-                collision.
+                It is assumed that qi_down is always collision-free, and qi_up 
+                is in collision.
                 For the right finger, 
-                    qi_down is initialized to the lower joint limit, qi_up the upper 
-                    joint limit.
+                    qi_down is initialized to the lower joint limit, qi_up the 
+                    upper joint limit.
                 For the left finger,
-                    qi_down is initialized to the lower joint limit, qi_up the lower 
-                    joint limit.
+                    qi_down is initialized to the lower joint limit, qi_up the 
+                    lower joint limit.
                 '''
                 if model_a == self.model_a_r:
                     qi_down = self.joint_limits[model_a][i_joint, 0]
@@ -112,3 +105,158 @@ class ContactSampler:
         # this also updates query_object.
         self.q_sim.update_mbp_positions(q_dict)
         return self.q_sim.query_object.HasCollisions()
+
+    def sample_contact_points_in_workspace(self,
+                                           p_WB: np.ndarray,
+                                           p_WO: np.ndarray,
+                                           n_samples: int,
+                                           arm: str):
+        """
+        p_WB: (3,): world frame coordinates of the origin of the robot's base
+            link.
+        p_WO: (3,): world frame coordinates of the center of the object.
+        """
+        a = self.r
+        c = self.l1 + self.l2
+        b = np.linalg.norm(p_WO - p_WB)
+        if a + c < b:
+            # a, b, c do not form the three edges of a triangle.
+            return None
+        gamma = np.arccos((a**2 + b**2 - c**2) / (2 * a * b))
+
+        dp = p_WB - p_WO
+        alpha = np.arctan2(dp[2], dp[1])
+
+        if arm == 'left':
+            lb = alpha - gamma
+            ub = min(alpha + gamma, -np.pi / 2)
+        elif arm == 'right':
+            lb = max(alpha - gamma, -np.pi / 2)
+            ub = alpha + gamma
+        else:
+            raise RuntimeError(f"undefined arm {arm}")
+
+        theta = np.random.rand(n_samples) * (ub - lb) + lb
+        p_WC = np.tile(p_WO, (n_samples, 1))
+        p_WC[:, 1] += np.cos(theta) * self.r
+        p_WC[:, 2] += np.sin(theta) * self.r
+
+        return p_WC
+
+    def sample_pinch_grasp(self, q_u: np.ndarray, n_samples: int):
+        # Sample antipodal grasps with 10 random angles between -np.pi / 4
+        # and np.pi / 4.
+        p_WO = np.array([0, q_u[0], q_u[1]])
+        p_WCr = self.sample_contact_points_in_workspace(
+            p_WB=self.p_WBr, p_WO=p_WO, n_samples=n_samples, arm='right')
+        p_WCl = self.sample_contact_points_in_workspace(
+            p_WB=self.p_WBl, p_WO=p_WO, n_samples=n_samples, arm='left')
+
+        # plot sampled points.
+        # import matplotlib.pyplot as plt
+        # co = plt.Circle(p_WO[1:], self.r, color='r', alpha=0.1)
+        # cl = plt.Circle(
+        #    self.p_WBl[1:], self.l1 + self.l2, color='g', alpha=0.1)
+        # cr = plt.Circle(
+        #    self.p_WBr[1:], self.l1 + self.l2, color='b', alpha=0.1)
+        # plt.scatter(p_WCl[:, 1], p_WCl[:, 2], color='g')
+        # plt.scatter(p_WCr[:, 1], p_WCr[:, 2], color='b')
+        # plt.gca().add_patch(cl)
+        # plt.gca().add_patch(cr)
+        # plt.gca().add_patch(co)
+        # plt.axis('equal')
+        # plt.show()
+
+        q_a_l_batch = self.solve_left_arm_ik(
+            (p_WCl - self.p_WBl)[:, 1:])
+        q_a_l_batch[:, 0] = -(np.pi - q_a_l_batch[:, 0])
+        q_a_r_batch = self.solve_right_arm_ik(
+            (p_WCr - self.p_WBr)[:, 1:])
+
+        # get rid of joint angles in collision or out of joint limits.
+        q_dict = {self.model_u: q_u}
+        # left arm.
+        lb = self.joint_limits[self.model_a_l][:, 0]
+        ub = self.joint_limits[self.model_a_l][:, 1]
+        q_dict[self.model_a_r] = np.zeros(2)
+        q_a_l_valid = []
+        for q_a_l in q_a_l_batch:
+            q_dict[self.model_a_l] = q_a_l
+            if (np.all(q_a_l >= lb) and np.all(q_a_l <= ub) and
+                    not self.has_collisions(q_dict)):
+                q_a_l_valid.append(q_a_l)
+
+        # right arm.
+        lb = self.joint_limits[self.model_a_r][:, 0]
+        ub = self.joint_limits[self.model_a_r][:, 1]
+        q_dict[self.model_a_l] = np.zeros(2)
+        q_a_r_valid = []
+        for q_a_r in q_a_r_batch:
+            q_dict[self.model_a_r] = q_a_r
+            if (np.all(q_a_r >= lb) and np.all(q_a_r <= ub) and
+                    not self.has_collisions(q_dict)):
+                q_a_r_valid.append(q_a_r)
+
+        # TODO: mix and match good samples (even with the sample from
+        #  enveloping grasp) to generate more diverse grasps.
+        return [{self.model_u: q_u, self.model_a_l: q_a_l,
+                 self.model_a_r: q_a_r}
+                for q_a_l, q_a_r in zip(q_a_l_valid, q_a_r_valid)]
+
+    def solve_right_arm_ik(self, yz_targets):
+        """
+        "elbow right"
+        """
+        theta = np.zeros_like(yz_targets)
+
+        y = yz_targets[:, 0]
+        z = yz_targets[:, 1]
+        l1 = self.l1
+        l2 = self.l2
+        gamma = np.arctan2(z, y)
+
+        theta[:, 1] = np.arccos((y**2 + z**2 - l1**2 - l2**2) / (2 * l1 * l2))
+        beta = np.arctan2(
+            l2 * np.sin(theta[:, 1]), l1 + l2 * np.cos(theta[:, 1]))
+        theta[:, 0] = gamma - beta
+
+        return theta
+
+    def solve_left_arm_ik(self, yz_targets):
+        """
+        "elbow left"
+        """
+        theta = np.zeros_like(yz_targets)
+
+        y = yz_targets[:, 0]
+        z = yz_targets[:, 1]
+        l1 = self.l1
+        l2 = self.l2
+        gamma = np.arctan2(z, y)
+
+        theta[:, 1] = np.arccos((y**2 + z**2 - l1**2 - l2**2) / (2 * l1 * l2))
+        beta = np.arctan2(
+            l2 * np.sin(theta[:, 1]), l1 + l2 * np.cos(theta[:, 1]))
+        theta[:, 0] = gamma + beta
+        theta[:, 1] *= -1
+
+        return theta
+
+
+def sample_on_sphere(radius: float, n_samples: int):
+    """
+    Uniform sampling on a sphere with radius r.
+    http://corysimon.github.io/articles/uniformdistn-on-sphere/
+    """
+    u = np.random.rand(n_samples, 2)  # uniform samples.
+    u_theta = u[:, 0]
+    u_phi = u[:, 1]
+    theta = u_theta * 2 * np.pi
+    phi = np.arccos(1 - 2 * u_phi)
+
+    xyz_samples = np.zeros((n_samples, 3))
+    xyz_samples[:, 0] = radius * np.sin(phi) * np.cos(theta)
+    xyz_samples[:, 1] = radius * np.sin(phi) * np.sin(theta)
+    xyz_samples[:, 2] = radius * np.cos(phi)
+
+    return xyz_samples
