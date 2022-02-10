@@ -142,17 +142,16 @@ class Rrt:
         """ Provide a method to sample the a subgoal. """
         raise NotImplementedError("This method is virtual.")
 
-    def select_node(self, subgoal: np.array):
+    def select_closest_node(self, subgoal: np.array):
         """
-        Select a subgoal from a configuration space, and find the node that
-        is closest from the subgoal.
+        Given a subgoal, and find the node that is closest from the subgoal.
         """
         metric_batch = self.calc_metric_batch(subgoal)
         selected_node = self.get_node_from_id(np.argmin(metric_batch))
         return selected_node
 
     def extend_towards_q(self, node: Node, q: np.array):
-        """ Extend towards a specified configuration q. """
+        """ Extend current node towards a specified configuration q. """
         raise NotImplementedError("This method is virtual.")
 
     def extend(self, node: Node, subgoal: np.array):
@@ -213,7 +212,7 @@ class Rrt:
                 subgoal = self.sample_subgoal()
 
             # 2. Sample closest node to subgoal
-            parent_node = self.select_node(subgoal)
+            parent_node = self.select_closest_node(subgoal)
 
             # 3. Extend to subgoal.
             child_node = self.extend(parent_node, subgoal)
