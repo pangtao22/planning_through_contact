@@ -39,6 +39,7 @@ class RrtParams:
         self.root_node = None
         self.subgoal_prob = 0.5
         self.termination_tolerance = 0.1
+        self.rewire = True
 
 
 class Rrt:
@@ -218,8 +219,11 @@ class Rrt:
             child_node = self.extend(parent_node, subgoal)
 
             # 4. Attempt to rewire a candidate child node.
-            new_parent, new_child = self.rewire(parent_node, child_node)
-            #new_parent, new_child = parent_node, child_node
+            if (self.params.rewire):
+                new_parent, new_child = self.rewire(parent_node, child_node)
+            else:
+                new_parent = parent_node
+                new_child = child_node
 
             # 5. Register the new node to the graph.
             self.add_node(new_child)
