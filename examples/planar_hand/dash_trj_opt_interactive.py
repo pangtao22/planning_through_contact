@@ -14,15 +14,17 @@ from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
 from irs_mpc.irs_mpc_quasistatic import (IrsMpcQuasistatic)
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
+from irs_rrt.reachable_set import ReachableSet
+from irs_rrt.irs_rrt import IrsRrtParams
+
 from planar_hand_setup import (h, q_model_path,
                                decouple_AB, bundle_mode, num_samples,
                                robot_l_name, robot_r_name, object_name)
 
 from contact_sampler import PlanarHandContactSampler, sample_on_sphere
-from dash_common import set_orthographic_camera_yz
+from dash_common import set_orthographic_camera_yz, make_ellipsoid_plotly
 
-#%% quasistatic dynamics
+# %% quasistatic dynamics
 q_dynamics = QuasistaticDynamics(h=h,
                                  q_model_path=q_model_path,
                                  internal_viz=True)
@@ -64,6 +66,12 @@ duration = T * h
 
 irs_mpc = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
 q_dynamics_p = irs_mpc.q_dynamics_parallel
+
+IrsRrtParams(q_model_path, contact_sampler.joint_limits)
+reachable_set = ReachableSet(
+    q_dynamics=q_dynamics,
+    params=IrsRrtParams(q_model_path, contact_sampler.joint_limits),
+    q_dynamics_p=q_dynamics_p)
 
 # %% meshcat
 vis = q_dynamics.q_sim_py.viz.vis
@@ -135,7 +143,7 @@ app.layout = dbc.Container([
             html.H3('4. Calc Trajectory'),
             html.Button('Calc', id='btn-calc-trj', n_clicks=0),
             html.Pre(id='calc-trj-update', style=styles['pre']),
-            ],
+        ],
             width={'size': 3, 'offset': 0, 'order': 0}
         ),
         dbc.Col([
@@ -266,8 +274,20 @@ def update_reachability(n_clicks, q_u0_json, q_a0_json):
         hovertemplate=hover_template_y_z_theta,
         marker=dict(size=6, opacity=0.8, color='gray'))
 
+    # ellipsoid
+    Bhat, chat = reachable_set.calc_bundled_Bc(q=x0, ubar=u0)
+    cov_u, c_u_hat = reachable_set.calc_unactuated_metric_parameters(Bhat, chat)
+    cov_u_inv = np.linalg.inv(cov_u)
+
+    r = np.max(np.linalg.norm(qu_samples - q_u0, axis=1))
+    e_points, volume = make_ellipsoid_plotly(cov_u_inv, c_u_hat, r, 20)
+    ellipsoid_plot = go.Mesh3d(
+        dict(x=e_points[0], y=e_points[1], z=e_points[2], alphahull=0,
+             opacity=0.3, name='ellipsoid'))
+
     fig = go.Figure(
-        data=[plot_1_step, plot_qu0, plot_goals] + principal_axes_plots,
+        data=[plot_1_step, plot_qu0, plot_goals, ellipsoid_plot]
+             + principal_axes_plots,
         layout=layout)
     return fig, json.dumps({'qa_l': qa_l_samples.tolist(),
                             'qa_r': qa_r_samples.tolist()})
@@ -364,4 +384,4 @@ def calc_trajectory(n_clicks, q_u_goal_json, q_u0_json, q_a0_json):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False)
+    app.run_server(debug=True)

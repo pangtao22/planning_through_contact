@@ -11,9 +11,12 @@ class ReachableSet:
     Computation class that computes parameters and metrics of reachable sets.
     """
 
-    def __init__(self, q_dynamics: QuasistaticDynamics, params):
+    def __init__(self, q_dynamics: QuasistaticDynamics, params,
+                 q_dynamics_p: QuasistaticDynamicsParallel = None):
         self.q_dynamics = q_dynamics
-        self.q_dynamics_p = QuasistaticDynamicsParallel(self.q_dynamics)
+        if q_dynamics_p is None:
+            q_dynamics_p = QuasistaticDynamicsParallel(self.q_dynamics)
+        self.q_dynamics_p = q_dynamics_p
 
         self.q_u_indices_into_x = self.q_dynamics.get_q_u_indices_into_x()
 
@@ -68,7 +71,7 @@ class ReachableSet:
         Bhat_u = Bhat[self.q_u_indices_into_x, :]
         cov_u = Bhat_u @ Bhat_u.T + self.params.regularization * np.eye(
             self.q_dynamics.dim_x - self.q_dynamics.dim_u)
-        return cov_u, chat
+        return cov_u, chat[self.q_u_indices_into_x]
 
     def calc_bundled_dynamics(self, Bhat, chat, du):
         xhat_next = Bhat.dot(du) + chat

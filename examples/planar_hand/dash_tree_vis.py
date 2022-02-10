@@ -16,6 +16,7 @@ from planar_hand_setup import (q_model_path, h,
                                robot_l_name, robot_r_name, object_name)
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from irs_rrt.reachable_set import ReachableSet
 
 from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
                          hover_template_trj, layout, calc_principal_points,
@@ -30,6 +31,7 @@ with open('examples/planar_hand/data/tree_2000.pkl', 'rb') as f:
 
 q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
                                  internal_viz=True)
+reachable_set = ReachableSet(q_dynamics)
 q_sim_py = q_dynamics.q_sim_py
 set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
 
@@ -88,8 +90,9 @@ ellipsoid_mesh_points = []
 ellipsoid_volumes = []
 for i in range(n_nodes):
     node = tree.nodes[i]["node"]
-    B_u = node.Bhat[-3:, :]
-    cov_inv = np.linalg.inv(B_u @ B_u.T + 1e-6 * np.eye(3))
+    cov_u, _ = reachable_set.calc_unactuated_metric_parameters(
+        node.Bhat, node.chat)
+    cov_inv = np.linalg.inv(cov_u)
     p_center = node.q[-3:]
     e_points, volume = make_ellipsoid_plotly(cov_inv, p_center, 0.05, 8)
     ellipsoid_mesh_points.append(e_points)
