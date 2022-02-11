@@ -73,7 +73,7 @@ joint_limits = {
 #%% RRT testing
 params = IrsRrtParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
-params.max_size = 50
+params.max_size = 300
 params.goal = np.copy(x0)
 params.goal[6] = np.pi
 params.termination_tolerance = 1e-2
@@ -83,7 +83,9 @@ tree = IrsRrt(params)
 tree.iterate()
 
 #%%
-tree.save_tree("tree_50_planar_hand.pkl")
+#tree.save_tree("examples/planar_hand/data/tree_3000.pkl")
+
+print(tree.save_final_path())
 
 #%%
 #
