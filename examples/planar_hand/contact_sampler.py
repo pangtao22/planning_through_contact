@@ -1,7 +1,7 @@
 from typing import Dict
 
 import numpy as np
-import meshcat
+import matplotlib.pyplot as plt
 
 from pydrake.all import ModelInstanceIndex
 
@@ -143,7 +143,27 @@ class PlanarHandContactSampler:
 
         return p_WC
 
-    def sample_pinch_grasp(self, q_u: np.ndarray, n_samples: int):
+    def plot_sampled_points(self, p_WO: np.ndarray, p_WCl: np.ndarray,
+                            p_WCr: np.ndarray):
+        """
+        p_WO: object origin coordinates in world frame.
+        p_WCl: contact points of the left arm
+        """
+        co = plt.Circle(p_WO[1:], self.r, color='r', alpha=0.1)
+        cl = plt.Circle(
+            self.p_WBl[1:], self.l1 + self.l2, color='g', alpha=0.1)
+        cr = plt.Circle(
+            self.p_WBr[1:], self.l1 + self.l2, color='b', alpha=0.1)
+        plt.scatter(p_WCl[:, 1], p_WCl[:, 2], color='g')
+        plt.scatter(p_WCr[:, 1], p_WCr[:, 2], color='b')
+        plt.gca().add_patch(cl)
+        plt.gca().add_patch(cr)
+        plt.gca().add_patch(co)
+        plt.axis('equal')
+        plt.show()
+
+    def sample_pinch_grasp(self, q_u: np.ndarray, n_samples: int,
+                           show_debug_plot=False):
         # Sample antipodal grasps with 10 random angles between -np.pi / 4
         # and np.pi / 4.
         p_WO = np.array([0, q_u[0], q_u[1]])
@@ -152,20 +172,8 @@ class PlanarHandContactSampler:
         p_WCl = self.sample_contact_points_in_workspace(
             p_WB=self.p_WBl, p_WO=p_WO, n_samples=n_samples, arm='left')
 
-        # plot sampled points.
-        # import matplotlib.pyplot as plt
-        # co = plt.Circle(p_WO[1:], self.r, color='r', alpha=0.1)
-        # cl = plt.Circle(
-        #    self.p_WBl[1:], self.l1 + self.l2, color='g', alpha=0.1)
-        # cr = plt.Circle(
-        #    self.p_WBr[1:], self.l1 + self.l2, color='b', alpha=0.1)
-        # plt.scatter(p_WCl[:, 1], p_WCl[:, 2], color='g')
-        # plt.scatter(p_WCr[:, 1], p_WCr[:, 2], color='b')
-        # plt.gca().add_patch(cl)
-        # plt.gca().add_patch(cr)
-        # plt.gca().add_patch(co)
-        # plt.axis('equal')
-        # plt.show()
+        if show_debug_plot:
+            self.plot_sampled_points(p_WO, p_WCl, p_WCr)
 
         q_a_l_batch = self.solve_left_arm_ik(
             (p_WCl - self.p_WBl)[:, 1:])
