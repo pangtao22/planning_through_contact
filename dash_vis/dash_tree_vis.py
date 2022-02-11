@@ -1,50 +1,55 @@
-import os
+#!/usr/bin/env python3
+
+import argparse
 import json
 import pickle
 
-import meshcat
-import numpy as np
 import dash
-from dash import dcc, html
 import dash_bootstrap_components as dbc
-import pandas as pd
-
-from dash.dependencies import Input, Output, State
+import numpy as np
 import plotly.graph_objects as go
-
-from planar_hand_setup import (q_model_path, h,
-                               robot_l_name, robot_r_name, object_name)
-
+from dash import dcc, html
+from dash.dependencies import Input, Output, State
+from dash_vis.dash_common import (hover_template_y_z_theta,
+                                  layout, create_q_u0_plot,
+                                  make_ellipsoid_plotly,
+                                  set_orthographic_camera_yz)
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-
-from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
-                         hover_template_trj, layout, calc_principal_points,
-                         create_pca_plots, calc_X_WG, create_q_u0_plot,
-                         make_ellipsoid_plotly, set_orthographic_camera_yz)
+from irs_rrt.reachable_set import ReachableSet
 from matplotlib import cm
 
+parser = argparse.ArgumentParser()
+parser.add_argument("tree_file_path")
+args = parser.parse_args()
 
-#%%
-with open('examples/planar_hand/data/tree_2000.pkl', 'rb') as f:
+# %% Construct computational tools.
+with open(args.tree_file_path, 'rb') as f:
     tree = pickle.load(f)
-
+irs_rrt_param = tree.graph['irs_rrt_params']
+q_model_path = irs_rrt_param.q_model_path
+h = irs_rrt_param.h
 q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
                                  internal_viz=True)
+reachable_set = ReachableSet(q_dynamics, irs_rrt_param)
 q_sim_py = q_dynamics.q_sim_py
 set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
 
-#%%
+# %%
+"""
+This visualizer works only for 2D systems with 3 DOFs, which are
+    [y, z, theta].
+"""
 n_nodes = len(tree.nodes)
-n_q_u = 3
-q_nodes = np.zeros((n_nodes, 7))
+n_q_u = q_dynamics.dim_x - q_dynamics.dim_u
+assert n_q_u == 3
+q_nodes = np.zeros((n_nodes, q_dynamics.dim_x))
 
 # node coordinates.
 for i in range(n_nodes):
     node = tree.nodes[i]["node"]
     q_nodes[i] = node.q
 
-q_u_nodes = q_nodes[:, -3:]
-
+q_u_nodes = q_nodes[:, q_dynamics.get_q_u_indices_into_x()]
 
 # edges.
 y_edges = []
@@ -56,40 +61,42 @@ for i_u, i_v in tree.edges:
     theta_edges += [q_u_nodes[i_u, 2], q_u_nodes[i_v, 2], None]
 
 
-nodes_plot = go.Scatter3d(x=q_u_nodes[:, 0],
-                          y=q_u_nodes[:, 1],
-                          z=q_u_nodes[:, 2],
-                          name='nodes',
-                          mode='markers',
-                          hovertemplate=hover_template_y_z_theta,
-                          marker=dict(size=3))
+def create_tree_plot_up_to_node(num_nodes: int):
+    nodes_plot = go.Scatter3d(x=q_u_nodes[:num_nodes, 0],
+                              y=q_u_nodes[:num_nodes, 1],
+                              z=q_u_nodes[:num_nodes, 2],
+                              name='nodes',
+                              mode='markers',
+                              hovertemplate=hover_template_y_z_theta,
+                              marker=dict(size=3))
 
-edges_plot = go.Scatter3d(x=y_edges,
-                          y=z_edges,
-                          z=theta_edges,
-                          name='edges',
-                          mode='lines',
-                          line=dict(color='blue', width=2),
-                          opacity=0.5)
+    edges_plot = go.Scatter3d(x=y_edges[:num_nodes * 3],
+                              y=z_edges[:num_nodes * 3],
+                              z=theta_edges[:num_nodes * 3],
+                              name='edges',
+                              mode='lines',
+                              line=dict(color='blue', width=2),
+                              opacity=0.5)
 
-path_plot = go.Scatter3d(x=[],
-                         y=[],
-                         z=[],
-                         name='path',
-                         mode='lines',
-                         line=dict(color='crimson', width=5))
+    path_plot = go.Scatter3d(x=[],
+                             y=[],
+                             z=[],
+                             name='path',
+                             mode='lines',
+                             line=dict(color='crimson', width=5))
 
-root_plot = create_q_u0_plot(q_u_nodes[0], name='root')
+    root_plot = create_q_u0_plot(q_u_nodes[0], name='root')
 
-tree_plot_list = [nodes_plot, edges_plot, root_plot, path_plot]
+    return [nodes_plot, edges_plot, root_plot, path_plot]
 
 # Draw ellipsoids.
 ellipsoid_mesh_points = []
 ellipsoid_volumes = []
 for i in range(n_nodes):
     node = tree.nodes[i]["node"]
-    B_u = node.Bhat[-3:, :]
-    cov_inv = np.linalg.inv(B_u @ B_u.T + 1e-6 * np.eye(3))
+    cov_u, _ = reachable_set.calc_unactuated_metric_parameters(
+        node.Bhat, node.chat)
+    cov_inv = np.linalg.inv(cov_u)
     p_center = node.q[-3:]
     e_points, volume = make_ellipsoid_plotly(cov_inv, p_center, 0.05, 8)
     ellipsoid_mesh_points.append(e_points)
@@ -114,7 +121,7 @@ It is important to put the ellipsoid list in the front, so that the
 curveNumber of the first ellipsoid is 0, which can be used to index into tree 
 nodes.
 '''
-fig = go.Figure(data=e_plot_list + tree_plot_list,
+fig = go.Figure(data=e_plot_list + create_tree_plot_up_to_node(n_nodes),
                 layout=layout)
 
 # %% dash app
@@ -142,14 +149,21 @@ app.layout = dbc.Container([
     ]),
     dbc.Row([
         dbc.Col([
+            html.H3('Tree Growth'),
+            dcc.Slider(id='tree-progress', min=0, max=n_nodes, value=0, step=1,
+                       marks={0: {'label': '0'},
+                              n_nodes: {'label': f'{n_nodes}'}},
+                       tooltip={"placement": "bottom", "always_visible": True}
+                       ), ],
+            width={'size': 6, 'offset': 0, 'order': 0}),
+        dbc.Col([
             dcc.Markdown("""
                 **Hover Data**
 
                 Mouse over values in the graph.
             """),
             html.Pre(id='hover-data', style=styles['pre'])],
-            width={'size': 3, 'offset': 0, 'order': 0}
-        )
+            width={'size': 3, 'offset': 0, 'order': 0})
     ]),
 ], fluid=True)
 
@@ -186,11 +200,27 @@ def display_config_in_meshcat(hover_data):
 
 
 @app.callback(
-    Output('tree-fig', 'figure'), Input('tree-fig', 'clickData'),
-    State('tree-fig', 'relayoutData'))
-def click_callback(click_data, relayout_data):
-    print(click_data)
+    Output('tree-fig', 'figure'),
+    [Input('tree-fig', 'clickData'), Input('tree-progress', 'value')],
+    [State('tree-fig', 'relayoutData'), State('tree-progress', 'value')])
+def tree_fig_callback(click_data, slider_value, relayout_data,
+                      slider_value_as_state):
+    ctx = dash.callback_context
 
+    if not ctx.triggered:
+        return fig
+    else:
+        input_name = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    num_nodes = slider_value_as_state + 1
+    if input_name == 'tree-fig':
+        return click_callback(click_data, relayout_data)
+
+    if input_name == 'tree-progress':
+        return slider_callback(num_nodes, relayout_data)
+
+
+def click_callback(click_data, relayout_data):
     if click_data is None:
         return fig
 
@@ -218,7 +248,6 @@ def click_callback(click_data, relayout_data):
             break
 
         i_node = i_parents[0]
-
     fig.update_traces(x=y_path, y=z_path, z=theta_path,
                       selector=dict(name='path'))
     try:
@@ -229,6 +258,21 @@ def click_callback(click_data, relayout_data):
     # show path in meshcat
     idx_path.reverse()
     q_dynamics.publish_trajectory(q_nodes[idx_path], h=2 / len(idx_path))
+
+    return fig
+
+
+def slider_callback(num_nodes, relayout_data):
+    print(num_nodes)
+    traces_list = e_plot_list[:num_nodes]
+    traces_list += create_tree_plot_up_to_node(num_nodes)
+    global fig
+    fig = go.Figure(data=traces_list, layout=layout)
+
+    try:
+        fig.update_layout(scene_camera=relayout_data['scene.camera'])
+    except KeyError:
+        pass
 
     return fig
 

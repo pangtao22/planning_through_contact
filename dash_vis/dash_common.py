@@ -103,13 +103,13 @@ def create_q_u0_plot(q_u0: np.ndarray, name='q_u0'):
                         marker=dict(size=12, symbol='cross', opacity=1.0))
 
 
-def make_ellipsoid_plotly(A: np.ndarray, p_center: np.ndarray, r: float,
+def make_ellipsoid_plotly(A_inv: np.ndarray, p_center: np.ndarray, r: float,
                           n: int = 20):
     """
     Make a plotly 3d mesh object for an ellipsoid described by
-     (x - p_center).T @ A @ (x - p_center) = r**2.
+     (x - p_center).T @ A_inv @ (x - p_center) = r**2.
 
-    A = R.T @ Sigma @ R, as A is symmetric.
+    A = R.T @ Sigma @ R, as A_inv is symmetric.
     Let z = R * (x - p_center), i.e. x = R.T @ z + p_center.
 
     The original ellipsoid becomes z.T @ Sigma @ z = r**2, which is axis-aligned
@@ -128,7 +128,7 @@ def make_ellipsoid_plotly(A: np.ndarray, p_center: np.ndarray, r: float,
     z[2] = np.sin(theta).ravel()
 
     # Find shape of ellipsoid.
-    U, Sigma, Vh = np.linalg.svd(A)
+    U, Sigma, Vh = np.linalg.svd(A_inv)
     z[0] *= r / np.sqrt(Sigma[0])
     z[1] *= r / np.sqrt(Sigma[1])
     z[2] *= r / np.sqrt(Sigma[2])

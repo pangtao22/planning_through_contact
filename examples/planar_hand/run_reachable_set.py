@@ -11,7 +11,7 @@ from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 from planar_hand_setup import *
 
-from contact_sampler import sample_on_sphere, ContactSampler
+from contact_sampler import sample_on_sphere, PlanarHandContactSampler
 
 import plotly.io as pio
 pio.renderers.default = "browser"  # see plotly charts in pycharm.
@@ -28,8 +28,8 @@ plant = q_dynamics.plant
 model_a_l = plant.GetModelInstanceByName(robot_l_name)
 model_a_r = plant.GetModelInstanceByName(robot_r_name)
 model_u = plant.GetModelInstanceByName(object_name)
-contact_sampler = ContactSampler(model_u=model_u, model_a_l=model_a_l,
-                                 model_a_r=model_a_r, q_sim=q_sim_py)
+contact_sampler = PlanarHandContactSampler(model_u=model_u, model_a_l=model_a_l,
+                                           model_a_r=model_a_r, q_sim=q_sim_py)
 
 
 #%% random 1-step forward sim for reachable set computation.
@@ -50,7 +50,7 @@ def save_x(x: np.ndarray, i: int):
 
 
 q_u0 = np.array([0, 0.35, 0])
-q0_dict = contact_sampler.sample_contact(q_u=q_u0)
+q0_dict = contact_sampler.calc_enveloping_grasp(q_u=q_u0)
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u0 = q_dynamics.get_u_from_q_cmd_dict(q0_dict)
 

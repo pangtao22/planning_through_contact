@@ -34,7 +34,7 @@ class QuasistaticDynamicsParallel:
         self.q_sim_batch = q_dynamics.parser.make_batch_simulator()
         self.dim_x = q_dynamics.dim_x
         self.dim_u = q_dynamics.dim_u
-        self.indices_u_into_x = q_dynamics.get_u_indices_into_x()
+        self.indices_u_into_x = q_dynamics.get_q_a_indices_into_x()
 
         # logger
         self.logger = self.q_dynamics.logger

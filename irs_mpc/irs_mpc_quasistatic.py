@@ -61,7 +61,7 @@ class IrsMpcQuasistatic:
         self.u_bounds_abs = params.u_bounds_abs
         self.x_bounds_rel = params.x_bounds_rel
         self.u_bounds_rel = params.u_bounds_rel
-        self.indices_u_into_x = q_dynamics.get_u_indices_into_x()
+        self.indices_u_into_x = q_dynamics.get_q_a_indices_into_x()
 
         self.publish_every_iteration = params.publish_every_iteration
 
@@ -142,7 +142,7 @@ class IrsMpcQuasistatic:
     def eval_cost(self, x_trj, u_trj):
         T = u_trj.shape[0]
         assert T == self.T and x_trj.shape[0] == T + 1
-        idx_u_into_x = self.q_dynamics.get_u_indices_into_x()
+        idx_u_into_x = self.q_dynamics.get_q_a_indices_into_x()
 
         # Final cost Qd.
         x_dict = self.q_dynamics.get_q_dict_from_x(x_trj[-1])
