@@ -9,7 +9,7 @@ class EuclideanRrtParams(RrtParams):
         super().__init__()
         self.x_lb = np.array([-20,-20])
         self.x_ub = np.array([20, 20])
-        self.radius = 0.1
+        self.radius = 0.1 # radius of maximum extension
 
 class EuclideanRrt(Rrt):
     def __init__(self, params: RrtParams):
