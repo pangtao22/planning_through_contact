@@ -1,51 +1,20 @@
-from typing import Dict
+import copy
+import pickle
+
 import numpy as np
-import networkx as nx
-from tqdm import tqdm
-import time
-
-from irs_rrt.rrt_base import Node, Edge, Rrt, RrtParams
-from irs_rrt.reachable_set import ReachableSet
-from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
+from irs_mpc.irs_mpc_params import BundleMode
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
-from qsim_cpp import GradientMode
+from irs_rrt.reachable_set import ReachableSet
+from irs_rrt.rrt_base import Node, Edge, Rrt
+from irs_rrt.rrt_params import IrsRrtParams
 
-
-class IrsRrtParams(RrtParams):
-    def __init__(self, q_model_path, joint_limits):
-        super().__init__()
-        # Options for computing bundled dynamics.
-        self.h = 0.1
-        self.n_samples = 100
-        self.q_model_path = q_model_path
-        self.std_u = 0.1
-
-        # kFirst and kExact are supported.
-        self.bundle_mode = BundleMode.kFirst
-
-        # State-space limits for sampling, provided as a bounding box.
-        # During tree expansion, samples that go outside of this limit will be
-        # rejected, implicitly enforcing the constraint.
-        self.joint_limits = joint_limits
-
-        # Regularization for computing inverse of covariance matrices.
-        # NOTE(terry-suh): Note that if the covariance matrix is singular,
-        # then the Mahalanobis distance metric is infinity. One interpretation
-        # of the regularization term is to cap the infinity distance to some
-        # value that scales with inverse of regularization.
-        self.regularization = 1e-5
-
-        # Stepsize.
-        # TODO(terry-suh): the selection of this parameter should be automated.
-        self.stepsize = 0.3
-        
 
 class IrsNode(Node):
     """
     IrsNode. Each node is responsible for keeping a copy of the bundled dynamics
     and the Gaussian parametrized by the bundled dynamics.
     """
+
     def __init__(self, q: np.array):
         super().__init__(q)
         # Bundled dynamics parameters.
@@ -61,6 +30,7 @@ class IrsEdge(Edge):
     """
     IrsEdge.
     """
+
     def __init__(self):
         super().__init__()
         self.du = np.nan
@@ -70,11 +40,12 @@ class IrsEdge(Edge):
 
 
 class IrsRrt(Rrt):
-    def __init__(self, params: RrtParams):
+    def __init__(self, params: IrsRrtParams):
+        self.params = params
 
         self.q_dynamics = QuasistaticDynamics(
-            h = params.h,
-            q_model_path = params.q_model_path,
+            h=params.h,
+            q_model_path=params.q_model_path,
             internal_viz=True)
 
         self.reachable_set = ReachableSet(self.q_dynamics, params)
@@ -85,11 +56,13 @@ class IrsRrt(Rrt):
 
         # Initialize tensors for batch computation.
         self.Bhat_tensor = np.zeros((self.max_size,
-            self.q_dynamics.dim_x, self.q_dynamics.dim_u))
+                                     self.q_dynamics.dim_x,
+                                     self.q_dynamics.dim_u))
         self.covinv_tensor = np.zeros((self.max_size,
-            self.q_dynamics.dim_x, self.q_dynamics.dim_x))
+                                       self.q_dynamics.dim_x,
+                                       self.q_dynamics.dim_x))
         self.chat_matrix = np.zeros((self.max_size,
-            self.q_dynamics.dim_x))
+                                     self.q_dynamics.dim_x))
 
         super().__init__(params)
 
@@ -98,8 +71,8 @@ class IrsRrt(Rrt):
         joint_limit_lb = {}
 
         for model_idx in joint_limits.keys():
-            joint_limit_lb[model_idx] = joint_limits[model_idx][:,0]
-            joint_limit_ub[model_idx] = joint_limits[model_idx][:,1]
+            joint_limit_lb[model_idx] = joint_limits[model_idx][:, 0]
+            joint_limit_ub[model_idx] = joint_limits[model_idx][:, 1]
 
         x_lb = self.q_dynamics.get_x_from_q_dict(joint_limit_lb)
         x_ub = self.q_dynamics.get_x_from_q_dict(joint_limit_ub)
@@ -110,7 +83,7 @@ class IrsRrt(Rrt):
         Given a node which has a q, this method populates the rest of the
         node parameters using reachable set computations.
         """
-        node.ubar = node.q[self.q_dynamics.get_u_indices_into_x()]
+        node.ubar = node.q[self.q_dynamics.get_q_a_indices_into_x()]
 
         if self.params.bundle_mode == BundleMode.kExact:
             node.Bhat, node.chat = self.reachable_set.calc_exact_Bc(
@@ -118,7 +91,7 @@ class IrsRrt(Rrt):
         else:
             node.Bhat, node.chat = self.reachable_set.calc_bundled_Bc(
                 node.q, node.ubar)
-                
+
         node.cov, node.mu = self.reachable_set.calc_metric_parameters(
             node.Bhat, node.chat)
         node.covinv = np.linalg.inv(node.cov)
@@ -177,12 +150,35 @@ class IrsRrt(Rrt):
         Given q_query, return a np.array of \|q_query - q\|_{\Sigma}^{-1}_q,
         local distances from all the existing nodes in the tree to q_query.
         """
-        mu_batch = self.get_valid_chat_matrix() # B x n
-        covinv_tensor = self.get_valid_covinv_tensor() # B x n x n
+        mu_batch = self.get_valid_chat_matrix()  # B x n
+        covinv_tensor = self.get_valid_covinv_tensor()  # B x n x n
 
-        error_batch = q_query[None,:] - mu_batch # B x n
+        error_batch = q_query[None, :] - mu_batch  # B x n
 
         int_batch = np.einsum('Bij,Bi -> Bj', covinv_tensor, error_batch)
         metric_batch = np.einsum('Bi,Bi -> B', int_batch, error_batch)
 
         return metric_batch
+
+    def save_tree(self, filename):
+        """
+        self.params.joint_limits are keyed by ModelInstanceIndex,
+         which pickle does not like. Here we create a copy of self.params
+         with a joint_limits dictionary keyed by model instance names.
+        """
+        picklable_params_dict = {key: copy.deepcopy(value)
+                                 for key, value in self.params.__dict__.items()
+                                 if key != "joint_limits"}
+        hashable_joint_limits = {
+            self.q_dynamics.plant.GetModelInstanceName(model):
+                copy.deepcopy(value)
+            for model, value in self.params.joint_limits.items()}
+        picklable_params_dict['joint_limits'] = hashable_joint_limits
+
+        picklable_params = IrsRrtParams(None, None)
+        for key, value in picklable_params_dict.items():
+            setattr(picklable_params, key, value)
+
+        self.graph.graph['irs_rrt_params'] = picklable_params
+        with open(filename, 'wb') as f:
+            pickle.dump(self.graph, f)

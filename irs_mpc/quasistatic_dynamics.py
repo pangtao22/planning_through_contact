@@ -81,15 +81,25 @@ class QuasistaticDynamics(DynamicalSystem):
     # TODO (pang): consider moving functions that convert between state
     #  dictionaries and state vectors to QuasistaticSimulator, together with
     #  the relevant tests.
-    def get_u_indices_into_x(self):
-        u_indices = np.zeros(self.dim_u, dtype=int)
+    def get_q_a_indices_into_x(self):
+        q_a_indices = np.zeros(self.dim_u, dtype=int)
         i_start = 0
         for model in self.models_actuated:
-            indices = self.velocity_indices[model]
-            n_a_i = len(indices)
-            u_indices[i_start: i_start + n_a_i] = indices
-            i_start += n_a_i
-        return u_indices
+            indices = self.position_indices[model]
+            n_model = len(indices)
+            q_a_indices[i_start: i_start + n_model] = indices
+            i_start += n_model
+        return q_a_indices
+
+    def get_q_u_indices_into_x(self):
+        q_u_indices = np.zeros(self.dim_x - self.dim_u, dtype=int)
+        i_start = 0
+        for model in self.models_unactuated:
+            indices = self.position_indices[model]
+            n_model = len(indices)
+            q_u_indices[i_start: i_start + n_model] = indices
+            i_start += n_model
+        return q_u_indices
 
     def get_q_a_cmd_dict_from_u(self, u: np.ndarray):
         q_a_cmd_dict = dict()

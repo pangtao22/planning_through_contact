@@ -2,8 +2,9 @@ from typing import Dict
 import numpy as np
 import networkx as nx
 from tqdm import tqdm
-import time
 import pickle
+
+from irs_rrt.rrt_params import RrtParams
 
 
 class Node:
@@ -28,20 +29,6 @@ class Edge:
         self.cost = np.nan # float
 
 
-class RrtParams:
-    """
-    Base tree parameters class. Only "yaml'-able parameters should be stored
-    in the parameters.
-    """
-    def __init__(self):
-        self.max_size = 100
-        self.goal = None # q_goal.
-        self.root_node = None
-        self.subgoal_prob = 0.5
-        self.termination_tolerance = 0.1
-        self.rewire = True
-
-
 class Rrt:
     """
     Base tress class.
@@ -57,7 +44,6 @@ class Rrt:
         self.params = params
 
         self.dim_q = len(self.root_node.q)
-
 
         # We keep a matrix over node configurations for batch computation.
         # This is a N x n matrix where N is # of nodes, and 
@@ -99,7 +85,7 @@ class Rrt:
         the node.
         """
         self.graph.add_node(self.size, node=node)
-        self.q_matrix[self.size,:] = node.q
+        self.q_matrix[self.size, :] = node.q
         node.id = self.size
         self.size += 1
 
@@ -242,15 +228,5 @@ class Rrt:
         pbar.close()
 
     def save_tree(self, filename):
-        """
-        NOTE: it seems possible to convert both the Node and Edge classes in
-         rrt_base.py into dictionaries, which can be saved as attributes as
-         part of a networkx node/edge. The computational methods in the
-         Node class can be moved into a "reachable set" class.
-         This conversion has a few benefits:
-         - accessing attributes becomes easier:
-            self.graph[node_id]['node'].attribute_name  will become
-            self.graph[node_id]['attribute_name']
-        """
         with open(filename, 'wb') as f:
             pickle.dump(self.graph, f)
