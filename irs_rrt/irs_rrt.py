@@ -64,6 +64,7 @@ class IrsEdge(Edge):
     def __init__(self):
         super().__init__()
         self.du = np.nan
+        self.u = np.nan
         # NOTE(terry-suh): It is possible to store trajectories in the edge
         # class. We won't do that here because we don't solve trajopt during
         # extend.
@@ -145,11 +146,6 @@ class IrsRrt(Rrt):
         self.covinv_tensor[node.id] = node.covinv
         self.chat_matrix[node.id] = node.chat
 
-    def compute_edge_cost(self, parent_node: Node, child_node: Node):
-        cost = self.reachable_set.calc_node_metric(
-            parent_node.covinv, parent_node.mu, child_node.q)
-        return cost
-
     def sample_subgoal(self):
         """
         Sample a subgoal from the configuration space.
@@ -158,19 +154,32 @@ class IrsRrt(Rrt):
         subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
         return subgoal
 
-    def extend_towards_q(self, node: Node, q: np.array):
+    def extend_towards_q(self, parent_node: Node, q: np.array):
         """
-        Extend towards a specified configuration q.
+        Extend towards a specified configuration q and return a new
+        node, 
         """
         # Compute least-squares solution.
         du = np.linalg.lstsq(
-            node.Bhat, q - node.chat, rcond=None)[0]
+            parent_node.Bhat, q - parent_node.chat, rcond=None)[0]
 
         # Normalize least-squares solution.
         du = du / np.linalg.norm(du)
-        ustar = node.ubar + self.params.stepsize * du
-        xnext = self.q_dynamics.dynamics(node.q, ustar)
-        return IrsNode(xnext)
+        ustar = parent_node.ubar + self.params.stepsize * du
+        xnext = self.q_dynamics.dynamics(parent_node.q, ustar)
+        cost = self.reachable_set.calc_node_metric(
+            parent_node.covinv, parent_node.mu, xnext)
+
+        child_node = IrsNode(xnext)
+
+        edge = IrsEdge()
+        edge.parent = parent_node
+        edge.child = child_node
+        edge.du = self.params.stepsize * du
+        edge.u = ustar
+        edge.cost = cost
+
+        return child_node, edge
 
     def calc_metric_batch(self, q_query):
         """

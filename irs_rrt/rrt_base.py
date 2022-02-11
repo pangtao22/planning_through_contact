@@ -118,7 +118,11 @@ class Rrt:
         Add an edge to the graph. This computes the cost of the edge and
         populates the value of the connected child.
         """
-        edge.cost = self.compute_edge_cost(edge.parent, edge.child)
+        if np.isnan(edge.cost):
+            raise ValueError(
+                "Attempting to add edge, but the edge does not have a cost "
+             +  "assigned.")
+            
         self.graph.add_edge(edge.parent.id, edge.child.id, edge=edge)
         edge.child.value = edge.parent.value + edge.cost
         self.value_lst[edge.child.id] = edge.child.value
@@ -128,10 +132,6 @@ class Rrt:
         self.graph.remove_edge(edge.parent.id, edge.child.id)
         edge.child.value = np.nan
         self.value_lst[edge.child.value] = edge.child.value
-
-    def compute_edge_cost(self, parent_node: Node, child_node: Node):
-        """ Provide a metric of computing a cost for the edge. """
-        raise NotImplementedError("This method is virtual.")
 
     def cointoss_for_goal(self):
         sample_goal = np.random.choice(
@@ -151,7 +151,7 @@ class Rrt:
         selected_node = self.get_node_from_id(np.argmin(metric_batch))
         return selected_node
 
-    def extend_towards_q(self, node: Node, q: np.array):
+    def extend_towards_q(self, parent_node: Node, q: np.array):
         """ Extend current node towards a specified configuration q. """
         raise NotImplementedError("This method is virtual.")
 
@@ -192,9 +192,9 @@ class Rrt:
         min_idx = np.argmin(value_candidate_lst[neighbor_idx])
 
         new_parent = self.get_node_from_id(neighbor_idx[min_idx][0])
-        new_child = self.extend_towards_q(new_parent, child_node.q)
+        new_child, new_edge = self.extend_towards_q(new_parent, child_node.q)
 
-        return new_parent, new_child
+        return new_parent, new_child, new_edge
 
     def iterate(self):
         """
@@ -216,23 +216,16 @@ class Rrt:
             parent_node = self.select_closest_node(subgoal)
 
             # 3. Extend to subgoal.
-            child_node = self.extend(parent_node, subgoal)
+            child_node, edge = self.extend(parent_node, subgoal)
 
             # 4. Attempt to rewire a candidate child node.
             if (self.params.rewire):
-                new_parent, new_child = self.rewire(parent_node, child_node)
-            else:
-                new_parent = parent_node
-                new_child = child_node
+                parent_node, child_node, edge = self.rewire(
+                    parent_node, child_node)
 
             # 5. Register the new node to the graph.
-            self.add_node(new_child)
-
-            edge = Edge()
-            edge.parent = new_parent
-            edge.child = new_child
-            edge.cost = self.compute_edge_cost(edge.parent, edge.child)
-            new_child.value = new_parent.value + edge.cost
+            self.add_node(child_node)
+            child_node.value = parent_node.value + edge.cost
             self.add_edge(edge)
 
             # 6. Check for termination.
@@ -254,3 +247,28 @@ class Rrt:
         """
         with open(filename, 'wb') as f:
             pickle.dump(self.graph, f)
+
+    def save_final_path(self, filename):
+        # Find closest to the goal.
+        q_final = self.select_closest_node(self.params.goal)
+
+        # Find path from root to goal.
+        path = nx.shortest_path(
+            self.graph, source=self.root_node.id, target=q_final.id)
+
+        dim_u = len(self.get_edge_from_id(path[0], path[1]).u)
+        path_T = len(path)
+
+        x_trj = np.zeros((path_T, self.dim_q))
+        u_trj = np.zeros((path_T - 1, dim_u))
+
+        for i in range(path_T - 1):
+            x_trj[i,:] = self.get_node_from_id(path[i]).q
+            u_trj[i,:] = self.get_edge_from_id(path[i], path[i+1]).u
+        x_trj[path_T-1,:] = self.get_node_from_id(path[path_T-1]).q
+
+        path_dict = {
+            "x_trj": x_trj, "u_trj": u_trj}
+
+        with open(filename, 'wb') as f:
+            pickle.dump(path_dict, f)

@@ -20,6 +20,7 @@ from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from irs_rrt.irs_rrt import IrsNode, IrsRrt
 from irs_rrt.irs_rrt_global import IrsRrtGlobalParams, IrsRrtGlobal
+from irs_rrt.irs_rrt_rollout import IrsRrtRollout, IrsRrtRolloutParams
 
 from planar_hand_setup import *
 
@@ -74,22 +75,24 @@ joint_limits = {
 }
 
 #%% RRT testing
-params = IrsRrtGlobalParams(q_model_path, joint_limits)
+params = IrsRrtRolloutParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
 params.max_size = 2000
 params.goal = np.copy(x0)
 params.goal[6] = np.pi
 params.termination_tolerance = 1e-2
+params.stepsize = 0.5
+params.rollout_horizon = 3
 params.subgoal_prob = 0.5
 params.global_metric = np.array([0.001, 0.001, 0.001, 0.001, 5.0, 5.0, 3.0])
 
-tree = IrsRrtGlobal(params)
+tree = IrsRrtRollout(params)
 tree.iterate()
 # np.save("q_mat_large.npy", tree.q_matrix)
 
 #%%
-tree.save_tree("examples/planar_hand/data/tree_2000_global.pkl")
-tree.save_final_path("examples/planar_hand/data/path_2000_global.pkl")
+tree.save_tree("examples/planar_hand/data/tree_2000_rollout.pkl")
+tree.save_final_path("examples/planar_hand/data/path_2000_rollout.pkl")
 
 #%%
 """
