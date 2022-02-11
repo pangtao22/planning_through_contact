@@ -41,7 +41,7 @@ set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
 
 #%%
 """
-As of now, This visualizer works only for 2D systems with 3 DOFs, which are
+This visualizer works only for 2D systems with 3 DOFs, which are
     [y, z, theta].
 """
 n_nodes = len(tree.nodes)
