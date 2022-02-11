@@ -19,7 +19,8 @@ from irs_mpc.irs_mpc_quasistatic import (
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from irs_rrt.irs_rrt import IrsNode, IrsRrt
-from irs_rrt.irs_rrt_global import IrsRrtGlobalParams, IrsRrtGlobal
+from irs_rrt.irs_rrt_global import IrsRrtGlobal
+from irs_rrt.rrt_params import IrsRrtGlobalParams
 
 from planar_hand_setup import *
 
@@ -45,25 +46,13 @@ idx_u = plant.GetModelInstanceByName(object_name)
 
 # trajectory and initial conditions.
 nq_a = 2
-qa_l_knots = np.zeros((2, nq_a))
-qa_l_knots[0] = [-np.pi / 4, -np.pi / 4]
-
-q_robot_l_traj = PiecewisePolynomial.ZeroOrderHold(
-    [0, T * h], qa_l_knots.T)
-
-qa_r_knots = np.zeros((2, nq_a))
-qa_r_knots[0] = [np.pi / 4, np.pi / 4]
-q_robot_r_traj = PiecewisePolynomial.ZeroOrderHold(
-    [0, T * h], qa_r_knots.T)
-
-q_a_traj_dict_str = {robot_l_name: q_robot_l_traj,
-                     robot_r_name: q_robot_r_traj}
-
-q_u0 = np.array([0.0, 0.35, 0])
+qa_l_knots = [-np.pi / 4, -np.pi / 2]
+qa_r_knots = [np.pi / 4, np.pi / 2]
+q_u0 = np.array([0.0, 0.25, 0])
 
 q0_dict = {idx_u: q_u0,
-           idx_a_l: qa_l_knots[0],
-           idx_a_r: qa_r_knots[0]}
+           idx_a_l: qa_l_knots,
+           idx_a_r: qa_r_knots}
 
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 

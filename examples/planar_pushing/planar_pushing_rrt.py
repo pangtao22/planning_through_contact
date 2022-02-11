@@ -42,20 +42,13 @@ idx_u = plant.GetModelInstanceByName(object_name)
 
 # trajectory and initial conditions.
 nq_a = 2
-qa_knots = np.zeros((2, nq_a))
-qa_knots[0] = [0.0, -0.1]
-qa_knots[0] = [0.0, -0.1]
-
-q_robot_traj = PiecewisePolynomial.ZeroOrderHold(
-    [0, T * h], qa_knots.T)
-
+qa_knots = np.array([0.0, -0.1])
 q_u0 = np.array([0.0, 0.5, 0])
 
 q0_dict = {idx_u: q_u0,
-           idx_a: qa_knots[0]}
+           idx_a: qa_knots}
 
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
-print(x0)
 
 joint_limits = {
     idx_u: np.array([[-2.0, 2.0], [-2.0, 2.0], [-np.pi, np.pi]]),

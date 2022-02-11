@@ -19,12 +19,6 @@ as opposed to using the Mahalanobis metric.
 For documentation of most functions, one should refer to IrsRrt.
 """
 
-class IrsRrtGlobalParams(IrsRrtParams):
-    def __init__(self, q_model_path, joint_limits):
-        super().__init__(q_model_path, joint_limits)
-        # Global distance metric for defining an adequate notion of distance.
-        self.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 1.0, 1.0, 3.0])
-
 
 class IrsRrtGlobal(IrsRrt):
     def __init__(self, params: IrsRrtParams):
