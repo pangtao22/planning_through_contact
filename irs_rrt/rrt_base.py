@@ -4,7 +4,7 @@ import networkx as nx
 from tqdm import tqdm
 import pickle
 
-from .rrt_params import RrtParams
+from irs_rrt.rrt_params import RrtParams
 
 
 class Node:
