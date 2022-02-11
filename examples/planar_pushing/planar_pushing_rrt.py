@@ -18,11 +18,10 @@ from irs_mpc.irs_mpc_quasistatic import (
     IrsMpcQuasistatic)
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
-from irs_rrt.irs_rrt import IrsTree, IrsNode, IrsTreeParams
+from irs_rrt.irs_rrt import IrsRrt, IrsNode, IrsRrtParams
 
 from planar_pushing_setup import *
 
-np.set_printoptions(precision=3, suppress=True)
 
 #%% sim setup
 T = int(round(2 / h))  # num of time steps to simulate forward.
@@ -64,24 +63,23 @@ joint_limits = {
 }
 
 #%% RRT testing
-params = IrsTreeParams(q_dynamics, joint_limits)
+params = IrsRrtParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
-params.max_size = 3000
+params.max_size = 50
 params.goal = np.copy(x0)
 params.goal[1] = 0.1
 params.goal[3] = -0.5
 params.termination_tolerance = 1e-2
 params.subgoal_prob = 0.5
 
-tree = IrsTree(q_dynamics, params)
+tree = IrsRrt(params)
 tree.iterate()
 # np.save("q_mat_large.npy", tree.q_matrix)
 
 #%%
-tree.save_tree("examples/planar_pushing/data/tree_3000.pkl")
+tree.save_tree("tree_50_pushing.pkl")
 
 #%%
-
-cProfile.runctx('tree.iterate()',
-                 globals=globals(), locals=locals(),
-                 filename='irs_rrt_profile.stat')
+# cProfile.runctx('tree.iterate()',
+#                  globals=globals(), locals=locals(),
+#                  filename='irs_rrt_profile.stat')

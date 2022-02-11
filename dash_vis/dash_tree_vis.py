@@ -1,52 +1,60 @@
-import os
+#!/usr/bin/env python3
+
 import json
 import pickle
 
-import meshcat
 import numpy as np
 import dash
 from dash import dcc, html
 import dash_bootstrap_components as dbc
-import pandas as pd
 
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 
-from planar_hand_setup import (q_model_path, h,
-                               robot_l_name, robot_r_name, object_name)
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.reachable_set import ReachableSet
 
-from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
-                         hover_template_trj, layout, calc_principal_points,
-                         create_pca_plots, calc_X_WG, create_q_u0_plot,
-                         make_ellipsoid_plotly, set_orthographic_camera_yz)
+from dash_vis.dash_common import (hover_template_y_z_theta,
+                                  layout, create_q_u0_plot,
+                                  make_ellipsoid_plotly,
+                                  set_orthographic_camera_yz)
 from matplotlib import cm
 
+import argparse
 
-#%%
-with open('examples/planar_hand/data/tree_2000.pkl', 'rb') as f:
+parser = argparse.ArgumentParser()
+parser.add_argument("tree_file_path")
+args = parser.parse_args()
+
+#%% Construct computational tools.
+with open(args.tree_file_path, 'rb') as f:
     tree = pickle.load(f)
-
+irs_rrt_param = tree.graph['irs_rrt_params']
+q_model_path = irs_rrt_param.q_model_path
+h = irs_rrt_param.h
 q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
                                  internal_viz=True)
-reachable_set = ReachableSet(q_dynamics)
+reachable_set = ReachableSet(q_dynamics, irs_rrt_param)
 q_sim_py = q_dynamics.q_sim_py
 set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
 
 #%%
+"""
+As of now, This visualizer works only for 2D systems with 3 DOFs, which are
+    [y, z, theta].
+"""
 n_nodes = len(tree.nodes)
-n_q_u = 3
-q_nodes = np.zeros((n_nodes, 7))
+n_q_u = q_dynamics.dim_x - q_dynamics.dim_u
+assert n_q_u == 3
+q_nodes = np.zeros((n_nodes, q_dynamics.dim_x))
 
 # node coordinates.
 for i in range(n_nodes):
     node = tree.nodes[i]["node"]
     q_nodes[i] = node.q
 
-q_u_nodes = q_nodes[:, -3:]
-
+q_u_nodes = q_nodes[:, q_dynamics.get_q_u_indices_into_x()]
 
 # edges.
 y_edges = []
@@ -192,8 +200,6 @@ def display_config_in_meshcat(hover_data):
     Output('tree-fig', 'figure'), Input('tree-fig', 'clickData'),
     State('tree-fig', 'relayoutData'))
 def click_callback(click_data, relayout_data):
-    print(click_data)
-
     if click_data is None:
         return fig
 

@@ -5,24 +5,23 @@ import dash_bootstrap_components as dbc
 import meshcat
 import numpy as np
 import plotly.graph_objects as go
-import tqdm
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
-from dash_common import (add_goal_meshcat, hover_template_y_z_theta,
-                         layout, calc_principal_points,
-                         create_pca_plots, calc_X_WG, create_q_u0_plot)
+from dash_vis.dash_common import (add_goal_meshcat, hover_template_y_z_theta,
+                                  layout, calc_principal_points,
+                                  create_pca_plots, calc_X_WG, create_q_u0_plot)
 from irs_mpc.irs_mpc_quasistatic import (IrsMpcQuasistatic)
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.reachable_set import ReachableSet
-from irs_rrt.irs_rrt import IrsRrtParams
+from irs_rrt.rrt_params import IrsRrtParams
 
 from planar_hand_setup import (h, q_model_path,
                                decouple_AB, bundle_mode, num_samples,
                                robot_l_name, robot_r_name, object_name)
 
 from contact_sampler import PlanarHandContactSampler, sample_on_sphere
-from dash_common import set_orthographic_camera_yz, make_ellipsoid_plotly
+from dash_vis.dash_common import set_orthographic_camera_yz, make_ellipsoid_plotly
 
 # %% quasistatic dynamics
 q_dynamics = QuasistaticDynamics(h=h,

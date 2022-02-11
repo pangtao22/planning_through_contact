@@ -1,6 +1,7 @@
 from typing import Dict
 import numpy as np
 import networkx as nx
+from irs_rrt.rrt_params import IrsRrtParams
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 from qsim_cpp import GradientMode
@@ -11,7 +12,7 @@ class ReachableSet:
     Computation class that computes parameters and metrics of reachable sets.
     """
 
-    def __init__(self, q_dynamics: QuasistaticDynamics, params,
+    def __init__(self, q_dynamics: QuasistaticDynamics, params: IrsRrtParams,
                  q_dynamics_p: QuasistaticDynamicsParallel = None):
         self.q_dynamics = q_dynamics
         if q_dynamics_p is None:

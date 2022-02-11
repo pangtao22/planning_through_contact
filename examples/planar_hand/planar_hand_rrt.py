@@ -22,8 +22,6 @@ from irs_rrt.irs_rrt import IrsRrt, IrsNode, IrsRrtParams
 
 from planar_hand_setup import *
 
-np.set_printoptions(precision=3, suppress=True)
-
 #%% sim setup
 T = int(round(2 / h))  # num of time steps to simulate forward.
 duration = T * h
@@ -75,7 +73,7 @@ joint_limits = {
 #%% RRT testing
 params = IrsRrtParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
-params.max_size = 2000
+params.max_size = 50
 params.goal = np.copy(x0)
 params.goal[6] = np.pi
 params.termination_tolerance = 1e-2
@@ -85,10 +83,10 @@ tree = IrsRrt(params)
 tree.iterate()
 
 #%%
-tree.save_tree("examples/planar_hand/data/tree_2000.pkl")
+tree.save_tree("tree_50_planar_hand.pkl")
 
 #%%
-
-cProfile.runctx('tree.iterate()',
-                 globals=globals(), locals=locals(),
-                 filename='irs_rrt_profile.stat')
+#
+# cProfile.runctx('tree.iterate()',
+#                  globals=globals(), locals=locals(),
+#                  filename='irs_rrt_profile.stat')
