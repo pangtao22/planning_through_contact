@@ -72,7 +72,7 @@ def create_tree_plot_up_to_node(num_nodes: int):
                               name='nodes',
                               mode='markers',
                               hovertemplate=hover_template_y_z_theta,
-                              marker=dict(size=3))
+                              marker=dict(size=3, color='azure'))
 
     edges_plot = go.Scatter3d(x=y_edges[:(num_nodes - 1) * 3],
                               y=z_edges[:(num_nodes - 1) * 3],
