@@ -96,14 +96,14 @@ class IrsRrt(Rrt):
             node.Bhat, node.chat)
         node.covinv = np.linalg.inv(node.cov)
 
-    def get_valid_Bhat_tensor(self):
-        return self.Bhat_tensor[:self.size]
+    def get_Bhat_tensor_up_to(self, n_nodes: int):
+        return self.Bhat_tensor[:n_nodes]
 
-    def get_valid_covinv_tensor(self):
-        return self.covinv_tensor[:self.size]
+    def get_covinv_tensor_up_to(self, n_nodes: int):
+        return self.covinv_tensor[:n_nodes]
 
-    def get_valid_chat_matrix(self):
-        return self.chat_matrix[:self.size]
+    def get_chat_matrix_up_to(self, n_nodes: int):
+        return self.chat_matrix[:n_nodes]
 
     def add_node(self, node: Node):
         super().add_node(node)
@@ -145,13 +145,19 @@ class IrsRrt(Rrt):
         xnext = self.q_dynamics.dynamics(node.q, ustar)
         return IrsNode(xnext)
 
-    def calc_metric_batch(self, q_query):
+    def calc_metric_batch(self, q_query, n_nodes=None):
         """
         Given q_query, return a np.array of \|q_query - q\|_{\Sigma}^{-1}_q,
         local distances from all the existing nodes in the tree to q_query.
+
+        This function computes the batch metric for the first n_nodes nodes
+        in the tree. If n_nodes is None, the batch metric to all nodes in the
+        tree is computed.
         """
-        mu_batch = self.get_valid_chat_matrix()  # B x n
-        covinv_tensor = self.get_valid_covinv_tensor()  # B x n x n
+        if n_nodes is None:
+            n_nodes = self.size
+        mu_batch = self.get_chat_matrix_up_to(n_nodes)  # B x n
+        covinv_tensor = self.get_covinv_tensor_up_to(n_nodes)  # B x n x n
 
         error_batch = q_query[None, :] - mu_batch  # B x n
 

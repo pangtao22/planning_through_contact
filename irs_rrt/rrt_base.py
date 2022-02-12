@@ -13,9 +13,13 @@ class Node:
     single node. Add to nx.Digraph() using G.add_node(1, node=Node())
     """    
     def __init__(self, q):
-        self.q = q # np.array of states.
-        self.value = np.nan # float.
-        self.id = np.nan # int
+        self.q = q  # np.array of states.
+        self.value = np.nan  # float.
+        self.id = np.nan  # int
+        # To extend the tree, a subgoal is sampled first, and then a new node
+        # that is "as close as possible" to the subgoal is added to the tree.
+        # This field stores the subgoal associated with the new node.
+        self.subgoal = None
 
 
 class Edge:
@@ -186,14 +190,14 @@ class Rrt:
         """
         Main method for iteration.
         """
-        pbar = tqdm(total = self.max_size)
+        pbar = tqdm(total=self.max_size)
 
-        while(self.size < self.params.max_size):
+        while self.size < self.params.max_size:
             pbar.update(1)
 
             # 1. Sample a subgoal.
             sample_goal = self.cointoss_for_goal()
-            if (sample_goal):
+            if sample_goal:
                 subgoal = self.params.goal
             else:
                 subgoal = self.sample_subgoal()
@@ -203,9 +207,10 @@ class Rrt:
 
             # 3. Extend to subgoal.
             child_node = self.extend(parent_node, subgoal)
+            child_node.subgoal = subgoal
 
             # 4. Attempt to rewire a candidate child node.
-            if (self.params.rewire):
+            if self.params.rewire:
                 new_parent, new_child = self.rewire(parent_node, child_node)
             else:
                 new_parent = parent_node
