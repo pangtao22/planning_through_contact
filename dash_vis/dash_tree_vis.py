@@ -22,13 +22,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("tree_file_path")
 args = parser.parse_args()
 
-<<<<<<< Updated upstream:dash_vis/dash_tree_vis.py
 # %% Construct computational tools.
 with open(args.tree_file_path, 'rb') as f:
-=======
-#%%
-with open('examples/planar_hand/data/tree_2000_rollout.pkl', 'rb') as f:
->>>>>>> Stashed changes:examples/planar_hand/dash_tree_vis.py
     tree = pickle.load(f)
 irs_rrt_param = tree.graph['irs_rrt_params']
 q_model_path = irs_rrt_param.q_model_path
