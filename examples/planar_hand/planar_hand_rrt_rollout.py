@@ -79,7 +79,7 @@ tree.iterate()
 
 #%%
 tree.save_tree("examples/planar_hand/data/tree_2000_rollout.pkl")
-tree.save_final_path("examples/planar_hand/data/path_2000_rollout.pkl")
+#tree.save_final_path("examples/planar_hand/data/path_2000_rollout.pkl")
 
 #%%
 """
