@@ -201,6 +201,20 @@ class QuasistaticDynamics(DynamicalSystem):
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)
 
+    def dynamics_rollout(self, x0: np.ndarray, u_trj:np.ndarray):
+        """
+        Given an initial state and trajectory of inputs, rollout the
+        input and return a trajectory of states using the dynamics function.
+        : params x0 (dim_x): initial state of the robot.
+        : params u_trj (T, dim_u): input trajectory to be applied
+        """
+        T = u_trj.shape[0]
+        x_trj = np.zeros((T+1,self.dim_x))
+        x_trj[0,:] = x0
+        for t in range(T):
+            x_trj[t+1,:] = self.dynamics(x_trj[t,:], u_trj[t,:])
+        return x_trj
+
     def dynamics_more_steps(self, x: np.ndarray, u: np.ndarray,
                             n_steps: int):
         """
