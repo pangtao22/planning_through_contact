@@ -46,9 +46,9 @@ idx_u = plant.GetModelInstanceByName(object_name)
 
 # trajectory and initial conditions.
 nq_a = 2
-qa_l_knots = [-np.pi / 4, -np.pi / 2]
-qa_r_knots = [np.pi / 4, np.pi / 2]
-q_u0 = np.array([0.0, 0.25, 0])
+qa_l_knots = [-np.pi / 4, -np.pi / 4]
+qa_r_knots = [np.pi / 4, np.pi / 4]
+q_u0 = np.array([0.0, 0.35, 0])
 
 q0_dict = {idx_u: q_u0,
            idx_a_l: qa_l_knots,
@@ -78,7 +78,7 @@ tree.iterate()
 
 #%%
 tree.save_tree("examples/planar_hand/data/tree_2000_global.pkl")
-tree.save_final_path("examples/planar_hand/data/path_2000_global.pkl")
+#tree.save_final_path("examples/planar_hand/data/path_2000_global.pkl")
 
 #%%
 """
