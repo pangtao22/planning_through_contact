@@ -100,7 +100,8 @@ def create_q_u0_plot(q_u0: np.ndarray, name='q_u0'):
                         name=name,
                         mode='markers',
                         hovertemplate=hover_template_y_z_theta,
-                        marker=dict(size=12, symbol='cross', opacity=1.0))
+                        marker=dict(size=12, symbol='cross', opacity=1.0,
+                                    color='magenta'))
 
 
 def make_ellipsoid_plotly(A_inv: np.ndarray, p_center: np.ndarray, r: float,

@@ -51,14 +51,18 @@ for i in range(n_nodes):
 
 q_u_nodes = q_nodes[:, q_dynamics.get_q_u_indices_into_x()]
 
-# edges.
+# Edges. Assuming that the GRAPH IS A TREE.
 y_edges = []
 z_edges = []
 theta_edges = []
-for i_u, i_v in tree.edges:
-    y_edges += [q_u_nodes[i_u, 0], q_u_nodes[i_v, 0], None]
-    z_edges += [q_u_nodes[i_u, 1], q_u_nodes[i_v, 1], None]
-    theta_edges += [q_u_nodes[i_u, 2], q_u_nodes[i_v, 2], None]
+for i_node in tree.nodes:
+    if i_node == 0:
+        continue
+    i_parents = list(tree.predecessors(i_node))
+    i_parent = i_parents[0]
+    y_edges += [q_u_nodes[i_node, 0], q_u_nodes[i_parent, 0], None]
+    z_edges += [q_u_nodes[i_node, 1], q_u_nodes[i_parent, 1], None]
+    theta_edges += [q_u_nodes[i_node, 2], q_u_nodes[i_parent, 2], None]
 
 
 def create_tree_plot_up_to_node(num_nodes: int):
@@ -70,9 +74,9 @@ def create_tree_plot_up_to_node(num_nodes: int):
                               hovertemplate=hover_template_y_z_theta,
                               marker=dict(size=3))
 
-    edges_plot = go.Scatter3d(x=y_edges[:num_nodes * 3],
-                              y=z_edges[:num_nodes * 3],
-                              z=theta_edges[:num_nodes * 3],
+    edges_plot = go.Scatter3d(x=y_edges[:(num_nodes - 1) * 3],
+                              y=z_edges[:(num_nodes - 1) * 3],
+                              z=theta_edges[:(num_nodes - 1) * 3],
                               name='edges',
                               mode='lines',
                               line=dict(color='blue', width=2),

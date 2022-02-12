@@ -13,8 +13,8 @@ class PlanarHandContactSampler:
     """
     !!!FOR THE TWO-FINGER AND ONE BALL SYSTEM ONLY!!!
     For each model instance with n DOFs,
-    joint_limits[model] is an (n, 2) array, where joint_limits[model][i, 0] is the
-    lower bound of joint i and joint_limits[model][i, 1] the upper bound.
+    joint_limits[model] is an (n, 2) array, where joint_limits[model][i, 0] is
+     the lower bound of joint i and joint_limits[model][i, 1] the upper bound.
     """
     def __init__(self, q_dynamics: QuasistaticDynamics):
         self.q_dynamics = q_dynamics
