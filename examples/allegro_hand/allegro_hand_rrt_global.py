@@ -20,8 +20,8 @@ from irs_mpc.irs_mpc_quasistatic import (
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from irs_rrt.irs_rrt import IrsNode, IrsRrt
-from irs_rrt.irs_rrt_global import IrsRrtGlobalAllegro
-from irs_rrt.rrt_params import IrsRrtGlobalParams
+from irs_rrt.irs_rrt_global import IrsRrtGlobal3D
+from irs_rrt.rrt_params import IrsRrtGlobalParams3D
 from pydrake.multibody.tree import JointIndex
 
 from allegro_hand_setup import *
@@ -72,7 +72,7 @@ for i in range(num_joints):
     joint_limits[idx_a][i, :] = [low, upp]
 
 #%% RRT testing
-params = IrsRrtGlobalParams(q_model_path, joint_limits)
+params = IrsRrtGlobalParams3D(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
 params.max_size = 300 #0
 params.goal = np.copy(x0)
@@ -84,7 +84,7 @@ params.global_metric = np.ones(x0.shape) * 0.1
 params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
 params.quat_metric = 5
 
-tree = IrsRrtGlobalAllegro(params, num_joints)
+tree = IrsRrtGlobal3D(params)
 tree.iterate()
 # np.save("q_mat_large.npy", tree.q_matrix)
 

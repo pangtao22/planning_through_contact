@@ -52,6 +52,13 @@ class IrsRrtGlobalParams(IrsRrtParams):
         # Should be a vector of size dim_x.a
         self.global_metric = np.isnan
 
+class IrsRrtGlobalParams3D(IrsRrtGlobalParams):
+    def __init__(self, q_model_path, joint_limits):
+        super().__init__(q_model_path, joint_limits)
+        # Distance metric for defining an adequate notion of distance for quaternions.
+        # Should be a scalar
+        self.quat_metric = np.isnan
+
 class IrsRrtRolloutParams(IrsRrtGlobalParams):
     def __init__(self, q_model_path, joint_limits):
         super().__init__(q_model_path, joint_limits)
