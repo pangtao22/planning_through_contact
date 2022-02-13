@@ -72,8 +72,10 @@ class IrsRrtGlobal(IrsRrt):
 class IrsRrtGlobal3D(IrsRrtGlobal):
     def __init__(self, params: IrsRrtParams):
         super().__init__(params)
-        self.qa_dim = self.q_dynamics.dim_x - self.q_dynamics.dim_u
+        self.qa_dim = self.q_dynamics.dim_u
         self.params.stepsize = 0.2
+        # Global metric 
+        assert (self.params.global_metric[self.qa_dim:self.qa_dim+4] == 0).all()
     
     def sample_subgoal(self):
         # Sample translation
@@ -81,7 +83,8 @@ class IrsRrtGlobal3D(IrsRrtGlobal):
         subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
 
         # Sample quaternion uniformly following https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.128.8767&rep=rep1&type=pdf
-        subgoal[self.qa_dim:self.qa_dim+4] = R.random().as_quat()
+        quat_xyzw = R.random().as_quat()
+        subgoal[self.qa_dim:self.qa_dim+4] = np.concatenate((quat_xyzw[-1, None], quat_xyzw[:-1]))
         return subgoal
 
     def extend_towards_q(self, parent_node: Node, q: np.array):
@@ -114,8 +117,8 @@ class IrsRrtGlobal3D(IrsRrtGlobal):
         error = parent_q - child_q
         cost = error @ self.metric_mat @ error
 
-        parent_quat = R.from_quat(self.convert_quat_xyzw_to_wxyz(parent_q))
-        child_quat = R.from_quat(self.convert_quat_xyzw_to_wxyz(child_q))
+        parent_quat = R.from_quat(self.convert_quat_wxyz_to_xyzw(parent_q))
+        child_quat = R.from_quat(self.convert_quat_wxyz_to_xyzw(child_q))
         quat_mul_diff = (child_quat * parent_quat.inv()).as_quat()
         cost += self.params.quat_metric * np.linalg.norm(quat_mul_diff[:-1])
         return cost
@@ -134,14 +137,14 @@ class IrsRrtGlobal3D(IrsRrtGlobal):
         metric_batch = np.einsum('Bi,Bi->B', intsum, error_batch)
 
         # scipy accepts (x, y, z, w)
-        q_query_quat = R.from_quat(self.convert_quat_xyzw_to_wxyz(q_query))
-        quat_batch = R.from_quat(self.convert_quat_xyzw_to_wxyz(q_batch, batch_mode=True))
+        q_query_quat = R.from_quat(self.convert_quat_wxyz_to_xyzw(q_query))
+        quat_batch = R.from_quat(self.convert_quat_wxyz_to_xyzw(q_batch, batch_mode=True))
         quat_mul_diff = (quat_batch * q_query_quat.inv()).as_quat()
         metric_batch += self.params.quat_metric * np.linalg.norm(quat_mul_diff[:, :-1], axis=1)
 
         return metric_batch
 
-    def convert_quat_xyzw_to_wxyz(self, q, batch_mode=False):
+    def convert_quat_wxyz_to_xyzw(self, q, batch_mode=False):
         if batch_mode:
             return np.hstack((q[:, self.qa_dim + 1:self.qa_dim + 4], q[:, self.qa_dim, None]))
         else:
