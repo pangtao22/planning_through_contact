@@ -15,7 +15,9 @@ from dash.dependencies import Input, Output, State
 from dash_vis.dash_common import (hover_template_y_z_theta,
                                   layout, make_large_point_3d,
                                   make_ellipsoid_plotly,
-                                  set_orthographic_camera_yz)
+                                  set_orthographic_camera_yz,
+                                  add_goal_meshcat,
+                                  calc_X_WG)
 from dash.exceptions import PreventUpdate
 
 import matplotlib.pyplot as plt
@@ -34,7 +36,9 @@ with open(args.tree_file_path, 'rb') as f:
 irs_rrt = IrsRrt.make_from_pickled_tree(tree)
 q_dynamics = irs_rrt.q_dynamics
 q_sim_py = q_dynamics.q_sim_py
+vis = q_dynamics.q_sim_py.viz.vis
 set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
+add_goal_meshcat(vis)
 
 # %%
 """
@@ -174,6 +178,7 @@ app.layout = dbc.Container([
                        )],
             width={'size': 6, 'offset': 0, 'order': 0}),
         dbc.Col([
+            html.H5('Aspect mode'),
             dcc.Dropdown(id='aspect-mode',
                          options=[{'label': 'auto', 'value': 'auto'},
                                   {'label': 'data', 'value': 'data'},
@@ -184,6 +189,7 @@ app.layout = dbc.Container([
                          )],
             width={'size': 1, 'offset': 0, 'order': 0}),
         dbc.Col([
+            html.H5('Distance metric'),
             dcc.Dropdown(id='metric-to-plot',
                          options=[{'label': i, 'value': i}
                                   for i in ['local', 'local_u',
@@ -352,6 +358,10 @@ def slider_callback(num_nodes, metric_to_plot, relayout_data):
     traces_list.append(make_large_point_3d(
         p=q_u, name='new leaf', color='red'))
 
+    # show subgoal in meshcat
+    X_WG = calc_X_WG(y=q_g_u[0], z=q_g_u[1], theta=q_g_u[2])
+    vis['goal'].set_transform(X_WG)
+
     # Subgoal to parent in red dashed line.
     distance_metric = tree.graph['irs_rrt_params'].distance_metric
     edge_to_parent = go.Scatter3d(
@@ -389,25 +399,25 @@ def slider_callback(num_nodes, metric_to_plot, relayout_data):
     # distance histograms.
     df_local = pd.DataFrame(
         {'log10_distance': np.log10(d_local).tolist(),
-         'method': ['local'] * (num_nodes - 1)})
+         'metric': ['local'] * (num_nodes - 1)})
     df_local_u = pd.DataFrame(
         {'log10_distance': np.log10(d_local_u).tolist(),
-         'method': ['local_u'] * (num_nodes - 1)})
+         'metric': ['local_u'] * (num_nodes - 1)})
     distances_global = (np.log10(d_global).tolist()
                         + np.log10(d_global_u).tolist())
-    methods_global = ['global'] * (num_nodes - 1)
-    methods_global += ['global_u'] * (num_nodes - 1)
+    metric_global = ['global'] * (num_nodes - 1)
+    metric_global += ['global_u'] * (num_nodes - 1)
     df_global = pd.DataFrame(
-        {'log10_distance': distances_global, 'method': methods_global})
-    fig_hist_local = px.histogram(df_local, x='log10_distance', color='method',
+        {'log10_distance': distances_global, 'metric': metric_global})
+    fig_hist_local = px.histogram(df_local, x='log10_distance', color='metric',
                                   nbins=40,
                                   color_discrete_sequence=['chartreuse'])
     fig_hist_local_u = px.histogram(df_local_u, x='log10_distance',
-                                    color='method',
+                                    color='metric',
                                     color_discrete_sequence=['deeppink'],
                                     nbins=40)
     fig_hist_global = px.histogram(df_global, x='log10_distance',
-                                   color='method',
+                                   color='metric',
                                    nbins=40)
 
     # update fig.
@@ -441,6 +451,8 @@ def plot_best_nodes(q_g_u: np.ndarray, distances: np.ndarray, best_n: int):
                          mode='lines',
                          line=dict(color=f"rgb({r}, {g}, {b})", width=width,
                                    dash='dash')))
+
+    print('best costs:', distances[indices])
     return best_n_plots
 
 
