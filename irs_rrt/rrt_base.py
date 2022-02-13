@@ -54,7 +54,7 @@ class Rrt:
         # n is dim(q). Used for batch computation. Note that we initialize to
         # max_size to save computation time while adding nodes, but only the
         # first N columns of this matrix are "valid".
-        self.q_matrix = np.nan * np.zeros((self.max_size, self.dim_q))
+        self.q_matrix = np.full((self.max_size, self.dim_q), np.nan)
 
         # Additionally, keep a storage of values.
         self.value_lst = np.nan * np.zeros(self.max_size)
@@ -74,9 +74,11 @@ class Rrt:
         edge = self.graph.edges[parent_id, child_id]["edge"]
         return edge
 
-    def get_valid_q_matrix(self):
+    def get_q_matrix_up_to(self, size: int = None):
         """ Get slice of q matrix with valid components."""
-        return self.q_matrix[:self.size, :]
+        if size is None:
+            size = self.size
+        return self.q_matrix[:size, :]
 
     def get_valid_value_lst(self):
         """ Get slice of value_lst with valid components."""

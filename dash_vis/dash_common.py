@@ -93,15 +93,16 @@ def create_pca_plots(principal_points: np.ndarray):
 
 
 #%% plotly figure components
-def create_q_u0_plot(q_u0: np.ndarray, name='q_u0'):
-    return go.Scatter3d(x=[q_u0[0]],
-                        y=[q_u0[1]],
-                        z=[q_u0[2]],
+def make_large_point_3d(p: np.ndarray, name='q_u0', symbol='cross',
+                        color='magenta'):
+    return go.Scatter3d(x=[p[0]],
+                        y=[p[1]],
+                        z=[p[2]],
                         name=name,
                         mode='markers',
                         hovertemplate=hover_template_y_z_theta,
-                        marker=dict(size=12, symbol='cross', opacity=1.0,
-                                    color='magenta'))
+                        marker=dict(size=12, symbol=symbol, opacity=1.0,
+                                    color=color))
 
 
 def make_ellipsoid_plotly(A_inv: np.ndarray, p_center: np.ndarray, r: float,

@@ -42,3 +42,7 @@ class IrsRrtParams(RrtParams):
         # Stepsize.
         # TODO(terry-suh): the selection of this parameter should be automated.
         self.stepsize = 0.3
+
+        self.distance_metric = "global"  # or "local"
+        self.global_metric = None  # only used when distance_metric is "global".
+

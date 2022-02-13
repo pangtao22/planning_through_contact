@@ -8,15 +8,18 @@ import dash
 import dash_bootstrap_components as dbc
 import numpy as np
 import plotly.graph_objects as go
+import plotly.express as px
+import pandas as pd
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 from dash_vis.dash_common import (hover_template_y_z_theta,
-                                  layout, create_q_u0_plot,
+                                  layout, make_large_point_3d,
                                   make_ellipsoid_plotly,
                                   set_orthographic_camera_yz)
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_rrt.reachable_set import ReachableSet
+import matplotlib.pyplot as plt
 from matplotlib import cm
+
+from irs_rrt.irs_rrt import IrsRrt
 
 parser = argparse.ArgumentParser()
 parser.add_argument("tree_file_path")
@@ -25,12 +28,9 @@ args = parser.parse_args()
 # %% Construct computational tools.
 with open(args.tree_file_path, 'rb') as f:
     tree = pickle.load(f)
-irs_rrt_param = tree.graph['irs_rrt_params']
-q_model_path = irs_rrt_param.q_model_path
-h = irs_rrt_param.h
-q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
-                                 internal_viz=True)
-reachable_set = ReachableSet(q_dynamics, irs_rrt_param)
+
+irs_rrt = IrsRrt.make_from_pickled_tree(tree)
+q_dynamics = irs_rrt.q_dynamics
 q_sim_py = q_dynamics.q_sim_py
 set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
 
@@ -89,7 +89,7 @@ def create_tree_plot_up_to_node(num_nodes: int):
                              mode='lines',
                              line=dict(color='crimson', width=5))
 
-    root_plot = create_q_u0_plot(q_u_nodes[0], name='root')
+    root_plot = make_large_point_3d(q_u_nodes[0], name='root')
 
     return [nodes_plot, edges_plot, root_plot, path_plot]
 
@@ -98,11 +98,9 @@ ellipsoid_mesh_points = []
 ellipsoid_volumes = []
 for i in range(n_nodes):
     node = tree.nodes[i]["node"]
-    cov_u, _ = reachable_set.calc_unactuated_metric_parameters(
-        node.Bhat, node.chat)
-    cov_inv = np.linalg.inv(cov_u)
+    cov_inv_u = node.covinv_u
     p_center = node.q[-3:]
-    e_points, volume = make_ellipsoid_plotly(cov_inv, p_center, 0.05, 8)
+    e_points, volume = make_ellipsoid_plotly(cov_inv_u, p_center, 0.05, 8)
     ellipsoid_mesh_points.append(e_points)
     ellipsoid_volumes.append(volume)
 
@@ -127,6 +125,11 @@ nodes.
 '''
 fig = go.Figure(data=e_plot_list + create_tree_plot_up_to_node(n_nodes),
                 layout=layout)
+
+# global variable for histrogram figure.
+fig_hist_local = {}
+fig_hist_local_u = {}
+fig_hist_global = {}
 
 # %% dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -154,12 +157,26 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Col([
             html.H3('Tree Growth'),
-            dcc.Slider(id='tree-progress', min=0, max=n_nodes, value=0, step=1,
+            dcc.Slider(id='tree-progress', min=0, max=n_nodes - 1,
+                       value=0, step=1,
                        marks={0: {'label': '0'},
                               n_nodes: {'label': f'{n_nodes}'}},
                        tooltip={"placement": "bottom", "always_visible": True}
-                       ), ],
-            width={'size': 6, 'offset': 0, 'order': 0}),
+                       )],
+            width={'size': 6, 'offset': 0, 'order': 0})
+    ]),
+    dbc.Row([
+        dbc.Col([
+            dcc.Graph(id='cost-histogram-local', figure=fig_hist_local)],
+            width={'size': 4, 'offset': 0, 'order': 0}),
+        dbc.Col([
+            dcc.Graph(id='cost-histogram-local-u', figure=fig_hist_local_u)],
+            width={'size': 4, 'offset': 0, 'order': 0}),
+        dbc.Col([
+            dcc.Graph(id='cost-histogram-global', figure=fig_hist_global)],
+            width={'size': 4, 'offset': 0, 'order': 0})
+    ]),
+    dbc.Row([
         dbc.Col([
             dcc.Markdown("""
                 **Hover Data**
@@ -204,7 +221,9 @@ def display_config_in_meshcat(hover_data):
 
 
 @app.callback(
-    Output('tree-fig', 'figure'),
+    [Output('tree-fig', 'figure'), Output('cost-histogram-local', 'figure'),
+     Output('cost-histogram-local-u', 'figure'),
+     Output('cost-histogram-global', 'figure')],
     [Input('tree-fig', 'clickData'), Input('tree-progress', 'value')],
     [State('tree-fig', 'relayoutData'), State('tree-progress', 'value')])
 def tree_fig_callback(click_data, slider_value, relayout_data,
@@ -212,14 +231,13 @@ def tree_fig_callback(click_data, slider_value, relayout_data,
     ctx = dash.callback_context
 
     if not ctx.triggered:
-        return fig
+        return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
     else:
         input_name = ctx.triggered[0]['prop_id'].split('.')[0]
 
     num_nodes = slider_value_as_state + 1
     if input_name == 'tree-fig':
         return click_callback(click_data, relayout_data)
-
     if input_name == 'tree-progress':
         return slider_callback(num_nodes, relayout_data)
 
@@ -252,6 +270,7 @@ def click_callback(click_data, relayout_data):
             break
 
         i_node = i_parents[0]
+
     fig.update_traces(x=y_path, y=z_path, z=theta_path,
                       selector=dict(name='path'))
     try:
@@ -263,13 +282,57 @@ def click_callback(click_data, relayout_data):
     idx_path.reverse()
     q_dynamics.publish_trajectory(q_nodes[idx_path], h=2 / len(idx_path))
 
-    return fig
+    return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
 
 
 def slider_callback(num_nodes, relayout_data):
-    print(num_nodes)
+    # Reachability ellipsoids.
     traces_list = e_plot_list[:num_nodes]
+    # Tree nodes and edges
     traces_list += create_tree_plot_up_to_node(num_nodes)
+    # Subgoal
+    node_current = tree.nodes[num_nodes - 1]['node']
+    q_g = node_current.subgoal
+    q_g_u = q_g[q_dynamics.get_q_u_indices_into_x()]
+    traces_list.append(make_large_point_3d(
+        p=q_g_u, name='subgoal', color='red'))
+
+    # Subgoal cost histogram
+    metric_local = irs_rrt.calc_metric_batch(
+        q_query=q_g, n_nodes=num_nodes, distance_metric='local')
+    metric_local_u = irs_rrt.calc_metric_batch(
+        q_query=q_g_u, n_nodes=num_nodes, distance_metric='local')
+    metric_global = irs_rrt.calc_metric_batch(
+        q_query=q_g, n_nodes=num_nodes, distance_metric='global')
+    metric_global_u = irs_rrt.calc_metric_batch(
+        q_query=q_g_u, n_nodes=num_nodes, distance_metric='global')
+
+    assert len(metric_local) == num_nodes
+    assert len(metric_global) == num_nodes
+    global fig_hist_local, fig_hist_local_u, fig_hist_global
+    df_local = pd.DataFrame(
+        {'log10_distance': np.log10(metric_local).tolist(),
+         'method': ['local'] * num_nodes})
+    df_local_u = pd.DataFrame(
+        {'log10_distance': np.log10(metric_local_u).tolist(),
+         'method': ['local_u'] * num_nodes})
+    distances_global = (np.log10(metric_global).tolist()
+                        + np.log10(metric_global_u).tolist())
+    methods_global = ['global'] * num_nodes + ['global_u'] * num_nodes
+    df_global = pd.DataFrame(
+        {'log10_distance': distances_global, 'method': methods_global})
+    fig_hist_local = px.histogram(df_local, x='log10_distance', color='method',
+                                  nbins=40,
+                                  color_discrete_sequence=['chartreuse'])
+    fig_hist_local_u = px.histogram(df_local_u, x='log10_distance',
+                                    color='method',
+                                    color_discrete_sequence=['deeppink'],
+                                    nbins=40)
+    fig_hist_global = px.histogram(df_global, x='log10_distance',
+                                   color='method',
+                                   nbins=40)
+
+    # update fig.
     global fig
     fig = go.Figure(data=traces_list, layout=layout)
 
@@ -278,7 +341,7 @@ def slider_callback(num_nodes, relayout_data):
     except KeyError:
         pass
 
-    return fig
+    return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
 
 
 if __name__ == '__main__':

@@ -35,7 +35,7 @@ class EuclideanRrt(Rrt):
         return Node(child_q)
 
     def calc_metric_batch(self, q_query: np.array):
-        q_batch = self.get_valid_q_matrix()
+        q_batch = self.get_q_matrix_up_to()
         error_batch = q_query[None,:] - q_batch
         return np.linalg.norm(error_batch, axis=1)
 
