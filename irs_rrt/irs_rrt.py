@@ -203,6 +203,38 @@ class IrsRrt(Rrt):
         xnext = self.q_dynamics.dynamics(node.q, ustar)
         return IrsNode(xnext)
 
+    def calc_metric_batch_local(self, q_query: np.ndarray, n_nodes: int,
+                                is_q_u_only: bool):
+        if is_q_u_only:
+            q_query = q_query[self.q_u_indices_into_x]
+        # B x n
+        mu_batch = self.get_chat_matrix_up_to(n_nodes, is_q_u_only)
+        # B x n x n
+        covinv_tensor = self.get_covinv_tensor_up_to(n_nodes, is_q_u_only)
+        error_batch = q_query - mu_batch
+        int_batch = np.einsum('Bij,Bi -> Bj', covinv_tensor, error_batch)
+        metric_batch = np.einsum('Bi,Bi -> B', int_batch, error_batch)
+
+        return metric_batch
+
+    def calc_metric_batch_global(self, q_query: np.ndarray, n_nodes: int,
+                                 is_q_u_only: bool):
+        q_batch = self.get_q_matrix_up_to(n_nodes)
+
+        if is_q_u_only:
+            error_batch = (q_query[self.q_u_indices_into_x]
+                           - q_batch[:, self.q_u_indices_into_x])
+            metric_mat = np.diag(
+                self.params.global_metric[self.q_u_indices_into_x])
+        else:
+            error_batch = q_query - q_batch
+            metric_mat = np.diag(self.params.global_metric)
+
+        intsum = np.einsum('Bi,ij->Bj', error_batch, metric_mat)
+        metric_batch = np.einsum('Bi,Bi->B', intsum, error_batch)
+
+        return metric_batch
+
     def calc_metric_batch(self, q_query: np.ndarray, n_nodes=None,
                           distance_metric=None):
         """
@@ -218,12 +250,7 @@ class IrsRrt(Rrt):
          - full_tree OR up_to_n_nodes
          - global_metric OR local_metric
         """
-        if len(q_query) == self.dim_q_u:
-            is_q_u_only = True
-        elif len(q_query) == self.q_dynamics.dim_x:
-            is_q_u_only = False
-        else:
-            raise RuntimeError("q_query does not have the correct dimension.")
+        assert len(q_query) == self.q_dynamics.dim_x
 
         if distance_metric is None:
             distance_metric = self.params.distance_metric
@@ -232,37 +259,20 @@ class IrsRrt(Rrt):
             n_nodes = self.size
 
         if distance_metric == "global":
-            q_batch = self.get_q_matrix_up_to(n_nodes)
-
-            if is_q_u_only:
-                error_batch = q_query - q_batch[:, self.q_u_indices_into_x]
-                metric_mat = np.diag(
-                    self.params.global_metric[self.q_u_indices_into_x])
-            else:
-                error_batch = q_query - q_batch
-                metric_mat = np.diag(self.params.global_metric)
-            intsum = np.einsum('Bi,ij->Bj', error_batch, metric_mat)
-            metric_batch = np.einsum('Bi,Bi->B', intsum, error_batch)
-
+            return self.calc_metric_batch_global(q_query, n_nodes,
+                                                 is_q_u_only=False)
+        elif distance_metric == "global_u":
+            return self.calc_metric_batch_global(q_query, n_nodes,
+                                                 is_q_u_only=True)
         elif distance_metric == "local":
-            # B x n
-            mu_batch = self.get_chat_matrix_up_to(n_nodes, is_q_u_only)
-            # B x n x n
-            covinv_tensor = self.get_covinv_tensor_up_to(n_nodes, is_q_u_only)
-
-            if is_q_u_only:
-                # B x n
-                error_batch = q_query - mu_batch
-            else:
-                error_batch = q_query - mu_batch  # B x n
-
-            int_batch = np.einsum('Bij,Bi -> Bj', covinv_tensor, error_batch)
-            metric_batch = np.einsum('Bi,Bi -> B', int_batch, error_batch)
+            return self.calc_metric_batch_local(q_query, n_nodes,
+                                                is_q_u_only=False)
+        elif distance_metric == "local_u":
+            return self.calc_metric_batch_local(q_query, n_nodes,
+                                                is_q_u_only=True)
         else:
             raise RuntimeError(f"distance metric {distance_metric} is not "
                                f"supported.")
-
-        return metric_batch
 
     def save_tree(self, filename):
         """

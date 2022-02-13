@@ -16,6 +16,8 @@ from dash_vis.dash_common import (hover_template_y_z_theta,
                                   layout, make_large_point_3d,
                                   make_ellipsoid_plotly,
                                   set_orthographic_camera_yz)
+from dash.exceptions import PreventUpdate
+
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
@@ -105,16 +107,22 @@ for i in range(n_nodes):
     ellipsoid_mesh_points.append(e_points)
     ellipsoid_volumes.append(volume)
 
+
+def scalar_to_rgb255(v: float):
+    """
+    v is a scalar between 0 and 1.
+    """
+    r, g, b = cm.jet(v)[:3]
+    return int(r * 255), int(g * 255), int(b * 255)
+
+
 # compute color
 ellipsoid_volumes = np.array(ellipsoid_volumes)
 v_99 = np.percentile(ellipsoid_volumes, 99)
 v_normalized = np.minimum(ellipsoid_volumes / v_99, 1)
 e_plot_list = []
 for i, (x, v) in enumerate(zip(ellipsoid_mesh_points, v_normalized)):
-    r, g, b = cm.jet(v)[:3]
-    r = int(r * 255)
-    g = int(g * 255)
-    b = int(b * 255)
+    r, g, b = scalar_to_rgb255(v)
     e_plot_list.append(
         go.Mesh3d(dict(x=x[0], y=x[1], z=x[2], alphahull=0, name=f"ellip{i}",
                        color=f"rgb({r}, {g}, {b})", opacity=0.5)))
@@ -171,7 +179,17 @@ app.layout = dbc.Container([
                                   {'label': 'data', 'value': 'data'},
                                   {'label': 'manual', 'value': 'manual'},
                                   {'label': 'cube', 'value': 'cube'}],
+                         value='data',
                          placeholder="Select aspect mode",
+                         )],
+            width={'size': 1, 'offset': 0, 'order': 0}),
+        dbc.Col([
+            dcc.Dropdown(id='metric-to-plot',
+                         options=[{'label': i, 'value': i}
+                                  for i in ['local', 'local_u',
+                                            'global', 'global_u']],
+                         value='local_u',
+                         placeholder="Select metric to plot",
                          )],
             width={'size': 1, 'offset': 0, 'order': 0}),
     ]),
@@ -234,9 +252,10 @@ def display_config_in_meshcat(hover_data):
      Output('cost-histogram-local-u', 'figure'),
      Output('cost-histogram-global', 'figure')],
     [Input('tree-fig', 'clickData'), Input('tree-progress', 'value'),
-     Input('aspect-mode', 'value')],
-    [State('tree-fig', 'relayoutData')])
-def tree_fig_callback(click_data, slider_value, aspect_mode, relayout_data):
+     Input('aspect-mode', 'value'), Input('metric-to-plot', 'value')],
+    [State('tree-fig', 'relayoutData'), State('aspect-mode', 'value')])
+def tree_fig_callback(click_data, slider_value, aspect_mode,
+                      metric_to_plot, relayout_data, aspect_mode_as_state):
     ctx = dash.callback_context
     histograms = [fig_hist_local, fig_hist_local_u, fig_hist_global]
 
@@ -247,9 +266,13 @@ def tree_fig_callback(click_data, slider_value, aspect_mode, relayout_data):
 
     num_nodes = slider_value + 1
     if input_name == 'tree-fig':
-        return click_callback(click_data, relayout_data)
-    if input_name == 'tree-progress':
-        return slider_callback(num_nodes, relayout_data)
+        figs_list = click_callback(click_data, relayout_data)
+        figs_list[0].update_scenes({'aspectmode': aspect_mode_as_state})
+        return figs_list
+    if input_name == 'tree-progress' or input_name == "metric-to-plot":
+        figs_list = slider_callback(num_nodes, metric_to_plot, relayout_data)
+        figs_list[0].update_scenes({'aspectmode': aspect_mode_as_state})
+        return figs_list
     if input_name == 'aspect-mode':
         fig.update_scenes({'aspectmode': aspect_mode})
         return fig, *histograms
@@ -298,44 +321,82 @@ def click_callback(click_data, relayout_data):
     return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
 
 
-def slider_callback(num_nodes, relayout_data):
+def slider_callback(num_nodes, metric_to_plot, relayout_data):
     # Reachability ellipsoids.
     traces_list = e_plot_list[:num_nodes]
     # Tree nodes and edges
     traces_list += create_tree_plot_up_to_node(num_nodes)
     global fig, fig_hist_local, fig_hist_local_u, fig_hist_global
 
-    if num_nodes == 1:
+    i_node = num_nodes - 1
+    if i_node == 0:
         return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
 
     # Subgoal
-    node_current = tree.nodes[num_nodes - 1]['node']
+    # When the newest leaf in the tree is node_parent,
+    # the tree is extended towards node_current.subgoal, and node_current is
+    # added to the tree, replacing node_parent as the newest leaf.
+    node_current = tree.nodes[i_node]['node']
+    i_parent = list(tree.predecessors(i_node))[0]
+    node_parent = tree.nodes[i_parent]['node']
+
+    q_p = node_parent.q
+    q_p_u = q_p[irs_rrt.q_u_indices_into_x]
+    q_u = node_current.q[irs_rrt.q_u_indices_into_x]
     q_g = node_current.subgoal
-    q_g_u = q_g[q_dynamics.get_q_u_indices_into_x()]
+    q_g_u = q_g[irs_rrt.q_u_indices_into_x]
     traces_list.append(make_large_point_3d(
         p=q_g_u, name='subgoal', color='red'))
+    traces_list.append(make_large_point_3d(
+        p=q_p_u, name='parent', color='darkslateblue'))
+    traces_list.append(make_large_point_3d(
+        p=q_u, name='new leaf', color='red'))
+
+    # Subgoal to parent in red dashed line.
+    distance_metric = tree.graph['irs_rrt_params'].distance_metric
+    edge_to_parent = go.Scatter3d(
+        x=[q_p_u[0], q_g_u[0]],
+        y=[q_p_u[1], q_g_u[1]],
+        z=[q_p_u[2], q_g_u[2]],
+        name=f'attempt {distance_metric}',
+        mode='lines',
+        line=dict(color='red', width=5),
+        opacity=0.3)
+    traces_list.append(edge_to_parent)
 
     # Subgoal cost histogram
-    metric_local = irs_rrt.calc_metric_batch(
-        q_query=q_g, n_nodes=num_nodes, distance_metric='local')
-    metric_local_u = irs_rrt.calc_metric_batch(
-        q_query=q_g_u, n_nodes=num_nodes, distance_metric='local')
-    metric_global = irs_rrt.calc_metric_batch(
-        q_query=q_g, n_nodes=num_nodes, distance_metric='global')
-    metric_global_u = irs_rrt.calc_metric_batch(
-        q_query=q_g_u, n_nodes=num_nodes, distance_metric='global')
+    d_local = irs_rrt.calc_metric_batch(
+        q_query=q_g, n_nodes=num_nodes - 1, distance_metric='local')
+    d_local_u = irs_rrt.calc_metric_batch(
+        q_query=q_g, n_nodes=num_nodes - 1, distance_metric='local_u')
+    d_global = irs_rrt.calc_metric_batch(
+        q_query=q_g, n_nodes=num_nodes - 1, distance_metric='global')
+    d_global_u = irs_rrt.calc_metric_batch(
+        q_query=q_g, n_nodes=num_nodes - 1, distance_metric='global_u')
+    assert len(d_local) == num_nodes - 1
+    assert len(d_global) == num_nodes - 1
 
-    assert len(metric_local) == num_nodes
-    assert len(metric_global) == num_nodes
+    d_dict = {"local": d_local, "local_u": d_local_u,
+              "global": d_global, "global_u": d_global_u}
+
+    # Best 10 nodes in tree to the subgoal.
+    # TODO: try not to recompute every distance metric when updating the tree
+    #  plot for distance metrics.
+    traces_list += plot_best_nodes(q_g_u=q_g_u,
+                                   distances=d_dict[metric_to_plot],
+                                   best_n=10)
+
+    # distance histograms.
     df_local = pd.DataFrame(
-        {'log10_distance': np.log10(metric_local).tolist(),
-         'method': ['local'] * num_nodes})
+        {'log10_distance': np.log10(d_local).tolist(),
+         'method': ['local'] * (num_nodes - 1)})
     df_local_u = pd.DataFrame(
-        {'log10_distance': np.log10(metric_local_u).tolist(),
-         'method': ['local_u'] * num_nodes})
-    distances_global = (np.log10(metric_global).tolist()
-                        + np.log10(metric_global_u).tolist())
-    methods_global = ['global'] * num_nodes + ['global_u'] * num_nodes
+        {'log10_distance': np.log10(d_local_u).tolist(),
+         'method': ['local_u'] * (num_nodes - 1)})
+    distances_global = (np.log10(d_global).tolist()
+                        + np.log10(d_global_u).tolist())
+    methods_global = ['global'] * (num_nodes - 1)
+    methods_global += ['global_u'] * (num_nodes - 1)
     df_global = pd.DataFrame(
         {'log10_distance': distances_global, 'method': methods_global})
     fig_hist_local = px.histogram(df_local, x='log10_distance', color='method',
@@ -358,6 +419,29 @@ def slider_callback(num_nodes, relayout_data):
         pass
 
     return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
+
+
+def plot_best_nodes(q_g_u: np.ndarray, distances: np.ndarray, best_n: int):
+    if len(distances) <= best_n:
+        indices = np.argsort(distances)
+    else:
+        # indices of the best (small cost) (best_n) nodes
+        indices = np.argsort(distances)[:best_n]
+    max_of_best_distances = np.max(distances[indices])
+    best_n_plots = []
+    for i, idx in enumerate(indices):
+        width = 7 if i == 0 else 2
+        q_u = tree.nodes[idx]['node'].q[irs_rrt.q_u_indices_into_x]
+        r, g, b = scalar_to_rgb255(distances[idx] / max_of_best_distances)
+        best_n_plots.append(
+            go.Scatter3d(x=[q_u[0], q_g_u[0]],
+                         y=[q_u[1], q_g_u[1]],
+                         z=[q_u[2], q_g_u[2]],
+                         name=f'best{i}',
+                         mode='lines',
+                         line=dict(color=f"rgb({r}, {g}, {b})", width=width,
+                                   dash='dash')))
+    return best_n_plots
 
 
 if __name__ == '__main__':

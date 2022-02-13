@@ -55,7 +55,7 @@ params.goal[6] = np.pi
 params.termination_tolerance = 1e-2
 params.subgoal_prob = 0.5
 params.rewire = False
-params.distance_metric = 'local'
+params.distance_metric = 'local_u'
 
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 10.0, 10.0, 1.0])

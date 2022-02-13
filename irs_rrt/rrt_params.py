@@ -12,7 +12,7 @@ class RrtParams:
         self.root_node = None
         self.subgoal_prob = 0.5
         self.termination_tolerance = 0.1
-        self.rewire = True
+        self.rewire = False
 
 
 class IrsRrtParams(RrtParams):
@@ -43,6 +43,7 @@ class IrsRrtParams(RrtParams):
         # TODO(terry-suh): the selection of this parameter should be automated.
         self.stepsize = 0.3
 
-        self.distance_metric = "global"  # or "local"
+        # Supports local, local_u, global, global_u
+        self.distance_metric = "global"
         self.global_metric = None  # only used when distance_metric is "global".
 
