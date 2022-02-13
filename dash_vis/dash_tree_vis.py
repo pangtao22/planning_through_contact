@@ -93,6 +93,7 @@ def create_tree_plot_up_to_node(num_nodes: int):
 
     return [nodes_plot, edges_plot, root_plot, path_plot]
 
+
 # Draw ellipsoids.
 ellipsoid_mesh_points = []
 ellipsoid_volumes = []
@@ -163,7 +164,16 @@ app.layout = dbc.Container([
                               n_nodes: {'label': f'{n_nodes}'}},
                        tooltip={"placement": "bottom", "always_visible": True}
                        )],
-            width={'size': 6, 'offset': 0, 'order': 0})
+            width={'size': 6, 'offset': 0, 'order': 0}),
+        dbc.Col([
+            dcc.Dropdown(id='aspect-mode',
+                         options=[{'label': 'auto', 'value': 'auto'},
+                                  {'label': 'data', 'value': 'data'},
+                                  {'label': 'manual', 'value': 'manual'},
+                                  {'label': 'cube', 'value': 'cube'}],
+                         placeholder="Select aspect mode",
+                         )],
+            width={'size': 1, 'offset': 0, 'order': 0}),
     ]),
     dbc.Row([
         dbc.Col([
@@ -203,43 +213,46 @@ def get_tree_node_idx(point, curve):
     Output('hover-data', 'children'),
     Input('tree-fig', 'hoverData'))
 def display_config_in_meshcat(hover_data):
-    hover_data_json = json.dumps(hover_data, indent=2)
     if hover_data is None:
-        return hover_data_json
+        return json.dumps(hover_data, indent=2)
 
     point = hover_data['points'][0]
     curve = fig.data[point['curveNumber']]
-
     i_node = get_tree_node_idx(point, curve)
+
     if i_node is None:
-        return hover_data_json
+        return json.dumps(hover_data, indent=2)
 
     q_sim_py.update_mbp_positions_from_vector(tree.nodes[i_node]["node"].q)
     q_sim_py.draw_current_configuration()
 
-    return hover_data_json
+    return json.dumps(hover_data, indent=2)
 
 
 @app.callback(
     [Output('tree-fig', 'figure'), Output('cost-histogram-local', 'figure'),
      Output('cost-histogram-local-u', 'figure'),
      Output('cost-histogram-global', 'figure')],
-    [Input('tree-fig', 'clickData'), Input('tree-progress', 'value')],
-    [State('tree-fig', 'relayoutData'), State('tree-progress', 'value')])
-def tree_fig_callback(click_data, slider_value, relayout_data,
-                      slider_value_as_state):
+    [Input('tree-fig', 'clickData'), Input('tree-progress', 'value'),
+     Input('aspect-mode', 'value')],
+    [State('tree-fig', 'relayoutData')])
+def tree_fig_callback(click_data, slider_value, aspect_mode, relayout_data):
     ctx = dash.callback_context
+    histograms = [fig_hist_local, fig_hist_local_u, fig_hist_global]
 
     if not ctx.triggered:
-        return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
+        return fig, *histograms
     else:
         input_name = ctx.triggered[0]['prop_id'].split('.')[0]
 
-    num_nodes = slider_value_as_state + 1
+    num_nodes = slider_value + 1
     if input_name == 'tree-fig':
         return click_callback(click_data, relayout_data)
     if input_name == 'tree-progress':
         return slider_callback(num_nodes, relayout_data)
+    if input_name == 'aspect-mode':
+        fig.update_scenes({'aspectmode': aspect_mode})
+        return fig, *histograms
 
 
 def click_callback(click_data, relayout_data):
@@ -290,6 +303,11 @@ def slider_callback(num_nodes, relayout_data):
     traces_list = e_plot_list[:num_nodes]
     # Tree nodes and edges
     traces_list += create_tree_plot_up_to_node(num_nodes)
+    global fig, fig_hist_local, fig_hist_local_u, fig_hist_global
+
+    if num_nodes == 1:
+        return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
+
     # Subgoal
     node_current = tree.nodes[num_nodes - 1]['node']
     q_g = node_current.subgoal
@@ -309,7 +327,6 @@ def slider_callback(num_nodes, relayout_data):
 
     assert len(metric_local) == num_nodes
     assert len(metric_global) == num_nodes
-    global fig_hist_local, fig_hist_local_u, fig_hist_global
     df_local = pd.DataFrame(
         {'log10_distance': np.log10(metric_local).tolist(),
          'method': ['local'] * num_nodes})
@@ -333,7 +350,6 @@ def slider_callback(num_nodes, relayout_data):
                                    nbins=40)
 
     # update fig.
-    global fig
     fig = go.Figure(data=traces_list, layout=layout)
 
     try:
