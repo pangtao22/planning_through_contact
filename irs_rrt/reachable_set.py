@@ -244,6 +244,8 @@ class ReachableSet3D(ReachableSet):
          ) = self.q_dynamics_p.q_sim_batch.calc_dynamics_parallel(
             x_batch, u_batch, self.q_dynamics.h, GradientMode.kBOnly)
 
+        # print(np.sum(is_valid_batch))
+
         B_batch = np.array(B_batch)
         x_next_batch = x_next_batch[is_valid_batch]
         B_batch = B_batch[is_valid_batch]

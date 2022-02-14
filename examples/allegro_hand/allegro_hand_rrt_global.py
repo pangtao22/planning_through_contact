@@ -13,11 +13,6 @@ from qsim.simulator import QuasistaticSimulator, GradientMode
 from qsim_cpp import QuasistaticSimulatorCpp
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_mpc.quasistatic_dynamics_parallel import (
-    QuasistaticDynamicsParallel)
-from irs_mpc.irs_mpc_quasistatic import (
-    IrsMpcQuasistatic)
-from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from irs_rrt.irs_rrt import IrsNode, IrsRrt
 from irs_rrt.irs_rrt_global import IrsRrtGlobal3D
@@ -74,22 +69,24 @@ for i in range(num_joints):
 #%% RRT testing
 params = IrsRrtGlobalParams3D(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
-params.max_size = 300 #0
+params.max_size = 1000
 params.goal = np.copy(x0)
-Q_WB_d = RollPitchYaw(0, 0, np.pi / 8).ToQuaternion()
-params.goal[:4] = Q_WB_d.wxyz()
+Q_WB_d = RollPitchYaw(0, 0, np.pi).ToQuaternion()
+params.goal[-7:-3] = Q_WB_d.wxyz()
 params.termination_tolerance = 1e-2
 params.subgoal_prob = 0.5
 params.global_metric = np.ones(x0.shape) * 0.1
 params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
 params.quat_metric = 5
+params.std_u = 0.02
 
 tree = IrsRrtGlobal3D(params)
 tree.iterate()
 # np.save("q_mat_large.npy", tree.q_matrix)
 
 #%%
-tree.save_tree("examples/allegro_hand/data/tree_{}_global_y.pkl".format(params.max_size))
+tree.save_tree("examples/allegro_hand/data/tree_{}_global_gravity.pkl".format(
+    params.max_size))
 
 #%%
 

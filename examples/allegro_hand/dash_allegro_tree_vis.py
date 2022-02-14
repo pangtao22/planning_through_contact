@@ -22,7 +22,7 @@ from scipy.spatial.transform import Rotation as R
 parser = argparse.ArgumentParser()
 # parser.add_argument("tree_file_path")
 args = parser.parse_args()
-args.tree_file_path = "data/tree_300_global_y.pkl"
+args.tree_file_path = "data/tree_1000_global_gravity.pkl"
 
 # %% Construct computational tools.
 with open(args.tree_file_path, 'rb') as f:
@@ -50,7 +50,9 @@ for i in range(n_nodes):
     q_nodes[i] = node.q
 
 q_u_nodes = q_nodes[:, q_dynamics.get_q_u_indices_into_x()]
-q_u_nodes = R.from_quat(q_u_nodes[:, :4]).as_euler('zxy')
+# for i in range(q_u_nodes):
+q_u_nodes = np.hstack((q_u_nodes[:, 1:4], q_u_nodes[:, 0, None]))
+q_u_nodes = R.from_quat(q_u_nodes[:, :4]).as_euler('zyx')
 
 # edges.
 roll_edges = []

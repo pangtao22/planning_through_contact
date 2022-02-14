@@ -5,8 +5,9 @@ from tqdm import tqdm
 import time
 
 from irs_rrt.rrt_base import Node, Edge, Rrt, RrtParams
-from irs_rrt.reachable_set import ReachableSet
+from irs_rrt.reachable_set import ReachableSet3D
 from irs_rrt.irs_rrt import IrsRrtParams, IrsRrt, IrsNode, IrsEdge
+from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 from scipy.spatial.transform import Rotation as R
 
 """
@@ -74,6 +75,10 @@ class IrsRrtGlobal3D(IrsRrtGlobal):
         super().__init__(params)
         self.qa_dim = self.q_dynamics.dim_u
         self.params.stepsize = 0.2
+        q_dynamics_p = QuasistaticDynamicsParallel(self.q_dynamics)
+        self.reachable_set = ReachableSet3D(self.q_dynamics,
+            self.params, q_dynamics_p)
+
         # Global metric 
         assert (self.params.global_metric[self.qa_dim:self.qa_dim+4] == 0).all()
     
