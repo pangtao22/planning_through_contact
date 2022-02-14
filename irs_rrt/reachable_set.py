@@ -105,8 +105,8 @@ class ReachableSet3D(ReachableSet):
         # representation. It is assumed that the last 7 elements correspond 
         # to states of the unactuated elements in the order of
         # [qw qx qy qz px py pz].
-        self.quat_mask = np.zeros(self.q_dynamics.dim_x)
-        self.quat_mask[-7:-3] = 1
+        self.quat_mask = np.zeros(self.q_dynamics.dim_x, dtype=np.bool)
+        self.quat_mask[-7:-3] = True
 
         # When this tensor is multiplied with quaternion, it returns the E(q)
         # matrix used to convert rates to angular velocities in world frame.
@@ -178,7 +178,7 @@ class ReachableSet3D(ReachableSet):
 
         # 3. Use omega_hat to construct a rotation using the exponential
         # map.
-        angle = np.norm(omega_hat)
+        angle = np.linalg.norm(omega_hat)
         axis = omega_hat / angle
         omega_drake = AngleAxis(angle, axis)
         q_drake = Quaternion(q)
@@ -204,16 +204,16 @@ class ReachableSet3D(ReachableSet):
         """
         Given a batch of xnext, compute chat, the bundled dynamics.
         """
-        quat_next_batch = xnext_batch[self.quat_mask]
+        quat_next_batch = xnext_batch[:,self.quat_mask]
         quat = x[self.quat_mask]
         chat_quat = self.calc_chat_given_batch_quat(quat_next_batch, quat)
 
-        else_next_batch = xnext_batch[not self.quat_mask]
+        else_next_batch = xnext_batch[:,np.invert(self.quat_mask)]
         chat_else = np.mean(else_next_batch, axis=0)
 
         chat = np.zeros(self.q_dynamics.dim_x)
         chat[self.quat_mask] = chat_quat
-        chat[not self.quat_mask] = chat_else
+        chat[np.invert(self.quat_mask)] = chat_else
         return chat
 
     def calc_Bhat_given_batch(self, B_batch, x):
@@ -224,12 +224,12 @@ class ReachableSet3D(ReachableSet):
         quat = x[self.quat_mask]
         Bhat_quat = self.calc_Bhat_given_batch_quat(Bquat_batch, quat)
 
-        else_B_batch = B_batch[:,not self.quat_mask,:]
+        else_B_batch = B_batch[:,np.invert(self.quat_mask),:]
         Bhat_else = np.mean(else_B_batch, axis=0)
 
-        Bhat = np.zeros(self.q_dynamics.dim_x, self.q_dynamics.dim_u)
+        Bhat = np.zeros((self.q_dynamics.dim_x, self.q_dynamics.dim_u))
         Bhat[self.quat_mask] = Bhat_quat
-        Bhat[not self.quat_mask] = Bhat_else
+        Bhat[np.invert(self.quat_mask)] = Bhat_else
         return Bhat
 
     def calc_bundled_Bc(self, x, ubar):
