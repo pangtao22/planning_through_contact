@@ -202,6 +202,7 @@ class IrsRrt(Rrt):
             parent_node.covinv, parent_node.mu, xnext)
 
         child_node = IrsNode(xnext)
+        child_node.subgoal = q
 
         edge = IrsEdge()
         edge.parent = parent_node

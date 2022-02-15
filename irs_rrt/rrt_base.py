@@ -57,8 +57,8 @@ class Rrt:
         self.q_matrix = np.full((self.max_size, self.dim_q), np.nan)
 
         # Additionally, keep a storage of values.
-        self.value_lst = np.nan * np.zeros(self.max_size)
-        self.root_node.value = 0.0 # by definition, root node has value of 0.
+        self.value_lst = np.full(self.max_size, np.nan)
+        self.root_node.value = 0.0  # by definition, root node has value of 0.
         self.value_lst[self.size] = self.root_node.value
 
         # Add root node to the graph to finish initialization.
