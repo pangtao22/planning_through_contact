@@ -42,7 +42,7 @@ q0_dict = contact_sampler.calc_enveloping_grasp(q_u0)
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 
 joint_limits = {
-    idx_u: np.array([[-0.5, 0.5], [0.3, 0.6], [-0.01, np.pi]]),
+    idx_u: np.array([[-0.3, 0.3], [0.3, 0.5], [-0.01, np.pi]]),
     idx_a_l: np.array([[-np.pi / 2, np.pi / 2], [-np.pi / 2, 0]]),
     idx_a_r: np.array([[-np.pi / 2, np.pi / 2], [0, np.pi / 2]])
 }
