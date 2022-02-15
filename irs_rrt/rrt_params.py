@@ -49,3 +49,11 @@ class IrsRrtParams(RrtParams):
         self.distance_metric = "global"
         self.global_metric = None  # only used when distance_metric is "global".
 
+
+class IrsRrtGlobalParams3D(IrsRrtParams):
+    def __init__(self, q_model_path, joint_limits):
+        super().__init__(q_model_path, joint_limits)
+        # Distance metric for defining an adequate notion of distance for quaternions.
+        # Should be a scalar
+        self.quat_metric = np.isnan
+        

@@ -14,8 +14,7 @@ from qsim_cpp import QuasistaticSimulatorCpp
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 
-from irs_rrt.irs_rrt import IrsNode, IrsRrt
-from irs_rrt.irs_rrt_global import IrsRrtGlobal3D
+from irs_rrt.irs_rrt import IrsNode, IrsRrtGlobal3D
 from irs_rrt.rrt_params import IrsRrtGlobalParams3D
 from pydrake.multibody.tree import JointIndex
 
@@ -79,13 +78,14 @@ params.global_metric = np.ones(x0.shape) * 0.1
 params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
 params.quat_metric = 5
 params.std_u = 0.02
+params.distance_metric = 'global_u'
 
 tree = IrsRrtGlobal3D(params)
 tree.iterate()
 # np.save("q_mat_large.npy", tree.q_matrix)
 
 #%%
-tree.save_tree("examples/allegro_hand/data/tree_{}_global_gravity.pkl".format(
+tree.save_tree("examples/allegro_hand/data/{}/tree_{}_global_gravity.pkl".format(params.distance_metric,
     params.max_size))
 
 #%%

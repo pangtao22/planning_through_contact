@@ -5,10 +5,12 @@ import networkx
 import numpy as np
 from irs_mpc.irs_mpc_params import BundleMode
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_rrt.reachable_set import ReachableSet
+from irs_rrt.reachable_set import ReachableSet, ReachableSet3D
 from irs_rrt.rrt_base import Node, Edge, Rrt
 from irs_rrt.rrt_params import IrsRrtParams
+from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 
+from scipy.spatial.transform import Rotation as R
 
 class IrsNode(Node):
     """
@@ -306,3 +308,122 @@ class IrsRrt(Rrt):
         self.graph.graph['irs_rrt_params'] = picklable_params
         with open(filename, 'wb') as f:
             pickle.dump(self.graph, f)
+
+
+class IrsRrtGlobal3D(IrsRrt):
+    def __init__(self, params: IrsRrtParams):
+        super().__init__(params)
+        self.qa_dim = self.q_dynamics.dim_u
+        self.params.stepsize = 0.2
+        q_dynamics_p = QuasistaticDynamicsParallel(self.q_dynamics)
+        self.reachable_set = ReachableSet3D(self.q_dynamics,
+            self.params, q_dynamics_p)
+
+        # Global metric 
+        assert (self.params.global_metric[self.qa_dim:self.qa_dim+4] == 0).all()
+    
+    def sample_subgoal(self):
+        # Sample translation
+        subgoal = np.random.rand(self.q_dynamics.dim_x)
+        subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
+
+        # Sample quaternion uniformly following https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.128.8767&rep=rep1&type=pdf
+        quat_xyzw = R.random().as_quat()
+        subgoal[self.qa_dim:self.qa_dim+4] = np.concatenate((quat_xyzw[-1, None], quat_xyzw[:-1]))
+        return subgoal
+
+    def extend_towards_q(self, parent_node: Node, q: np.array):
+        """
+        Extend towards a specified configuration q and return a new
+        node, 
+        """
+        # Compute least-squares solution.
+        du = np.linalg.lstsq(
+            parent_node.Bhat, q - parent_node.chat, rcond=None)[0]
+
+        # Normalize least-squares solution.
+        du = du / np.linalg.norm(du)
+        ustar = parent_node.ubar + self.params.stepsize * du
+        xnext = self.q_dynamics.dynamics(parent_node.q, ustar)
+        cost = self.compute_edge_cost(parent_node.q, xnext, parent_node.id, )
+
+        child_node = IrsNode(xnext)
+
+        edge = IrsEdge()
+        edge.parent = parent_node
+        edge.child = child_node
+        edge.du = self.params.stepsize * du
+        edge.u = ustar
+        edge.cost = cost
+
+        return child_node, edge        
+
+    def compute_edge_cost(self, parent_q: Node, child_q: Node, parent_id):
+        error = parent_q - child_q
+
+        if self.params.distance_metric == "global":
+            metric_mat = np.diag(self.params.global_metric)
+            cost = error @ metric_mat @ error
+
+            parent_quat = R.from_quat(self.convert_quat_wxyz_to_xyzw(parent_q))
+            child_quat = R.from_quat(self.convert_quat_wxyz_to_xyzw(child_q))
+            quat_mul_diff = (child_quat * parent_quat.inv()).as_quat()
+            cost += self.params.quat_metric * np.linalg.norm(quat_mul_diff[:-1])
+        elif self.params.distance_metric == "global_u":
+            error = error[self.q_u_indices_into_x]
+            metric_mat = np.diag(
+                self.params.global_metric[self.q_u_indices_into_x])
+            cost = error @ metric_mat @ error
+
+            parent_quat = R.from_quat(self.convert_quat_wxyz_to_xyzw(parent_q))
+            child_quat = R.from_quat(self.convert_quat_wxyz_to_xyzw(child_q))
+            quat_mul_diff = (child_quat * parent_quat.inv()).as_quat()
+            cost += self.params.quat_metric * np.linalg.norm(quat_mul_diff[:-1])
+        elif self.params.distance_metric == "local":
+            covinv_tensor = self.get_covinv_tensor_up_to(self.max_size, False)
+            metric_mat = covinv_tensor[parent_id]
+            cost = error @ metric_mat @ error
+        elif self.params.distance_metric == "local_u":
+            error = error[self.q_u_indices_into_x]
+            covinv_tensor = self.get_covinv_tensor_up_to(self.max_size, True)
+            metric_mat = covinv_tensor[parent_id]
+            cost = error @ metric_mat @ error
+
+        return cost
+    
+    def calc_metric_batch_global(self, q_query, n_nodes: int,
+                                 is_q_u_only: bool):
+        """
+        Given q_query, return a np.array of \|q_query - q\|.
+        In the EuclidRrt implementation, the global distance metric is
+        used as opposed to the local Mahalanobis metric.
+        """
+
+        q_batch = self.get_q_matrix_up_to(n_nodes)
+        
+
+        if is_q_u_only:
+            error_batch = (q_query[self.q_u_indices_into_x]
+                           - q_batch[:, self.q_u_indices_into_x])
+            metric_mat = np.diag(
+                self.params.global_metric[self.q_u_indices_into_x])
+        else:
+            error_batch = q_query[None,:] - q_batch
+            metric_mat = np.diag(self.params.global_metric)
+
+        intsum = np.einsum('Bi,ij->Bj', error_batch, metric_mat)
+        metric_batch = np.einsum('Bi,Bi->B', intsum, error_batch)
+
+        # scipy accepts (x, y, z, w)
+        q_query_quat = R.from_quat(self.convert_quat_wxyz_to_xyzw(q_query))
+        quat_batch = R.from_quat(self.convert_quat_wxyz_to_xyzw(q_batch, batch_mode=True))
+        quat_mul_diff = (quat_batch * q_query_quat.inv()).as_quat()
+        metric_batch += self.params.quat_metric * np.linalg.norm(quat_mul_diff[:, :-1], axis=1)
+
+        return metric_batch
+
+    def convert_quat_wxyz_to_xyzw(self, q, batch_mode=False):
+        if batch_mode:
+            return np.hstack((q[:, self.qa_dim + 1:self.qa_dim + 4], q[:, self.qa_dim, None]))
+        else:
+            return np.concatenate((q[self.qa_dim + 1:self.qa_dim + 4], q[self.qa_dim, None]))
