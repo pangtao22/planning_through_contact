@@ -10,7 +10,7 @@ class ContactSampler:
         """
         self.q_dynamics = q_dynamics
         self.q_sim = q_dynamics.q_sim_py
-        self.n_samples = 100
+        self.n_samples = n_samples
 
     def sample_contact(self, q_u):
         """

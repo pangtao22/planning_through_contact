@@ -5,14 +5,13 @@ import matplotlib.pyplot as plt
 
 from pydrake.all import ModelInstanceIndex
 
-from allegro_hand_setup import robot_name, object_name
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.contact_sampler import ContactSampler
 
+from .allegro_hand_setup import *
 
 class AllegroHandContactSampler(ContactSampler):
-    def __init__(self, q_dynamics: QuasistaticDynamics, n_samples: int,
-        pinch_prob: float):
+    def __init__(self, q_dynamics: QuasistaticDynamics, n_samples: int):
         super().__init__(q_dynamics, n_samples)
         """
         This class assumes that q_dynamics has unactuated_mass_scale set
