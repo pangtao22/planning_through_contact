@@ -7,18 +7,21 @@ from pydrake.all import ModelInstanceIndex
 
 from planar_hand_setup import robot_l_name, robot_r_name, object_name
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from irs_rrt.contact_sampler import ContactSampler
 
 
-class PlanarHandContactSampler:
+class PlanarHandContactSampler(ContactSampler):
     """
     !!!FOR THE TWO-FINGER AND ONE BALL SYSTEM ONLY!!!
     For each model instance with n DOFs,
     joint_limits[model] is an (n, 2) array, where joint_limits[model][i, 0] is the
     lower bound of joint i and joint_limits[model][i, 1] the upper bound.
     """
-    def __init__(self, q_dynamics: QuasistaticDynamics):
-        self.q_dynamics = q_dynamics
-        self.q_sim = q_dynamics.q_sim_py
+    def __init__(self, q_dynamics: QuasistaticDynamics, n_samples: int,
+        pinch_prob: float):
+        super().__init__(q_dynamics, n_samples)
+
+        self.pinch_prob = pinch_prob
         n2i_map = q_dynamics.q_sim.get_model_instance_name_to_index_map()
         self.model_u = n2i_map[object_name]
         self.model_a_l = n2i_map[robot_l_name]
@@ -250,6 +253,24 @@ class PlanarHandContactSampler:
 
         return theta
 
+    def cointoss_for_grasp(self):
+        sample_grasp = np.random.choice(
+            [0, 1], 1, p=[
+                1 - self.pinch_prob, self.pinch_prob])
+        return sample_grasp
+
+    def sample_contact(self, q_u_goal):
+        """
+        Given a q_goal, sample a grasp using the contact sampler.
+        """
+        pinch_grasp = self.cointoss_for_grasp()
+        if (pinch_grasp):
+            q_dict = self.contact_sampler.sample_pinch_grasp(
+                q_u_goal, self.n_samples)[0]
+        else:
+            q_dict = self.contact_sampler.calc_enveloping_grasp(q_u_goal)
+
+        return self.q_dynamics.get_x_from_q_dict(q_dict)
 
 def sample_on_sphere(radius: float, n_samples: int):
     """
