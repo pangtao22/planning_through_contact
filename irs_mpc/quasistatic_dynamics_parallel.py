@@ -76,6 +76,30 @@ class QuasistaticDynamicsParallel:
             x_batch, u_batch, self.q_dynamics.h, GradientMode.kNone)
         return x_next
 
+    def dynamics_rollout_batch(
+        self, x0_batch: np.ndarray, u_trj_batch: np.ndarray):
+        """
+        Computes rollout of trajectories starting from x0_batch to every
+        u_trj_batch.
+        -args:
+            x0_batch (n_batch, dim_x): batch of initial states.
+            u_batch (n_batch, T, dim_u): batch of input trajectories.
+        -returns:
+            x_trj_batch (n_batch, T+1, dim_x): batch of resulting rollout
+              trajectories.
+        """
+
+        n_batch = u_trj_batch.shape[0]
+        T = u_trj_batch.shape[1]
+        x_trj_batch = np.zeros((n_batch, T+1, self.dim_x))
+        x_trj_batch[:,0,:] = x0_batch
+
+        for t in range(T):
+            x_trj_batch[:,t+1,:] = self.dynamics_batch(
+                x_trj_batch[:,t,:], u_trj_batch[:,t,:])
+
+        return x_trj_batch
+
     def dynamics_bundled_from_samples(self, x_nominal, u_batch):
         """
         Compute bundled dynamics given samples of u_batch.

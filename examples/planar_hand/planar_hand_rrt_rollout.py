@@ -18,13 +18,20 @@ from irs_mpc.irs_mpc_quasistatic import (
     IrsMpcQuasistatic)
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
-from irs_rrt.irs_rrt import IrsRrt, IrsNode
-from irs_rrt.rrt_params import IrsRrtParams
+from irs_rrt.irs_rrt import IrsNode, IrsRrt
+from irs_rrt.irs_rrt_rollout import IrsRrtRollout
+from irs_rrt.rrt_params import IrsRrtRolloutParams
 
 from planar_hand_setup import *
-from contact_sampler import PlanarHandContactSampler
 
-#%% quasistatic dynamical system
+np.set_printoptions(precision=3, suppress=True)
+
+#%% sim setup
+T = int(round(2 / h))  # num of time steps to simulate forward.
+duration = T * h
+
+
+# quasistatic dynamical system
 q_dynamics = QuasistaticDynamics(h=h,
                                  q_model_path=q_model_path,
                                  internal_viz=True)
@@ -35,10 +42,17 @@ plant = q_sim_py.get_plant()
 idx_a_l = plant.GetModelInstanceByName(robot_l_name)
 idx_a_r = plant.GetModelInstanceByName(robot_r_name)
 idx_u = plant.GetModelInstanceByName(object_name)
-contact_sampler = PlanarHandContactSampler(q_dynamics)
 
+# trajectory and initial conditions.
+nq_a = 2
+qa_l_knots = [-np.pi / 4, -np.pi / 4]
+qa_r_knots = [np.pi / 4, np.pi / 4]
 q_u0 = np.array([0.0, 0.35, 0])
-q0_dict = contact_sampler.calc_enveloping_grasp(q_u0)
+
+q0_dict = {idx_u: q_u0,
+           idx_a_l: qa_l_knots,
+           idx_a_r: qa_r_knots}
+
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 
 joint_limits = {
@@ -48,30 +62,28 @@ joint_limits = {
 }
 
 #%% RRT testing
-params = IrsRrtParams(q_model_path, joint_limits)
+params = IrsRrtRolloutParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
-params.max_size = 300
+params.max_size = 2000
 params.goal = np.copy(x0)
 params.goal[6] = np.pi
 params.termination_tolerance = 1e-2
+params.stepsize = 0.5
+params.rollout_horizon = 3
 params.subgoal_prob = 0.5
-params.rewire = False
-params.distance_metric = 'local_u'
+params.global_metric = np.array([0.001, 0.001, 0.001, 0.001, 5.0, 5.0, 3.0])
 
-# params.distance_metric = 'global'  # If using global metric
-params.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 10.0, 10.0, 1.0])
-
-
-tree = IrsRrt(params)
+tree = IrsRrtRollout(params)
 tree.iterate()
+# np.save("q_mat_large.npy", tree.q_matrix)
 
 #%%
-tree.save_tree(f"tree_{params.max_size}_planar_hand.pkl")
-
-#print(tree.save_final_path())
+tree.save_tree("examples/planar_hand/data/tree_2000_rollout.pkl")
+#tree.save_final_path("examples/planar_hand/data/path_2000_rollout.pkl")
 
 #%%
-#
-# cProfile.runctx('tree.iterate()',
-#                  globals=globals(), locals=locals(),
-#                  filename='irs_rrt_profile.stat')
+"""
+cProfile.runctx('tree.iterate()',
+                 globals=globals(), locals=locals(),
+                 filename='irs_rrt_profile.stat')
+"""

@@ -1,4 +1,6 @@
+import numpy as np
 from irs_mpc.irs_mpc_params import BundleMode
+
 
 
 class RrtParams:

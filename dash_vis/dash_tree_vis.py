@@ -52,6 +52,7 @@ q_nodes = np.zeros((n_nodes, q_dynamics.dim_x))
 
 # node coordinates.
 for i in range(n_nodes):
+
     node = tree.nodes[i]["node"]
     q_nodes[i] = node.q
 
