@@ -16,7 +16,7 @@ from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 
 from dash_vis.dash_common import (add_goal_meshcat, hover_template_y_z_theta,
                                   hover_template_trj, layout, calc_principal_points,
-                                  create_pca_plots, calc_X_WG, create_q_u0_plot,
+                                  create_pca_plots, calc_X_WG, make_large_point_3d,
                                   set_orthographic_camera_yz)
 
 # %% quasistatic dynamics
@@ -113,7 +113,7 @@ plot_trj = go.Scatter3d(
                 showscale=True,
                 opacity=0.8))
 
-plot_qu0 = create_q_u0_plot(q_u0)
+plot_qu0 = make_large_point_3d(q_u0)
 
 # PCA lines
 principal_axes_plots = create_pca_plots(principal_points)

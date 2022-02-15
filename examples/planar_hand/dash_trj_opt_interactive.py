@@ -9,7 +9,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output, State
 from dash_vis.dash_common import (add_goal_meshcat, hover_template_y_z_theta,
                                   layout, calc_principal_points,
-                                  create_pca_plots, calc_X_WG, create_q_u0_plot)
+                                  create_pca_plots, calc_X_WG, make_large_point_3d)
 from irs_mpc.irs_mpc_quasistatic import (IrsMpcQuasistatic)
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
@@ -254,7 +254,7 @@ def update_reachability(n_clicks, q_u0_json, q_a0_json):
     # goal poses
     q_u_goal_samples = q_u0 + sample_on_sphere(radius=0.5, n_samples=1000)
 
-    plot_qu0 = create_q_u0_plot(q_u0)
+    plot_qu0 = make_large_point_3d(q_u0)
 
     plot_1_step = go.Scatter3d(x=qu_samples[:, 0],
                                y=qu_samples[:, 1],
