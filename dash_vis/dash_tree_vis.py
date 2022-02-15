@@ -108,7 +108,7 @@ for i in range(n_nodes):
     node = tree.nodes[i]["node"]
     cov_inv_u = node.covinv_u
     p_center = node.q[-3:]
-    e_points, volume = make_ellipsoid_plotly(cov_inv_u, p_center, 0.05, 8)
+    e_points, volume = make_ellipsoid_plotly(cov_inv_u, p_center, 0.1, 10)
     ellipsoid_mesh_points.append(e_points)
     ellipsoid_volumes.append(volume)
 
@@ -357,7 +357,7 @@ def slider_callback(num_nodes, metric_to_plot, relayout_data):
     traces_list.append(make_large_point_3d(
         p=q_p_u, name='parent', color='darkslateblue'))
     traces_list.append(make_large_point_3d(
-        p=q_u, name='new leaf', color='red'))
+        p=q_u, name='new leaf', color='red', symbol='diamond'))
 
     # show subgoal in meshcat
     X_WG = calc_X_WG(y=q_g_u[0], z=q_g_u[1], theta=q_g_u[2])
