@@ -13,9 +13,13 @@ class Node:
     single node. Add to nx.Digraph() using G.add_node(1, node=Node())
     """    
     def __init__(self, q):
-        self.q = q # np.array of states.
-        self.value = np.nan # float.
-        self.id = np.nan # int
+        self.q = q  # np.array of states.
+        self.value = np.nan  # float.
+        self.id = np.nan  # int
+        # To extend the tree, a subgoal is sampled first, and then a new node
+        # that is "as close as possible" to the subgoal is added to the tree.
+        # This field stores the subgoal associated with the new node.
+        self.subgoal = None
 
 
 class Edge:
@@ -50,11 +54,11 @@ class Rrt:
         # n is dim(q). Used for batch computation. Note that we initialize to
         # max_size to save computation time while adding nodes, but only the
         # first N columns of this matrix are "valid".
-        self.q_matrix = np.nan * np.zeros((self.max_size, self.dim_q))
+        self.q_matrix = np.full((self.max_size, self.dim_q), np.nan)
 
         # Additionally, keep a storage of values.
-        self.value_lst = np.nan * np.zeros(self.max_size)
-        self.root_node.value = 0.0 # by definition, root node has value of 0.
+        self.value_lst = np.full(self.max_size, np.nan)
+        self.root_node.value = 0.0  # by definition, root node has value of 0.
         self.value_lst[self.size] = self.root_node.value
 
         # Add root node to the graph to finish initialization.
@@ -70,9 +74,11 @@ class Rrt:
         edge = self.graph.edges[parent_id, child_id]["edge"]
         return edge
 
-    def get_valid_q_matrix(self):
+    def get_q_matrix_up_to(self, size: int = None):
         """ Get slice of q matrix with valid components."""
-        return self.q_matrix[:self.size, :]
+        if size is None:
+            size = self.size
+        return self.q_matrix[:size, :]
 
     def get_valid_value_lst(self):
         """ Get slice of value_lst with valid components."""
@@ -186,14 +192,14 @@ class Rrt:
         """
         Main method for iteration.
         """
-        pbar = tqdm(total = self.max_size)
+        pbar = tqdm(total=self.max_size)
 
-        while(self.size < self.params.max_size):
+        while self.size < self.params.max_size:
             pbar.update(1)
 
             # 1. Sample a subgoal.
             sample_goal = self.cointoss_for_goal()
-            if (sample_goal):
+            if sample_goal:
                 subgoal = self.params.goal
             else:
                 subgoal = self.sample_subgoal()

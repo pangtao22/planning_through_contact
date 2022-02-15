@@ -1,6 +1,7 @@
 import copy
 import pickle
 
+import networkx
 import numpy as np
 from irs_mpc.irs_mpc_params import BundleMode
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
@@ -19,11 +20,20 @@ class IrsNode(Node):
         super().__init__(q)
         # Bundled dynamics parameters.
         self.ubar = np.nan
+
+        # For q_u and q_a.
         self.Bhat = np.nan
         self.chat = np.nan
         self.cov = np.nan
         self.covinv = np.nan
         self.mu = np.nan
+
+        # For q_u only.
+        self.Bhat_u = None
+        self.chat_u = None
+        self.cov_u = None
+        self.covinv_u = None
+        self.mu_u = None
 
 
 class IrsEdge(Edge):
@@ -42,13 +52,12 @@ class IrsEdge(Edge):
 
 class IrsRrt(Rrt):
     def __init__(self, params: IrsRrtParams):
-        self.params = params
-
         self.q_dynamics = QuasistaticDynamics(
             h=params.h,
             q_model_path=params.q_model_path,
             internal_viz=True)
 
+        self.params = self.load_params(params)
         self.reachable_set = ReachableSet(self.q_dynamics, params)
         self.max_size = params.max_size
 
@@ -65,7 +74,41 @@ class IrsRrt(Rrt):
         self.chat_matrix = np.zeros((self.max_size,
                                      self.q_dynamics.dim_x))
 
+        self.dim_q_u = self.q_dynamics.dim_x - self.q_dynamics.dim_u
+        self.covinv_u_tensor = np.zeros((self.max_size,
+                                         self.dim_q_u, self.dim_q_u))
+
+        self.q_u_indices_into_x = self.q_dynamics.get_q_u_indices_into_x()
+
         super().__init__(params)
+
+    @staticmethod
+    def make_from_pickled_tree(tree: networkx.DiGraph):
+        # Factory method for making an IrsRrt object from a pickled tree.
+        irs_rrt_param = tree.graph['irs_rrt_params']
+        irs_rrt = IrsRrt(irs_rrt_param)
+        irs_rrt.graph = tree
+
+        for i_node in tree.nodes:
+            node = tree.nodes[i_node]["node"]
+            irs_rrt.Bhat_tensor[i_node] = node.Bhat
+            irs_rrt.covinv_tensor[i_node] = node.covinv
+            irs_rrt.chat_matrix[i_node] = node.chat
+            irs_rrt.covinv_u_tensor[i_node] = node.covinv_u
+            irs_rrt.q_matrix[i_node] = node.q
+
+        return irs_rrt
+
+    def load_params(self, params: IrsRrtParams):
+        for key in params.joint_limits.keys():
+            break
+        if isinstance(key, str):
+            joint_limits_keyed_by_model_instance_index = {
+                self.q_dynamics.plant.GetModelInstanceByName(name): value
+                for name, value in params.joint_limits.items()}
+            params.joint_limits = joint_limits_keyed_by_model_instance_index
+
+        return params
 
     def joint_limit_to_x_bounds(self, joint_limits):
         joint_limit_ub = {}
@@ -79,34 +122,48 @@ class IrsRrt(Rrt):
         x_ub = self.q_dynamics.get_x_from_q_dict(joint_limit_ub)
         return x_lb, x_ub
 
-    def populate_node_parameters(self, node):
+    def populate_node_parameters(self, node: IrsNode):
         """
         Given a node which has a q, this method populates the rest of the
         node parameters using reachable set computations.
         """
         node.ubar = node.q[self.q_dynamics.get_q_a_indices_into_x()]
 
+        # For q_u and q_a.
         if self.params.bundle_mode == BundleMode.kExact:
-            node.Bhat, node.chat = self.reachable_set.calc_exact_Bc(
+            Bhat, chat = self.reachable_set.calc_exact_Bc(
                 node.q, node.ubar)
         else:
-            node.Bhat, node.chat = self.reachable_set.calc_bundled_Bc(
+            Bhat, chat = self.reachable_set.calc_bundled_Bc(
                 node.q, node.ubar)
 
+        node.Bhat = Bhat
+        node.chat = chat
         node.cov, node.mu = self.reachable_set.calc_metric_parameters(
             node.Bhat, node.chat)
         node.covinv = np.linalg.inv(node.cov)
 
-    def get_valid_Bhat_tensor(self):
-        return self.Bhat_tensor[:self.size]
+        # For q_u only.
+        node.Bhat_u = Bhat[self.q_u_indices_into_x, :]
+        node.chat_u = chat[self.q_u_indices_into_x]
+        node.cov_u, node.mu_u = (
+            self.reachable_set.calc_unactuated_metric_parameters(Bhat, chat))
+        node.covinv_u = np.linalg.inv(node.cov_u)
 
-    def get_valid_covinv_tensor(self):
-        return self.covinv_tensor[:self.size]
+    def get_Bhat_tensor_up_to(self, n_nodes: int):
+        return self.Bhat_tensor[:n_nodes]
 
-    def get_valid_chat_matrix(self):
-        return self.chat_matrix[:self.size]
+    def get_covinv_tensor_up_to(self, n_nodes: int, is_q_u_only: bool):
+        if is_q_u_only:
+            return self.covinv_u_tensor[:n_nodes]
+        return self.covinv_tensor[:n_nodes]
 
-    def add_node(self, node: Node):
+    def get_chat_matrix_up_to(self, n_nodes: int, is_q_u_only: bool):
+        if is_q_u_only:
+            return self.chat_matrix[:n_nodes, self.q_u_indices_into_x]
+        return self.chat_matrix[:n_nodes]
+
+    def add_node(self, node: IrsNode):
         super().add_node(node)
         # In addition to the add_node operation, we'll have to add the
         # B and c matrices of the node into our batch tensor.
@@ -118,6 +175,7 @@ class IrsRrt(Rrt):
         self.Bhat_tensor[node.id] = node.Bhat
         self.covinv_tensor[node.id] = node.covinv
         self.chat_matrix[node.id] = node.chat
+        self.covinv_u_tensor[node.id] = node.covinv_u
 
     def sample_subgoal(self):
         """
@@ -144,6 +202,7 @@ class IrsRrt(Rrt):
             parent_node.covinv, parent_node.mu, xnext)
 
         child_node = IrsNode(xnext)
+        child_node.subgoal = q
 
         edge = IrsEdge()
         edge.parent = parent_node
@@ -154,20 +213,76 @@ class IrsRrt(Rrt):
 
         return child_node, edge
 
-    def calc_metric_batch(self, q_query):
-        """
-        Given q_query, return a np.array of \|q_query - q\|_{\Sigma}^{-1}_q,
-        local distances from all the existing nodes in the tree to q_query.
-        """
-        mu_batch = self.get_valid_chat_matrix()  # B x n
-        covinv_tensor = self.get_valid_covinv_tensor()  # B x n x n
-
-        error_batch = q_query[None, :] - mu_batch  # B x n
-
+    def calc_metric_batch_local(self, q_query: np.ndarray, n_nodes: int,
+                                is_q_u_only: bool):
+        if is_q_u_only:
+            q_query = q_query[self.q_u_indices_into_x]
+        # B x n
+        mu_batch = self.get_chat_matrix_up_to(n_nodes, is_q_u_only)
+        # B x n x n
+        covinv_tensor = self.get_covinv_tensor_up_to(n_nodes, is_q_u_only)
+        error_batch = q_query - mu_batch
         int_batch = np.einsum('Bij,Bi -> Bj', covinv_tensor, error_batch)
         metric_batch = np.einsum('Bi,Bi -> B', int_batch, error_batch)
 
         return metric_batch
+
+    def calc_metric_batch_global(self, q_query: np.ndarray, n_nodes: int,
+                                 is_q_u_only: bool):
+        q_batch = self.get_q_matrix_up_to(n_nodes)
+
+        if is_q_u_only:
+            error_batch = (q_query[self.q_u_indices_into_x]
+                           - q_batch[:, self.q_u_indices_into_x])
+            metric_mat = np.diag(
+                self.params.global_metric[self.q_u_indices_into_x])
+        else:
+            error_batch = q_query - q_batch
+            metric_mat = np.diag(self.params.global_metric)
+
+        intsum = np.einsum('Bi,ij->Bj', error_batch, metric_mat)
+        metric_batch = np.einsum('Bi,Bi->B', intsum, error_batch)
+
+        return metric_batch
+
+    def calc_metric_batch(self, q_query: np.ndarray, n_nodes=None,
+                          distance_metric=None):
+        """
+        Given q_query, return a np.array of \|q_query - q\|_{\Sigma}^{-1}_q,
+        local distances from all the existing nodes in the tree to q_query.
+
+        This function computes the batch metric for the first n_nodes nodes
+        in the tree. If n_nodes is None, the batch metric to all nodes in the
+        tree is computed.
+
+        Metric computation supports a 3 combinations of modes:
+         - full_q OR un_actuated
+         - full_tree OR up_to_n_nodes
+         - global_metric OR local_metric
+        """
+        assert len(q_query) == self.q_dynamics.dim_x
+
+        if distance_metric is None:
+            distance_metric = self.params.distance_metric
+
+        if n_nodes is None:
+            n_nodes = self.size
+
+        if distance_metric == "global":
+            return self.calc_metric_batch_global(q_query, n_nodes,
+                                                 is_q_u_only=False)
+        elif distance_metric == "global_u":
+            return self.calc_metric_batch_global(q_query, n_nodes,
+                                                 is_q_u_only=True)
+        elif distance_metric == "local":
+            return self.calc_metric_batch_local(q_query, n_nodes,
+                                                is_q_u_only=False)
+        elif distance_metric == "local_u":
+            return self.calc_metric_batch_local(q_query, n_nodes,
+                                                is_q_u_only=True)
+        else:
+            raise RuntimeError(f"distance metric {distance_metric} is not "
+                               f"supported.")
 
     def save_tree(self, filename):
         """
