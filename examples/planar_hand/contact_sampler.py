@@ -108,7 +108,7 @@ class PlanarHandContactSampler(ContactSampler):
     def has_collisions(self, q_dict: Dict[ModelInstanceIndex, np.ndarray]):
         # this also updates query_object.
         self.q_sim.update_mbp_positions(q_dict)
-        return self.q_sim.query_object.HasCollisions()
+        return self.q_sim.get_query_object().HasCollisions()
 
     def sample_contact_points_in_workspace(self,
                                            p_WB: np.ndarray,
@@ -262,11 +262,11 @@ class PlanarHandContactSampler(ContactSampler):
         Given a q_goal, sample a grasp using the contact sampler.
         """
         pinch_grasp = self.cointoss_for_grasp()
-        if (pinch_grasp):
-            q_dict = self.contact_sampler.sample_pinch_grasp(
+        if pinch_grasp:
+            q_dict = self.sample_pinch_grasp(
                 q_u_goal, self.n_samples)[0]
         else:
-            q_dict = self.contact_sampler.calc_enveloping_grasp(q_u_goal)
+            q_dict = self.calc_enveloping_grasp(q_u_goal)
 
         return self.q_dynamics.get_x_from_q_dict(q_dict)
 
