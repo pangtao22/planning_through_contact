@@ -39,7 +39,7 @@ class TestRRTBase(unittest.TestCase):
             node_lst.append(self.tree.graph.nodes[i]["node"].q)
         node_lst = np.array(node_lst)
 
-        self.assertTrue(np.allclose(node_lst, self.tree.get_valid_q_matrix()))
+        self.assertTrue(np.allclose(node_lst, self.tree.get_q_matrix_up_to()))
 
     def test_value_lst(self):
         """
