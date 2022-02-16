@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+from .context import examples, irs_mpc
 from examples.allegro_hand.allegro_hand_setup import *
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel

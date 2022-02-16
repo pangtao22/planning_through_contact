@@ -3,7 +3,7 @@ from typing import Dict, Any
 
 import numpy as np
 
-from context import examples, irs_mpc, irs_rrt
+from .context import examples, irs_mpc, irs_rrt
 from irs_rrt.rrt_base import Node
 
 from examples.euclidean_tree.euclidean_tree import (
