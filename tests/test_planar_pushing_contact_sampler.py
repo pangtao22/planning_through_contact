@@ -12,11 +12,10 @@ from irs_rrt.rrt_base import Node
 from examples.planar_pushing.contact_sampler import PlanarPushingContactSampler
 from examples.planar_pushing.planar_pushing_setup import *
     
-class TestAllegroContactSampler(unittest.TestCase):
+class TestPlanarPushingContactSampler(unittest.TestCase):
     """
-    The tests compare the numpy storage used for batch computations against
-    information in the invidiual nodes of network x to make sure they are 
-    consistent.
+    Test if contact sampler runs correctly for planar pushing. For visual
+    inspection, turn on meshcat.
     """
     def setUp(self):
 

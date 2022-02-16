@@ -12,9 +12,8 @@ from examples.allegro_hand.allegro_hand_setup import *
     
 class TestAllegroContactSampler(unittest.TestCase):
     """
-    The tests compare the numpy storage used for batch computations against
-    information in the invidiual nodes of network x to make sure they are 
-    consistent.
+    Test if contact sampler runs correctly for allegro. For visual
+    inspection, turn on meshcat.    
     """
     def setUp(self):
 
