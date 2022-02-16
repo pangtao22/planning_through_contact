@@ -23,14 +23,14 @@ class TestAllegroContactSampler(unittest.TestCase):
             q_model_path=q_model_path,
             internal_viz=True)
 
-        self.contact_sampler = AllegroHandContactSampler(self.q_dynamics, 100)
+        self.contact_sampler = AllegroHandContactSampler(self.q_dynamics)
 
     def test_sampler(self):
         """
         Test if sampler is running correctly.
         """
 
-        for i in range(self.contact_sampler.n_samples):
+        for i in range(10):
             q_u = np.array([1, 0, 0, 0,
                 -0.08 + 0.01 * np.random.rand(),
                 0.01 * np.random.rand() - 0.005,

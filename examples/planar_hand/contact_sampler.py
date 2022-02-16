@@ -19,8 +19,9 @@ class PlanarHandContactSampler(ContactSampler):
     """
     def __init__(self, q_dynamics: QuasistaticDynamics, n_samples: int,
         pinch_prob: float):
-        super().__init__(q_dynamics, n_samples)
+        super().__init__(q_dynamics)
 
+        self.n_samples = n_samples
         self.pinch_prob = pinch_prob
         n2i_map = q_dynamics.q_sim.get_model_instance_name_to_index_map()
         self.model_u = n2i_map[object_name]
@@ -254,10 +255,7 @@ class PlanarHandContactSampler(ContactSampler):
         return theta
 
     def cointoss_for_grasp(self):
-        sample_grasp = np.random.choice(
-            [0, 1], 1, p=[
-                1 - self.pinch_prob, self.pinch_prob])
-        return sample_grasp
+        return 1 if np.random.rand() > self.pinch_prob else 0
 
     def sample_contact(self, q_u_goal):
         """

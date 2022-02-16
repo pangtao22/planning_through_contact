@@ -6,8 +6,8 @@ from .allegro_hand_setup import *
 
 
 class AllegroHandContactSampler(ContactSampler):
-    def __init__(self, q_dynamics: QuasistaticDynamics, n_samples: int):
-        super().__init__(q_dynamics, n_samples)
+    def __init__(self, q_dynamics: QuasistaticDynamics):
+        super().__init__(q_dynamics)
 
         q_sim_py = q_dynamics.q_sim_py
         plant = q_sim_py.get_plant()

@@ -5,13 +5,12 @@ from irs_mpc.irs_mpc_params import BundleMode
 
 
 class ContactSampler:
-    def __init__(self, q_dynamics: QuasistaticDynamics, n_samples: int):
+    def __init__(self, q_dynamics: QuasistaticDynamics):
         """
         Base class for sampling contact.
         """
         self.q_dynamics = q_dynamics
         self.q_sim = q_dynamics.q_sim
-        self.n_samples = n_samples
 
     def sample_contact(self, q_u):
         """
