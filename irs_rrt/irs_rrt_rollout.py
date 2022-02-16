@@ -53,7 +53,7 @@ class IrsRrtRollout(IrsRrtGlobal):
             parent_node.ubar, ustar, self.params.rollout_horizon)
 
         xnext_trj = self.q_dynamics.dynamics_rollout(parent_node.q, u_trj)
-        xnext = xnext_trj[self.params.rollout_horizon,:]
+        xnext = xnext_trj[self.params.rollout_horizon, :]
 
         cost = self.compute_edge_cost(parent_node.q, xnext)
 
