@@ -26,8 +26,7 @@ plant = q_dynamics.plant
 model_a_l = plant.GetModelInstanceByName(robot_l_name)
 model_a_r = plant.GetModelInstanceByName(robot_r_name)
 model_u = plant.GetModelInstanceByName(object_name)
-cspace = PlanarHandContactSampler(model_u=model_u, model_a_l=model_a_l,
-                                  model_a_r=model_a_r, q_sim=q_sim_py)
+contact_sampler = PlanarHandContactSampler(q_dynamics, 0.5)
 
 #%% Irs-Mpc
 params = IrsMpcQuasistaticParameters()
@@ -60,7 +59,7 @@ q_dynamics_p = irs_mpc.q_dynamics_parallel
 #%% traj opt
 q_u0 = np.array([0, 0.35, 0])
 # q_u0 = np.array([-0.2, 0.3, 0])
-q0_dict = cspace.calc_enveloping_grasp(q_u=q_u0)
+q0_dict = contact_sampler.calc_enveloping_grasp(q_u=q_u0)
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u0 = q_dynamics.get_u_from_q_cmd_dict(q0_dict)
 

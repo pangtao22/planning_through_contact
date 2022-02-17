@@ -1,4 +1,4 @@
-import os
+import logging
 from typing import Union
 
 import numpy as np
@@ -36,9 +36,6 @@ class QuasistaticDynamicsParallel:
         self.dim_u = q_dynamics.dim_u
         self.indices_u_into_x = q_dynamics.get_q_a_indices_into_x()
 
-        # logger
-        self.logger = self.q_dynamics.logger
-
         if use_zmq_workers:
             context = zmq.Context()
 
@@ -50,9 +47,8 @@ class QuasistaticDynamicsParallel:
             self.receiver = context.socket(zmq.PULL)
             self.receiver.bind(f"tcp://*:{kTaskSinkSocket}")
 
-            self.logger.info(
-                "Using ZMQ workers. This will hang if worker processes are not "
-                "running")
+            print("Using ZMQ workers. This will hang if worker processes are "
+                  "not running")
 
     def dynamics_batch_serial(self, x_batch: np.ndarray, u_batch: np.ndarray):
         """
@@ -293,7 +289,7 @@ class QuasistaticDynamicsParallel:
                     Bt[t] += self.q_dynamics.q_sim.get_Dq_nextDqa_cmd()
                     n_good_samples += 1
                 except RuntimeError as err:
-                    self.logger.warn(err.__str__())
+                    logging.warning(err.__str__())
 
             Bt[t] /= n_good_samples
 

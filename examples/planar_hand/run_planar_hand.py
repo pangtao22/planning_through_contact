@@ -97,7 +97,7 @@ q_sim_py.animate_system_trajectory(h, q_dict_traj)
 #%%
 params = IrsMpcQuasistaticParameters()
 params.Q_dict = {
-    idx_u: np.array([10, 10, 10]),
+    idx_u: np.array([20, 20, 20]),
     idx_a_l: np.array([1e-3, 1e-3]),
     idx_a_r: np.array([1e-3, 1e-3])}
 params.Qd_dict = {model: Q_i * 100 for model, Q_i in params.Q_dict.items()}
@@ -129,22 +129,22 @@ x_trj_d = np.tile(xd, (T + 1, 1))
 irs_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_traj_0)
 
 
-#%% compare zero-order and first-order gradient estimation.
-std_dict = {idx_u: np.ones(3) * 1e-3,
-            idx_a_r: np.ones(2) * 0.1,
-            idx_a_l: np.ones(2) * 0.1}
-std_x = q_dynamics.get_x_from_q_dict(std_dict)
-std_u = q_dynamics.get_u_from_q_cmd_dict(std_dict)
-ABhat1 = q_dynamics.calc_AB_first_order(x, u, 100, std_u)
-ABhat0 = q_dynamics.calc_B_zero_order(x, u, 100, std_u=std_u)
-
-
 #%%
 t0 = time.time()
-irs_mpc.iterate(num_iters)
+irs_mpc.iterate(num_iters, cost_threshold=10)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")
+
+#%% plot different components of the cost for all iterations.
+irs_mpc.plot_costs()
+
+
+#%%
+x_traj_to_publish = irs_mpc.x_trj_best
+q_dynamics.publish_trajectory(x_traj_to_publish)
+print('x_goal:', xd)
+print('x_final:', x_traj_to_publish[-1])
 
 #%% profile iterate
 # cProfile.runctx('irs_lqr_q.iterate(10)',
@@ -155,25 +155,12 @@ print(f"iterate took {t1 - t0} seconds.")
 #     irs_lqr_q.cost_all_list, delimiter=",")
 
 
-#%%
-x_traj_to_publish = irs_mpc.x_trj_best
-q_dynamics.publish_trajectory(x_traj_to_publish)
-print('x_goal:', xd)
-print('x_final:', x_traj_to_publish[-1])
 
-
-#%% plot different components of the cost for all iterations.
-plt.figure()
-plt.plot(irs_mpc.cost_all_list, label='all')
-plt.plot(irs_mpc.cost_Qa_list, label='Qa')
-plt.plot(irs_mpc.cost_Qu_list, label='Qu')
-plt.plot(irs_mpc.cost_Qa_final_list, label='Qa_f')
-plt.plot(irs_mpc.cost_Qu_final_list, label='Qu_f')
-plt.plot(irs_mpc.cost_R_list, label='R')
-
-plt.title('Trajectory cost')
-plt.xlabel('Iterations')
-# plt.yscale('log')
-plt.legend()
-plt.grid(True)
-plt.show()
+#%% compare zero-order and first-order gradient estimation.
+std_dict = {idx_u: np.ones(3) * 1e-3,
+            idx_a_r: np.ones(2) * 0.1,
+            idx_a_l: np.ones(2) * 0.1}
+std_x = q_dynamics.get_x_from_q_dict(std_dict)
+std_u = q_dynamics.get_u_from_q_cmd_dict(std_dict)
+ABhat1 = q_dynamics.calc_AB_first_order(x, u, 100, std_u)
+ABhat0 = q_dynamics.calc_B_zero_order(x, u, 100, std_u=std_u)

@@ -36,7 +36,8 @@ model_a_l = plant.GetModelInstanceByName(robot_l_name)
 model_a_r = plant.GetModelInstanceByName(robot_r_name)
 model_u = plant.GetModelInstanceByName(object_name)
 
-contact_sampler = PlanarHandContactSampler(q_dynamics=q_dynamics)
+contact_sampler = PlanarHandContactSampler(q_dynamics=q_dynamics,
+                                           pinch_prob=0.5)
 
 # %% irs-lqr
 params = IrsMpcQuasistaticParameters()

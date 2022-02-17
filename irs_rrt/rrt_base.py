@@ -1,17 +1,17 @@
-from typing import Dict
-import numpy as np
-import networkx as nx
-from tqdm import tqdm
 import pickle
 
+import networkx as nx
+import numpy as np
 from irs_rrt.rrt_params import RrtParams
+from tqdm import tqdm
 
 
 class Node:
     """
     Base node class. Owns all the attributes and methods related to a 
     single node. Add to nx.Digraph() using G.add_node(1, node=Node())
-    """    
+    """
+
     def __init__(self, q):
         self.q = q  # np.array of states.
         self.value = np.nan  # float.
@@ -26,25 +26,27 @@ class Edge:
     """
     Base edge class. Owns all the attributes and methods related to an edge.
     Add to nx.Digraph() using G.add_edge(1, 2, edge=Edge())
-    """    
+    """
+
     def __init__(self):
-        self.parent = None # Node class.
-        self.child = None # Node class.
-        self.cost = np.nan # float
+        self.parent = None  # Node class.
+        self.child = None  # Node class.
+        self.cost = np.nan  # float
 
 
 class Rrt:
     """
     Base tress class.
     """
+
     def __init__(self, params: RrtParams):
         self.graph = nx.DiGraph()
-        self.size = 0 # variable to keep track of nodes.
+        self.size = 0  # variable to keep track of nodes.
         self.max_size = params.max_size
         self.goal = params.goal
         self.root_node = params.root_node
         self.termination_tolerance = params.termination_tolerance
-        self.subgoal_prob = params.subgoal_prob        
+        self.subgoal_prob = params.goal_as_subgoal_prob
         self.params = params
 
         self.dim_q = len(self.root_node.q)
@@ -102,7 +104,7 @@ class Rrt:
         """
         self.graph.remove_node(id)
         self.graph.add_node(id, node=node)
-        self.q_matrix[id,:] = node.q
+        self.q_matrix[id, :] = node.q
         node.id = id
 
     def add_edge(self, edge: Edge):
@@ -113,8 +115,8 @@ class Rrt:
         if np.isnan(edge.cost):
             raise ValueError(
                 "Attempting to add edge, but the edge does not have a cost "
-             +  "assigned.")
-            
+                + "assigned.")
+
         self.graph.add_edge(edge.parent.id, edge.child.id, edge=edge)
         edge.child.value = edge.parent.value + edge.cost
         self.value_lst[edge.child.id] = edge.child.value
@@ -126,10 +128,9 @@ class Rrt:
         self.value_lst[edge.child.value] = edge.child.value
 
     def cointoss_for_goal(self):
-        sample_goal = np.random.choice(
-            [0, 1], 1, p=[
-                1 - self.params.subgoal_prob, self.params.subgoal_prob])
-        return sample_goal
+        if np.random.rand() < self.params.goal_as_subgoal_prob:
+            return True
+        return False
 
     def sample_subgoal(self):
         """ Provide a method to sample the a subgoal. """
@@ -139,7 +140,7 @@ class Rrt:
         """
         Given a subgoal, and find the node that is closest from the subgoal.
         """
-        metric_batch = self.calc_metric_batch(subgoal)
+        metric_batch = self.calc_distance_batch(subgoal)
         selected_node = self.get_node_from_id(np.argmin(metric_batch))
         return selected_node
 
@@ -153,7 +154,7 @@ class Rrt:
         """
         return self.extend_towards_q(node, subgoal)
 
-    def calc_metric_batch(self, q_query: np.array):
+    def calc_distance_batch(self, q_query: np.array):
         """
         Given q_query, return a np.array of \|q_query - q\| according to some
         local distances from all the existing nodes in the tree to q_query.
@@ -164,16 +165,16 @@ class Rrt:
         """
         Evaluate termination criteria for RRT using global distance metric.
         """
-        dist_batch = self.calc_metric_batch(self.params.goal)
-        return np.min(dist_batch) < self.params.termination_tolerance        
-        
+        dist_batch = self.calc_distance_batch(self.params.goal)
+        return np.min(dist_batch) < self.params.termination_tolerance
+
     def rewire(self, parent_node: Node, child_node: Node):
         """
         Rewiring step. Loop over neighbors, query for the new value after
         rewiring to candidate parents, and rewire if the value is lower.
         """
         # Compute distance from candidate child_node to all the nodes.
-        dist_lst = self.calc_metric_batch(child_node.q)
+        dist_lst = self.calc_distance_batch(child_node.q)
         value_candidate_lst = self.get_valid_value_lst() + dist_lst
 
         # Get neighboring indices.
@@ -198,8 +199,7 @@ class Rrt:
             pbar.update(1)
 
             # 1. Sample a subgoal.
-            sample_goal = self.cointoss_for_goal()
-            if sample_goal:
+            if self.cointoss_for_goal():
                 subgoal = self.params.goal
             else:
                 subgoal = self.sample_subgoal()
@@ -211,7 +211,7 @@ class Rrt:
             child_node, edge = self.extend(parent_node, subgoal)
 
             # 4. Attempt to rewire a candidate child node.
-            if (self.params.rewire):
+            if self.params.rewire:
                 parent_node, child_node, edge = self.rewire(
                     parent_node, child_node)
 
@@ -245,9 +245,9 @@ class Rrt:
         u_trj = np.zeros((path_T - 1, dim_u))
 
         for i in range(path_T - 1):
-            x_trj[i,:] = self.get_node_from_id(path[i]).q
-            u_trj[i,:] = self.get_edge_from_id(path[i], path[i+1]).u
-        x_trj[path_T-1,:] = self.get_node_from_id(path[path_T-1]).q
+            x_trj[i, :] = self.get_node_from_id(path[i]).q
+            u_trj[i, :] = self.get_edge_from_id(path[i], path[i + 1]).u
+        x_trj[path_T - 1, :] = self.get_node_from_id(path[path_T - 1]).q
 
         path_dict = {
             "x_trj": x_trj, "u_trj": u_trj}

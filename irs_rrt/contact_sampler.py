@@ -1,7 +1,4 @@
-from sys import implementation
-import numpy as np
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_mpc.irs_mpc_params import BundleMode
 
 
 class ContactSampler:

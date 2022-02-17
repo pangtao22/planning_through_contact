@@ -24,7 +24,7 @@ class TestRRTBase(unittest.TestCase):
         self.params = EuclideanRrtParams()
         self.params.root_node = root_node
         self.params.goal = goal
-        self.params.subgoal_prob = 0.1
+        self.params.goal_as_subgoal_prob = 0.1
         self.params.max_size = 200
 
         self.tree = EuclideanRrt(self.params)

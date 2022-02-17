@@ -11,7 +11,7 @@ class RrtParams:
         self.max_size = 100
         self.goal = None  # q_goal.
         self.root_node = None
-        self.subgoal_prob = 0.5
+        self.goal_as_subgoal_prob = 0.5
         self.termination_tolerance = 0.1
         self.rewire = False
 

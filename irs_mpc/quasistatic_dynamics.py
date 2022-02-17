@@ -2,7 +2,7 @@ from typing import Dict, Set, Union
 import os
 
 import numpy as np
-import spdlog
+import logging
 from pydrake.all import (ModelInstanceIndex, MultibodyPlant,
                          PiecewisePolynomial)
 from qsim.parser import QuasistaticParser, GradientMode
@@ -41,23 +41,6 @@ class QuasistaticDynamics(DynamicalSystem):
             models_all_b=self.q_sim_py.get_all_models(),
             velocity_indices_a=self.q_sim.get_velocity_indices(),
             velocity_indices_b=self.q_sim.get_velocity_indices())
-
-        # logger
-        self.logger = self.get_logger()
-
-    @staticmethod
-    def get_logger():
-        pid = str(os.getpid())
-        try:
-            logger = spdlog.ConsoleLogger(pid, True)
-        except RuntimeError:
-            '''
-            Accessing the console loggers with the same name from different 
-            processes seems to crash.
-            '''
-            logger = spdlog.ConsoleLogger('QD' + pid)
-
-        return logger
 
     @staticmethod
     def check_plants(plant_a: MultibodyPlant, plant_b: MultibodyPlant,
@@ -314,7 +297,7 @@ class QuasistaticDynamics(DynamicalSystem):
                 ABhat[:, self.dim_x:] += self.q_sim.get_Dq_nextDqa_cmd()
             except RuntimeError as err:
                 is_sample_good[i] = False
-                self.logger.warn(err.__str__())
+                logging.warning(err.__str__())
 
         ABhat /= is_sample_good.sum()
         return ABhat

@@ -376,13 +376,13 @@ def slider_callback(num_nodes, metric_to_plot, relayout_data):
     traces_list.append(edge_to_parent)
 
     # Subgoal cost histogram
-    d_local = irs_rrt.calc_metric_batch(
+    d_local = irs_rrt.calc_distance_batch(
         q_query=q_g, n_nodes=num_nodes - 1, distance_metric='local')
-    d_local_u = irs_rrt.calc_metric_batch(
+    d_local_u = irs_rrt.calc_distance_batch(
         q_query=q_g, n_nodes=num_nodes - 1, distance_metric='local_u')
-    d_global = irs_rrt.calc_metric_batch(
+    d_global = irs_rrt.calc_distance_batch(
         q_query=q_g, n_nodes=num_nodes - 1, distance_metric='global')
-    d_global_u = irs_rrt.calc_metric_batch(
+    d_global_u = irs_rrt.calc_distance_batch(
         q_query=q_g, n_nodes=num_nodes - 1, distance_metric='global_u')
     assert len(d_local) == num_nodes - 1
     assert len(d_global) == num_nodes - 1

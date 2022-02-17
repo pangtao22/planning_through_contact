@@ -23,6 +23,7 @@ from irs_rrt.contact_sampler import ContactSampler
 
 from .planar_pushing_setup import *
 
+
 class PlanarPushingContactSampler(ContactSampler):
     def __init__(self, q_dynamics: QuasistaticDynamics):
         super().__init__(q_dynamics)

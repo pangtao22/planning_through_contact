@@ -34,7 +34,7 @@ class EuclideanRrt(Rrt):
                 q - node.q) / np.linalg.norm(q - node.q)
         return Node(child_q)
 
-    def calc_metric_batch(self, q_query: np.array):
+    def calc_distance_batch(self, q_query: np.array):
         q_batch = self.get_q_matrix_up_to()
         error_batch = q_query[None,:] - q_batch
         return np.linalg.norm(error_batch, axis=1)
@@ -48,7 +48,7 @@ def plot_result():
     params = EuclideanRrtParams()
     params.root_node = root_node
     params.goal = goal
-    params.subgoal_prob = 0.01
+    params.goal_as_subgoal_prob = 0.01
     params.max_size = 3000
 
     tree = EuclideanRrt(params)

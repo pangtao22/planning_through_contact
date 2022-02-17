@@ -64,8 +64,8 @@ class IrsRrt3D(IrsRrt):
         cost += self.params.quat_metric * np.linalg.norm(quat_mul_diff[:-1])
         return cost
 
-    def calc_metric_batch_global(self, q_query: np.ndarray, n_nodes: int,
-                                 is_q_u_only: bool):
+    def calc_distance_batch_global(self, q_query: np.ndarray, n_nodes: int,
+                                   is_q_u_only: bool):
 
         q_batch = self.get_q_matrix_up_to(n_nodes)
 
