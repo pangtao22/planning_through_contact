@@ -80,8 +80,8 @@ x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u0 = q_dynamics.get_u_from_q_cmd_dict(q0_dict)
 xd = q_dynamics.get_x_from_q_dict(q_d_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
-u_traj_0 = np.tile(u0, (T, 1))
-irs_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_traj_0)
+u_trj_0 = np.tile(u0, (T, 1))
+irs_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 
 #%%
 # irs_lqr_q.q_dynamics_parallel.q_sim_batch.set_num_max_parallel_executions(10)

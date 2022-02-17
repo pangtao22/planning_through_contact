@@ -4,19 +4,20 @@ from tqdm import tqdm
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 from irs_mpc.irs_mpc_quasistatic import IrsMpcQuasistatic
 
-from .irs_rrt import IrsRrt, IrsRrtParams, IrsNode, IrsEdge
+from .irs_rrt import IrsRrt, IrsNode, IrsEdge
+from .rrt_params import IrsRrtTrajOptParams
 from .reachable_set import ReachableSet
-from.contact_sampler import ContactSampler
+from .contact_sampler import ContactSampler
 
 
 class IrsRrtTrajOpt(IrsRrt):
-    def __init__(self, rrt_params: IrsRrtParams,
+    def __init__(self, rrt_params: IrsRrtTrajOptParams,
                  mpc_params: IrsMpcQuasistaticParameters,
                  contact_sampler: ContactSampler):
         super().__init__(params=rrt_params)
         # A QuasistaticDynamics object is constructed in IrsRrt.
-        self.idx_q_u_indo_q = self.q_dynamics.get_q_u_indices_into_x()
-        self.idx_q_a_into_q = self.q_dynamics.get_q_a_indices_into_x()
+        self.idx_q_u_indo_x = self.q_dynamics.get_q_u_indices_into_x()
+        self.idx_q_a_into_x = self.q_dynamics.get_q_a_indices_into_x()
 
         # IrsMpc for traj-opt.
         self.irs_mpc = IrsMpcQuasistatic(q_dynamics=self.q_dynamics,
@@ -41,10 +42,10 @@ class IrsRrtTrajOpt(IrsRrt):
         child_node.subgoal = q
         # teleport finger to a grasping pose.
         q = child_node.q
-        q_u = q[self.idx_q_u_indo_q]
+        q_u = q[self.idx_q_u_indo_x]
         q_grasp = self.contact_sampler.sample_contact(q_u)
-        q_a = q_grasp[self.idx_q_a_into_q]
-        child_node.q[self.idx_q_a_into_q] = q_a
+        q_a = q_grasp[self.idx_q_a_into_x]
+        child_node.q[self.idx_q_a_into_x] = q_a
 
         edge = IrsEdge()
         edge.parent = parent_node
@@ -57,8 +58,10 @@ class IrsRrtTrajOpt(IrsRrt):
     def select_closest_node(self, subgoal: np.array,
                             d_threshold: float = np.inf):
         """
-        Given a subgoal, and find the node that is closest from the subgoal.
-        If the distances of all
+        Given a subgoal, this function finds the node that is closest from the
+         subgoal.
+        None is returned if the distances of all nodes are greater than
+         d_treshold.
         """
         d_batch = self.calc_distance_batch(subgoal)
         i_min = np.argmin(d_batch)
@@ -82,7 +85,8 @@ class IrsRrtTrajOpt(IrsRrt):
                 subgoal = self.sample_subgoal()
 
             # 2. Sample closest node to subgoal
-            parent_node = self.select_closest_node(subgoal, d_threshold=50)
+            parent_node = self.select_closest_node(
+                subgoal, d_threshold=self.params.distance_threshold)
             if parent_node is None:
                 continue
             # update progress only if a valid parent_node is chosen.

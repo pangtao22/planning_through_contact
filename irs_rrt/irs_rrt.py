@@ -46,9 +46,6 @@ class IrsEdge(Edge):
         self.du = np.nan
         self.u = np.nan
         self.trj = None
-        # NOTE(terry-suh): It is possible to store trajectories in the edge
-        # class. We won't do that here because we don't solve trajopt during
-        # extend.
 
 
 class IrsRrt(Rrt):
