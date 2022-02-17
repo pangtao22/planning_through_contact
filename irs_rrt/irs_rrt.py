@@ -5,10 +5,12 @@ import networkx
 import numpy as np
 from irs_mpc.irs_mpc_params import BundleMode
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_rrt.reachable_set import ReachableSet
+from irs_rrt.reachable_set import ReachableSet, ReachableSet3D
 from irs_rrt.rrt_base import Node, Edge, Rrt
 from irs_rrt.rrt_params import IrsRrtParams
+from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 
+from scipy.spatial.transform import Rotation as R
 
 class IrsNode(Node):
     """

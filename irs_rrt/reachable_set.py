@@ -4,6 +4,7 @@ import networkx as nx
 from irs_rrt.rrt_params import IrsRrtParams
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
+from pydrake.all import AngleAxis, Quaternion, RotationMatrix
 from qsim_cpp import GradientMode
 
 
