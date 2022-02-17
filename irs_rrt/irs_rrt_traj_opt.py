@@ -108,5 +108,3 @@ class IrsRrtTrajOpt(IrsRrt):
 
         pbar.close()
 
-    def is_close_to_goal(self):
-
