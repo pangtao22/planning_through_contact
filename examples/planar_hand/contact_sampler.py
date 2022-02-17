@@ -211,6 +211,8 @@ class PlanarHandContactSampler(ContactSampler):
                     not self.has_collisions(q_dict)):
                 q_a_r_valid.append(q_a_r)
 
+        if len(q_a_l_valid) * len(q_a_r_valid) == 0:
+            raise RuntimeError("No valid pinch grasp is found.")
         # TODO: mix and match good samples (even with the sample from
         #  enveloping grasp) to generate more diverse grasps.
         return [{self.model_u: q_u, self.model_a_l: q_a_l,
