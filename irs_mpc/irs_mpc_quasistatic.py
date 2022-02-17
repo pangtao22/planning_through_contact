@@ -92,7 +92,7 @@ class IrsMpcQuasistatic:
 
         # initial cost.
         (cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final,
-         cost_R) = self.eval_cost(self.x_trj, self.u_trj)
+         cost_R) = self.calc_cost(self.x_trj, self.u_trj)
         self.cost = cost_Qu + cost_Qu_final + cost_Qa + cost_Qa_final + cost_R
 
         # best cost
@@ -139,7 +139,7 @@ class IrsMpcQuasistatic:
 
         return cost
 
-    def eval_cost(self, x_trj, u_trj):
+    def calc_cost(self, x_trj, u_trj):
         T = u_trj.shape[0]
         assert T == self.T and x_trj.shape[0] == T + 1
         idx_u_into_x = self.q_dynamics.get_q_a_indices_into_x()
@@ -271,7 +271,7 @@ class IrsMpcQuasistatic:
 
             x_trj_new, u_trj_new = self.local_descent(self.x_trj, self.u_trj)
             (cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final,
-             cost_R) = self.eval_cost(x_trj_new, u_trj_new)
+             cost_R) = self.calc_cost(x_trj_new, u_trj_new)
             cost = cost_Qu + cost_Qu_final + cost_Qa + cost_Qa_final + cost_R
             self.x_trj_list.append(x_trj_new)
             self.u_trj_list.append(u_trj_new)
