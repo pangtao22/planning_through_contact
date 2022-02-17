@@ -72,7 +72,8 @@ for i in range(T):
     q_cmd_dict = {idx_a_l: q_robot_l_traj.value(t + h).ravel(),
                   idx_a_r: q_robot_r_traj.value(t + h).ravel()}
     u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
-    x_next = q_dynamics.dynamics_py(x, u, mode='qp_mp', gradient_mode=GradientMode.kBOnly)
+    x_next = q_dynamics.dynamics_py(x, u, mode='qp_mp',
+                                    gradient_mode=GradientMode.kBOnly)
     Dq_nextDq = q_dynamics.q_sim_py.get_Dq_nextDq()
     Dq_nextDqa_cmd = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
 

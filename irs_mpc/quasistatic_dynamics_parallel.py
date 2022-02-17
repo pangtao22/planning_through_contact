@@ -73,11 +73,11 @@ class QuasistaticDynamicsParallel:
 
     def dynamics_batch(self, x_batch: np.ndarray, u_batch: np.ndarray):
         x_next, _, _ = self.q_sim_batch.calc_dynamics_parallel(
-            x_batch, u_batch, self.q_dynamics.h, GradientMode.kNone)
+            x_batch, u_batch, self.q_dynamics.h, GradientMode.kNone, None)
         return x_next
 
     def dynamics_rollout_batch(
-        self, x0_batch: np.ndarray, u_trj_batch: np.ndarray):
+            self, x0_batch: np.ndarray, u_trj_batch: np.ndarray):
         """
         Computes rollout of trajectories starting from x0_batch to every
         u_trj_batch.
@@ -91,12 +91,12 @@ class QuasistaticDynamicsParallel:
 
         n_batch = u_trj_batch.shape[0]
         T = u_trj_batch.shape[1]
-        x_trj_batch = np.zeros((n_batch, T+1, self.dim_x))
-        x_trj_batch[:,0,:] = x0_batch
+        x_trj_batch = np.zeros((n_batch, T + 1, self.dim_x))
+        x_trj_batch[:, 0, :] = x0_batch
 
         for t in range(T):
-            x_trj_batch[:,t+1,:] = self.dynamics_batch(
-                x_trj_batch[:,t,:], u_trj_batch[:,t,:])
+            x_trj_batch[:, t + 1, :] = self.dynamics_batch(
+                x_trj_batch[:, t, :], u_trj_batch[:, t, :])
 
         return x_trj_batch
 
@@ -106,7 +106,7 @@ class QuasistaticDynamicsParallel:
         u_batch must be of shape (n_samples, dim_u).
         """
         n_samples = u_batch.shape[0]
-        x_batch = np.tile(x_nominal[:,None], (1, n_samples)).transpose()
+        x_batch = np.tile(x_nominal[:, None], (1, n_samples)).transpose()
         xnext_batch = self.dynamics_batch(x_batch, u_batch)
         return np.mean(xnext_batch, axis=0)
 
@@ -314,9 +314,10 @@ class QuasistaticDynamicsParallel:
 
         x_batch_m = x_batch.view().reshape([T * n_samples, self.dim_x])
         u_batch_m = u_batch.view().reshape([T * n_samples, self.dim_u])
+        sp = self.q_dynamics.q_sim.get_sim_params()
         (x_next_batch_m, B_batch, is_valid_batch
          ) = self.q_sim_batch.calc_dynamics_parallel(
-            x_batch_m, u_batch_m, self.q_dynamics.h, GradientMode.kBOnly)
+            x_batch_m, u_batch_m, self.q_dynamics.h, GradientMode.kBOnly, None)
 
         # Shape of B_batch: (T * self.n_samples, self.dim_x, self.dim_u).
         B_batch = np.array(B_batch)
