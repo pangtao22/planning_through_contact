@@ -1,3 +1,4 @@
+import logging
 from typing import Dict
 
 import numpy as np
@@ -17,11 +18,9 @@ class PlanarHandContactSampler(ContactSampler):
     joint_limits[model] is an (n, 2) array, where joint_limits[model][i, 0] is
      the lower bound of joint i and joint_limits[model][i, 1] the upper bound.
     """
-    def __init__(self, q_dynamics: QuasistaticDynamics, n_samples: int,
-        pinch_prob: float):
+    def __init__(self, q_dynamics: QuasistaticDynamics, pinch_prob: float):
         super().__init__(q_dynamics)
 
-        self.n_samples = n_samples
         self.pinch_prob = pinch_prob
         n2i_map = q_dynamics.q_sim.get_model_instance_name_to_index_map()
         self.model_u = n2i_map[object_name]
@@ -38,7 +37,7 @@ class PlanarHandContactSampler(ContactSampler):
         '''
         # joint limits
         self.joint_limits = {
-            self.model_u: np.array([[-0.5, 0.5], [0.3, 0.6], [-np.pi, np.pi]]),
+            self.model_u: np.array([[-0.3, 0.3], [0.3, 0.5], [-np.pi, np.pi]]),
             self.model_a_l: np.array(
                 [[-np.pi / 2, np.pi / 2], [-np.pi / 2, 0]]),
             self.model_a_r: np.array([[-np.pi / 2, np.pi / 2], [0, np.pi / 2]])}
@@ -176,6 +175,9 @@ class PlanarHandContactSampler(ContactSampler):
         p_WCl = self.sample_contact_points_in_workspace(
             p_WB=self.p_WBl, p_WO=p_WO, n_samples=n_samples, arm='left')
 
+        if p_WCl is None or p_WCr is None:
+            raise RuntimeError("Left or right robot cannot reach the sphere.")
+
         if show_debug_plot:
             self.plot_sampled_points(p_WO, p_WCl, p_WCr)
 
@@ -209,6 +211,8 @@ class PlanarHandContactSampler(ContactSampler):
                     not self.has_collisions(q_dict)):
                 q_a_r_valid.append(q_a_r)
 
+        if len(q_a_l_valid) * len(q_a_r_valid) == 0:
+            raise RuntimeError("No valid pinch grasp is found.")
         # TODO: mix and match good samples (even with the sample from
         #  enveloping grasp) to generate more diverse grasps.
         return [{self.model_u: q_u, self.model_a_l: q_a_l,
@@ -257,18 +261,27 @@ class PlanarHandContactSampler(ContactSampler):
     def cointoss_for_grasp(self):
         return 1 if np.random.rand() > self.pinch_prob else 0
 
-    def sample_contact(self, q_u_goal):
+    def sample_contact(self, q_u_goal: np.ndarray):
         """
         Given a q_goal, sample a grasp using the contact sampler.
         """
         pinch_grasp = self.cointoss_for_grasp()
         if pinch_grasp:
-            q_dict = self.sample_pinch_grasp(
-                q_u_goal, self.n_samples)[0]
+            try:
+                q_dict = self.sample_pinch_grasp(q_u_goal, n_samples=50)[0]
+            except RuntimeError as err:
+                logging.warning(err)
+                # In this case, the quality of the enveloping grasp is
+                # expected to be quite bad, i.e. degenerate
+                # reachability ellipsoid. This node will be considered
+                # distance from other subgoals and not being connected to,
+                # i.e. becoming a "minor" node.
+                q_dict = self.calc_enveloping_grasp(q_u_goal)
         else:
             q_dict = self.calc_enveloping_grasp(q_u_goal)
 
         return self.q_dynamics.get_x_from_q_dict(q_dict)
+
 
 def sample_on_sphere(radius: float, n_samples: int):
     """

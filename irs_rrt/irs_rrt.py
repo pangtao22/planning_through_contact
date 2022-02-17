@@ -5,12 +5,10 @@ import networkx
 import numpy as np
 from irs_mpc.irs_mpc_params import BundleMode
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_rrt.reachable_set import ReachableSet, ReachableSet3D
+from irs_rrt.reachable_set import ReachableSet
 from irs_rrt.rrt_base import Node, Edge, Rrt
 from irs_rrt.rrt_params import IrsRrtParams
-from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 
-from scipy.spatial.transform import Rotation as R
 
 class IrsNode(Node):
     """
@@ -47,9 +45,7 @@ class IrsEdge(Edge):
         super().__init__()
         self.du = np.nan
         self.u = np.nan
-        # NOTE(terry-suh): It is possible to store trajectories in the edge
-        # class. We won't do that here because we don't solve trajopt during
-        # extend.
+        self.trj = None
 
 
 class IrsRrt(Rrt):
@@ -215,8 +211,8 @@ class IrsRrt(Rrt):
 
         return child_node, edge
 
-    def calc_metric_batch_local(self, q_query: np.ndarray, n_nodes: int,
-                                is_q_u_only: bool):
+    def calc_distance_batch_local(self, q_query: np.ndarray, n_nodes: int,
+                                  is_q_u_only: bool):
         if is_q_u_only:
             q_query = q_query[self.q_u_indices_into_x]
         # B x n
@@ -229,8 +225,8 @@ class IrsRrt(Rrt):
 
         return metric_batch
 
-    def calc_metric_batch_global(self, q_query: np.ndarray, n_nodes: int,
-                                 is_q_u_only: bool):
+    def calc_distance_batch_global(self, q_query: np.ndarray, n_nodes: int,
+                                   is_q_u_only: bool):
         q_batch = self.get_q_matrix_up_to(n_nodes)
 
         if is_q_u_only:
@@ -247,8 +243,8 @@ class IrsRrt(Rrt):
 
         return metric_batch
 
-    def calc_metric_batch(self, q_query: np.ndarray, n_nodes=None,
-                          distance_metric=None):
+    def calc_distance_batch(self, q_query: np.ndarray, n_nodes=None,
+                            distance_metric=None):
         """
         Given q_query, return a np.array of \|q_query - q\|_{\Sigma}^{-1}_q,
         local distances from all the existing nodes in the tree to q_query.
@@ -271,17 +267,17 @@ class IrsRrt(Rrt):
             n_nodes = self.size
 
         if distance_metric == "global":
-            return self.calc_metric_batch_global(q_query, n_nodes,
-                                                 is_q_u_only=False)
+            return self.calc_distance_batch_global(q_query, n_nodes,
+                                                   is_q_u_only=False)
         elif distance_metric == "global_u":
-            return self.calc_metric_batch_global(q_query, n_nodes,
-                                                 is_q_u_only=True)
+            return self.calc_distance_batch_global(q_query, n_nodes,
+                                                   is_q_u_only=True)
         elif distance_metric == "local":
-            return self.calc_metric_batch_local(q_query, n_nodes,
-                                                is_q_u_only=False)
+            return self.calc_distance_batch_local(q_query, n_nodes,
+                                                  is_q_u_only=False)
         elif distance_metric == "local_u":
-            return self.calc_metric_batch_local(q_query, n_nodes,
-                                                is_q_u_only=True)
+            return self.calc_distance_batch_local(q_query, n_nodes,
+                                                  is_q_u_only=True)
         else:
             raise RuntimeError(f"distance metric {distance_metric} is not "
                                f"supported.")

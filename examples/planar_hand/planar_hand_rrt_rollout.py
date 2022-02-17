@@ -70,7 +70,7 @@ params.goal[6] = np.pi
 params.termination_tolerance = 1e-2
 params.stepsize = 0.5
 params.rollout_horizon = 3
-params.subgoal_prob = 0.5
+params.goal_as_subgoal_prob = 0.5
 params.global_metric = np.array([0.001, 0.001, 0.001, 0.001, 5.0, 5.0, 3.0])
 
 tree = IrsRrtRollout(params)

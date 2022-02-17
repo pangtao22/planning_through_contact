@@ -63,7 +63,7 @@ params.goal = np.copy(x0)
 params.goal[1] = 0.1
 params.goal[3] = -0.5
 params.termination_tolerance = 1e-2
-params.subgoal_prob = 0.5
+params.goal_as_subgoal_prob = 0.5
 
 tree = IrsRrt(params)
 tree.iterate()

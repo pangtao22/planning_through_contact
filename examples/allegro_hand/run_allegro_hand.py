@@ -68,7 +68,7 @@ params.num_samples = num_samples
 params.bundle_mode = bundle_mode
 params.parallel_mode = parallel_mode
 
-irs_lqr_q = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
+irs_mpc = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
 
 
 #%%
@@ -80,13 +80,13 @@ x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u0 = q_dynamics.get_u_from_q_cmd_dict(q0_dict)
 xd = q_dynamics.get_x_from_q_dict(q_d_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
-u_traj_0 = np.tile(u0, (T, 1))
-irs_lqr_q.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_traj_0)
+u_trj_0 = np.tile(u0, (T, 1))
+irs_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 
 #%%
 # irs_lqr_q.q_dynamics_parallel.q_sim_batch.set_num_max_parallel_executions(10)
 t0 = time.time()
-irs_lqr_q.iterate(num_iters)
+irs_mpc.iterate(num_iters, cost_Qu_f_threshold=1)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")
@@ -113,7 +113,7 @@ q_dynamics.q_sim_py.viz.vis['goal'].set_transform(
 
 
 #%%
-x_traj_to_publish = irs_lqr_q.x_trj_best
+x_traj_to_publish = irs_mpc.x_trj_best
 q_dynamics.publish_trajectory(x_traj_to_publish)
 q_dict_final = q_dynamics.get_q_dict_from_x(x_traj_to_publish[-1])
 q_u_final = q_dict_final[idx_u]
@@ -125,25 +125,12 @@ print('orientation error:',
 print()
 
 #%% plot different components of the cost for all iterations.
-plt.figure()
-plt.plot(irs_lqr_q.cost_all_list, label='all')
-plt.plot(irs_lqr_q.cost_Qa_list, label='Qa')
-plt.plot(irs_lqr_q.cost_Qu_list, label='Qu')
-plt.plot(irs_lqr_q.cost_Qa_final_list, label='Qa_f')
-plt.plot(irs_lqr_q.cost_Qu_final_list, label='Qu_f')
-plt.plot(irs_lqr_q.cost_R_list, label='R')
-
-plt.title('Trajectory cost')
-plt.xlabel('Iterations')
-# plt.yscale('log')
-plt.legend()
-plt.grid(True)
-plt.show()
+irs_mpc.plot_costs()
 
 #%% save visualization.
-res = q_dynamics.q_sim_py.viz.vis.static_html()
-with open("allegro_hand_irs_lqr_60_degrees_rotation.html", "w") as f:
-    f.write(res)
+# res = q_dynamics.q_sim_py.viz.vis.static_html()
+# with open("allegro_hand_irs_lqr_60_degrees_rotation.html", "w") as f:
+#     f.write(res)
 
 
 

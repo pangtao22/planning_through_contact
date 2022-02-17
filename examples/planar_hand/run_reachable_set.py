@@ -28,8 +28,7 @@ plant = q_dynamics.plant
 model_a_l = plant.GetModelInstanceByName(robot_l_name)
 model_a_r = plant.GetModelInstanceByName(robot_r_name)
 model_u = plant.GetModelInstanceByName(object_name)
-contact_sampler = PlanarHandContactSampler(model_u=model_u, model_a_l=model_a_l,
-                                           model_a_r=model_a_r, q_sim=q_sim_py)
+contact_sampler = PlanarHandContactSampler(q_dynamics, 0.5)
 
 
 #%% random 1-step forward sim for reachable set computation.
