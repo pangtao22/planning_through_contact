@@ -14,8 +14,9 @@ from qsim_cpp import QuasistaticSimulatorCpp
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 
-from irs_rrt.irs_rrt import IrsNode, IrsRrtGlobal3D
-from irs_rrt.rrt_params import IrsRrtGlobalParams3D
+from irs_rrt.irs_rrt import IrsNode
+from irs_rrt.irs_rrt_3d import IrsRrt3D
+from irs_rrt.rrt_params import IrsRrtParams3D
 from pydrake.multibody.tree import JointIndex
 
 from allegro_hand_setup import *
@@ -66,12 +67,12 @@ for i in range(num_joints):
     joint_limits[idx_a][i, :] = [low, upp]
 
 #%% RRT testing
-params = IrsRrtGlobalParams3D(q_model_path, joint_limits)
+params = IrsRrtParams3D(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
 params.max_size = 1000
 params.goal = np.copy(x0)
 Q_WB_d = RollPitchYaw(0, 0, np.pi).ToQuaternion()
-params.goal[-7:-3] = Q_WB_d.wxyz()
+params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
 params.termination_tolerance = 1e-2
 params.subgoal_prob = 0.5
 params.global_metric = np.ones(x0.shape) * 0.1
@@ -80,7 +81,7 @@ params.quat_metric = 5
 params.std_u = 0.02
 params.distance_metric = 'global_u'
 
-tree = IrsRrtGlobal3D(params)
+tree = IrsRrt3D(params)
 tree.iterate()
 # np.save("q_mat_large.npy", tree.q_matrix)
 
