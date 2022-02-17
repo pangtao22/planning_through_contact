@@ -131,7 +131,7 @@ irs_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_traj_0)
 
 #%%
 t0 = time.time()
-irs_mpc.iterate(num_iters, cost_threshold=10)
+irs_mpc.iterate(num_iters, cost_Qu_f_threshold=5)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")

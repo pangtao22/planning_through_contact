@@ -33,7 +33,8 @@ class IrsRrtTrajOpt(IrsRrt):
         q_trj_d = np.tile(q, (T + 1, 1))
         u_trj_0 = np.tile(q0[self.q_dynamics.get_q_a_indices_into_x()], (T, 1))
         self.irs_mpc.initialize_problem(x0=q0, x_trj_d=q_trj_d, u_trj_0=u_trj_0)
-        self.irs_mpc.iterate(10, cost_threshold=10)
+        self.irs_mpc.iterate(
+            10, cost_Qu_f_threshold=self.params.termination_tolerance)
         self.irs_mpc.plot_costs()
 
         child_node = IrsNode(self.irs_mpc.x_trj_best[-1])
@@ -101,7 +102,11 @@ class IrsRrtTrajOpt(IrsRrt):
             self.add_edge(edge)
 
             # 6. Check for termination.
-            if self.is_close_to_goal():
+            if edge.trj['cost']["Qu_f"] < self.params.termination_tolerance:
+                print("FOUND A PATH TO GOAL!!!!!")
                 break
 
         pbar.close()
+
+    def is_close_to_goal(self):
+

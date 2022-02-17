@@ -86,7 +86,7 @@ irs_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_traj_0)
 #%%
 # irs_lqr_q.q_dynamics_parallel.q_sim_batch.set_num_max_parallel_executions(10)
 t0 = time.time()
-irs_mpc.iterate(num_iters)
+irs_mpc.iterate(num_iters, cost_Qu_f_threshold=1)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")

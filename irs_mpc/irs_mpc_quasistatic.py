@@ -257,7 +257,8 @@ class IrsMpcQuasistatic:
 
         return x_trj_new, u_trj_new
 
-    def iterate(self, max_iterations: int, cost_threshold: float = 0):
+    def iterate(self, max_iterations: int,
+                cost_Qu_f_threshold: float = 0):
         """
         Terminates after the trajectory cost is less than cost_threshold or
          max_iterations is reached.
@@ -290,7 +291,8 @@ class IrsMpcQuasistatic:
                 self.cost_best = cost
                 self.idx_best = self.current_iter
 
-            if self.current_iter > max_iterations or cost < cost_threshold:
+            if (self.current_iter > max_iterations
+                    or cost_Qu_final < cost_Qu_f_threshold):
                 break
 
             # Go over to next iteration.
