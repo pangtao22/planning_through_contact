@@ -102,9 +102,17 @@ class IrsRrtTrajOpt(IrsRrt):
             self.add_edge(edge)
 
             # 6. Check for termination.
-            if edge.trj['cost']["Qu_f"] < self.params.termination_tolerance:
+            if self.is_node_close_to_goal(child_node):
                 print("FOUND A PATH TO GOAL!!!!!")
                 break
 
         pbar.close()
 
+    def is_node_close_to_goal(self, node: IrsNode):
+        d = self.irs_mpc.calc_Q_cost(
+            models_list=self.q_dynamics.models_unactuated,
+            x_dict=self.q_dynamics.get_q_dict_from_x(node.q),
+            xd_dict=self.q_dynamics.get_q_dict_from_x(self.params.goal),
+            Q_dict=self.mpc_params.Qd_dict)
+
+        return d < self.params.termination_tolerance
