@@ -88,8 +88,3 @@ irs_rrt.iterate()
 
 #%%
 irs_rrt.save_tree(f"tree_{params.max_size}_planar_hand.pkl")
-
-#%%
-# cProfile.runctx('tree.iterate()',
-#                  globals=globals(), locals=locals(),
-#                  filename='irs_rrt_profile.stat')
