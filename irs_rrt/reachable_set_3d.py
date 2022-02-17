@@ -1,10 +1,8 @@
-from typing import Dict
 import numpy as np
-import networkx as nx
-from irs_rrt.rrt_params import IrsRrtParams
-from irs_rrt.reachable_set import ReachableSet
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
+from irs_rrt.reachable_set import ReachableSet
+from irs_rrt.rrt_params import IrsRrtParams
 from pydrake.all import AngleAxis, Quaternion, RotationMatrix
 from qsim_cpp import GradientMode
 
@@ -30,15 +28,15 @@ class ReachableSet3D(ReachableSet):
         # of shape 3 x 4 x 4, such that (E = 3 x 4 x 4) * (q = 4) = 
         # E(q) = (3 x 4).
         self.E_tensor = -np.array([
-            [[0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0 ,1]],
+            [[0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]],
             [[-1, 0, 0, 0], [0, 0, 0, -1], [0, 0, 1, 0]],
             [[0, 0, 0, 1], [-1, 0, 0, 0], [0, -1, 0, 0]],
             [[0, 0, -1, 0], [0, 1, 0, 0], [-1, 0, 0, 0]]
-        ]).transpose(1,0,2)
+        ]).transpose(1, 0, 2)
 
         # T_tensor used to go from angular velocities to rates.
         # qdot = 0.5 * T(q) * omega.
-        self.T_tensor = self.E_tensor.transpose(1,0,2)
+        self.T_tensor = self.E_tensor.transpose(1, 0, 2)
 
     def calc_qdot_from_omega(self, omega, q):
         """
@@ -53,7 +51,7 @@ class ReachableSet3D(ReachableSet):
         """
         Given current q_batch of shape (B,4) in wxyz order, and a batch of
         omegas (B,3), convert to batch of qdot of shape (B,4).
-        """        
+        """
         Tq_batch = np.einsum('ijk,Bk->Bij', self.T_tensor, q_batch)
         qdot_batch = 0.5 * np.einsum('Bij,Bj->Bi', Tq_batch, omega_batch)
         return qdot_batch
@@ -71,7 +69,7 @@ class ReachableSet3D(ReachableSet):
         """
         Given current q_batch of shape (B,4) in wxyz order, and a batch of
         qdots (B,4), convert to batch of omegas of shape (B,3).
-        """        
+        """
         Eq_batch = np.einsum('ijk,Bk->Bij', self.E_tensor, q_batch)
         omega_batch = 2.0 * np.einsum('Bij,Bj->Bi', Eq_batch, qdot_batch)
         return omega_batch
@@ -82,7 +80,7 @@ class ReachableSet3D(ReachableSet):
         compute the bundled dynamics chat of shape (4,).
         """
         B = qnext_batch.shape[0]
-        q_batch = np.tile(q[None,:], (B,1))
+        q_batch = np.tile(q[None, :], (B, 1))
 
         # 1. Compute dq = qdot * h
         dq_batch = qnext_batch - q_batch
@@ -120,11 +118,11 @@ class ReachableSet3D(ReachableSet):
         """
         Given a batch of xnext, compute chat, the bundled dynamics.
         """
-        quat_next_batch = xnext_batch[:,self.quat_mask]
+        quat_next_batch = xnext_batch[:, self.quat_mask]
         quat = x[self.quat_mask]
         chat_quat = self.calc_chat_given_batch_quat(quat_next_batch, quat)
 
-        else_next_batch = xnext_batch[:,np.invert(self.quat_mask)]
+        else_next_batch = xnext_batch[:, np.invert(self.quat_mask)]
         chat_else = np.mean(else_next_batch, axis=0)
 
         chat = np.zeros(self.q_dynamics.dim_x)
@@ -136,11 +134,11 @@ class ReachableSet3D(ReachableSet):
         """
         Given a batch of xnext, compute chat, the bundled dynamics.
         """
-        Bquat_batch = B_batch[:,self.quat_mask,:]
+        Bquat_batch = B_batch[:, self.quat_mask, :]
         quat = x[self.quat_mask]
         Bhat_quat = self.calc_Bhat_given_batch_quat(Bquat_batch, quat)
 
-        else_B_batch = B_batch[:,np.invert(self.quat_mask),:]
+        else_B_batch = B_batch[:, np.invert(self.quat_mask), :]
         Bhat_else = np.mean(else_B_batch, axis=0)
 
         Bhat = np.zeros((self.q_dynamics.dim_x, self.q_dynamics.dim_u))
