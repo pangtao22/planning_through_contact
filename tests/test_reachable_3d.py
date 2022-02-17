@@ -49,18 +49,11 @@ class TestReachableSet3D(unittest.TestCase):
         """
         Test if the values can be computed and the shapes are as expected.
         """
-        raised = False
-        try:
-            Bhat, chat = self.reachable_set.calc_bundled_Bc(self.x0, self.ubar)
-            self.assertEqual(Bhat.shape,
-                (self.q_dynamics.dim_x, self.q_dynamics.dim_u))
-            self.assertEqual(chat.shape, (self.q_dynamics.dim_x,))
-
-        except Exception as e:
-            raised = True
-
-        self.assertFalse(raised, 'Exception raised.')
-
+        Bhat, chat = self.reachable_set.calc_bundled_Bc(self.x0, self.ubar)
+        self.assertEqual(Bhat.shape,
+            (self.q_dynamics.dim_x, self.q_dynamics.dim_u))
+        self.assertEqual(chat.shape, (self.q_dynamics.dim_x,))
+        
 
 if __name__ == '__main__':
     unittest.main()
