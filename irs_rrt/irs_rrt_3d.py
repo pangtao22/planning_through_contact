@@ -6,8 +6,10 @@ from scipy.spatial.transform import Rotation as R
 
 
 class IrsRrt3D(IrsRrt):
-    def __init__(self, params: IrsRrtParams):
-        super().__init__(params)
+    def __init__(self, params):
+        # super(IrsRrt3D, self).__init__(params)
+        IrsRrt.__init__(self, params)
+
         self.qa_dim = self.q_dynamics.dim_u
         self.params.stepsize = 0.2
         # Global metric 
