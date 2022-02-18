@@ -1,12 +1,4 @@
-import os.path
-import time
-import matplotlib.pyplot as plt
 import numpy as np
-import pickle
-
-import cProfile
-
-from qsim.simulator import GradientMode
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
@@ -16,7 +8,7 @@ from irs_rrt.irs_rrt_traj_opt_3d import IrsRrtTrajOpt3D
 from irs_rrt.rrt_params import IrsRrtTrajOptParams
 
 from allegro_hand_setup import *
-from contact_sampler import AllegroHandContactSampler
+from irs_rrt.contact_sampler_allegro import AllegroHandContactSampler
 
 from pydrake.multibody.tree import JointIndex
 from pydrake.math import RollPitchYaw
@@ -57,7 +49,7 @@ for i in range(num_joints):
     joint = plant.get_joint(JointIndex(i))
     low = joint.position_lower_limits()
     upp = joint.position_upper_limits()
-    joint_limits[idx_a][i, :] = [low, upp]
+    joint_limits[idx_a][i, :] = [low[0], upp[0]]
 
 #%% RRT testing
 # IrsMpc params
@@ -84,26 +76,26 @@ mpc_params.parallel_mode = ParallelizationMode.kCppBundledB
 # IrsRrt params
 params = IrsRrtTrajOptParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
-params.max_size = 1000
+params.max_size = 100
 params.goal = np.copy(x0)
 Q_WB_d = RollPitchYaw(0, 0, np.pi).ToQuaternion()
 params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
 params.termination_tolerance = 1  # used in irs_rrt.iterate() as cost threshold.
 params.goal_as_subgoal_prob = 0.1
 params.rewire = False
-params.regularization = 1e-2
+params.regularization = 1e-6
 params.distance_metric = 'local_u'
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = np.ones(x0.shape) * 0.1
 params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
 params.quat_metric = 5
 params.distance_threshold = 50
-params.std_u = 0.02
+params.std_u = 0.1
 
 
 irs_rrt = IrsRrtTrajOpt3D(rrt_params=params,
-                        mpc_params=mpc_params,
-                        contact_sampler=contact_sampler)
+                          mpc_params=mpc_params,
+                          contact_sampler=contact_sampler)
 irs_rrt.iterate()
 
 #%%

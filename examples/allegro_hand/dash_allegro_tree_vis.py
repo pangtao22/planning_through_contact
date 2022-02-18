@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 from dash_vis.dash_common import (hover_template_y_z_theta,
-                                  layout, create_q_u0_plot,
+                                  layout, make_large_point_3d,
                                   make_ellipsoid_plotly,
                                   set_orthographic_camera_yz)
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
@@ -20,9 +20,9 @@ from matplotlib import cm
 from scipy.spatial.transform import Rotation as R
 
 parser = argparse.ArgumentParser()
-# parser.add_argument("tree_file_path")
+parser.add_argument("tree_file_path")
 args = parser.parse_args()
-args.tree_file_path = "data/tree_1000_global_gravity.pkl"
+
 
 # %% Construct computational tools.
 with open(args.tree_file_path, 'rb') as f:
@@ -88,7 +88,7 @@ def create_tree_plot_up_to_node(num_nodes: int):
                              mode='lines',
                              line=dict(color='crimson', width=5))
 
-    root_plot = create_q_u0_plot(q_u_nodes[0], name='root')
+    root_plot = make_large_point_3d(q_u_nodes[0], name='root')
 
     return [nodes_plot, edges_plot, root_plot, path_plot]
 

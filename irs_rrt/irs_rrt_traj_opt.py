@@ -14,8 +14,7 @@ class IrsRrtTrajOpt(IrsRrt):
     def __init__(self, rrt_params: IrsRrtTrajOptParams,
                  mpc_params: IrsMpcQuasistaticParameters,
                  contact_sampler: ContactSampler):
-        # super(IrsRrtTrajOpt, self).__init__(params=rrt_params)
-        IrsRrt.__init__(self, rrt_params)
+        super().__init__(rrt_params)
         # A QuasistaticDynamics object is constructed in IrsRrt.
         self.idx_q_u_indo_x = self.q_dynamics.get_q_u_indices_into_x()
         self.idx_q_a_into_x = self.q_dynamics.get_q_a_indices_into_x()
@@ -37,7 +36,7 @@ class IrsRrtTrajOpt(IrsRrt):
         self.irs_mpc.initialize_problem(x0=q0, x_trj_d=q_trj_d, u_trj_0=u_trj_0)
         self.irs_mpc.iterate(
             10, cost_Qu_f_threshold=self.params.termination_tolerance)
-        # self.irs_mpc.plot_costs()
+        self.irs_mpc.plot_costs()
 
         child_node = IrsNode(self.irs_mpc.x_trj_best[-1])
         child_node.subgoal = q
