@@ -234,6 +234,77 @@ def get_tree_node_idx(point, curve):
     return None
 
 
+def plot_best_nodes(q_g_u: np.ndarray, distances: np.ndarray, best_n: int):
+    if len(distances) <= best_n:
+        indices = np.argsort(distances)
+    else:
+        # indices of the best (small cost) (best_n) nodes
+        indices = np.argsort(distances)[:best_n]
+    max_of_best_distances = np.max(distances[indices])
+    best_n_plots = []
+    for i, idx in enumerate(indices):
+        width = 7 if i == 0 else 2
+        q_u = tree.nodes[idx]['node'].q[irs_rrt.q_u_indices_into_x]
+        r, g, b = scalar_to_rgb255(distances[idx] / max_of_best_distances)
+        best_n_plots.append(
+            go.Scatter3d(x=[q_u[0], q_g_u[0]],
+                         y=[q_u[1], q_g_u[1]],
+                         z=[q_u[2], q_g_u[2]],
+                         name=f'best{i}',
+                         mode='lines',
+                         line=dict(color=f"rgb({r}, {g}, {b})", width=width,
+                                   dash='dash')))
+
+    print('best costs:', distances[indices])
+    return best_n_plots
+
+
+def trace_path_to_root_from_node(i_node: int):
+    q_u_path = []
+    node_idx_path = []
+
+    # trace back to root to get path.
+    while True:
+        q_u_path.append(q_u_nodes[i_node])
+        node_idx_path.append(i_node)
+
+        i_parents = list(tree.predecessors(i_node))
+        assert len(i_parents) <= 1
+        if len(i_parents) == 0:
+            break
+
+        i_node = i_parents[0]
+
+    # Trajectory.
+    node_idx_path.reverse()
+    if edges_have_trj():
+        n_edges = len(node_idx_path) - 1
+        x_trj_list = []
+        x_trj_sizes_list = []
+        for i in range(n_edges):
+            node_i = node_idx_path[i]
+            node_j = node_idx_path[i + 1]
+            x_trj_i = tree.edges[node_i, node_j]['edge'].trj['x_trj']
+            x_trj_list.append(x_trj_i)
+            x_trj_sizes_list.append(len(x_trj_i))
+
+        x_trj = np.zeros((np.sum(x_trj_sizes_list), q_dynamics.dim_x))
+        i_start = 0
+        for x_trj_i, size_i in zip(x_trj_list, x_trj_sizes_list):
+            x_trj[i_start: i_start + size_i] = x_trj_i
+            i_start += size_i
+    else:
+        x_trj = q_nodes[node_idx_path]
+
+    return np.array(q_u_path), x_trj
+
+
+def edges_have_trj():
+    for edge in tree.edges(0):
+        break
+    return not (tree.edges[edge]['edge'].trj is None)
+
+
 @app.callback(
     Output('hover-data', 'children'),
     Input('tree-fig', 'hoverData'))
@@ -295,26 +366,8 @@ def click_callback(click_data, relayout_data):
     if i_node is None:
         return fig
 
-    # trace back to root to get path.
-    y_path = []
-    z_path = []
-    theta_path = []
-    idx_path = []
-
-    while True:
-        y_path.append(q_u_nodes[i_node, 0])
-        z_path.append(q_u_nodes[i_node, 1])
-        theta_path.append(q_u_nodes[i_node, 2])
-        idx_path.append(i_node)
-
-        i_parents = list(tree.predecessors(i_node))
-        assert len(i_parents) <= 1
-        if len(i_parents) == 0:
-            break
-
-        i_node = i_parents[0]
-
-    fig.update_traces(x=y_path, y=z_path, z=theta_path,
+    q_u_path, x_trj = trace_path_to_root_from_node(i_node)
+    fig.update_traces(x=q_u_path[:, 0], y=q_u_path[:, 1], z=q_u_path[:, 2],
                       selector=dict(name='path'))
     try:
         fig.update_layout(scene_camera=relayout_data['scene.camera'])
@@ -322,8 +375,7 @@ def click_callback(click_data, relayout_data):
         pass
 
     # show path in meshcat
-    idx_path.reverse()
-    q_dynamics.publish_trajectory(q_nodes[idx_path], h=2 / len(idx_path))
+    q_dynamics.publish_trajectory(x_trj, h=3 / len(x_trj))
 
     return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
 
@@ -430,31 +482,6 @@ def slider_callback(num_nodes, metric_to_plot, relayout_data):
         pass
 
     return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
-
-
-def plot_best_nodes(q_g_u: np.ndarray, distances: np.ndarray, best_n: int):
-    if len(distances) <= best_n:
-        indices = np.argsort(distances)
-    else:
-        # indices of the best (small cost) (best_n) nodes
-        indices = np.argsort(distances)[:best_n]
-    max_of_best_distances = np.max(distances[indices])
-    best_n_plots = []
-    for i, idx in enumerate(indices):
-        width = 7 if i == 0 else 2
-        q_u = tree.nodes[idx]['node'].q[irs_rrt.q_u_indices_into_x]
-        r, g, b = scalar_to_rgb255(distances[idx] / max_of_best_distances)
-        best_n_plots.append(
-            go.Scatter3d(x=[q_u[0], q_g_u[0]],
-                         y=[q_u[1], q_g_u[1]],
-                         z=[q_u[2], q_g_u[2]],
-                         name=f'best{i}',
-                         mode='lines',
-                         line=dict(color=f"rgb({r}, {g}, {b})", width=width,
-                                   dash='dash')))
-
-    print('best costs:', distances[indices])
-    return best_n_plots
 
 
 if __name__ == '__main__':
