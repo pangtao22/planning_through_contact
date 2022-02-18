@@ -13,6 +13,7 @@ from dash.dependencies import Input, Output, State
 from dash_vis.dash_common import (hover_template_y_z_theta,
                                   layout, make_large_point_3d,
                                   make_ellipsoid_plotly,
+                                  trace_path_to_root_from_node,
                                   set_orthographic_camera_yz)
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.reachable_set import ReachableSet
@@ -30,6 +31,11 @@ with open(args.tree_file_path, 'rb') as f:
     tree = pickle.load(f)
 irs_rrt_param = tree.graph['irs_rrt_params']
 q_model_path = irs_rrt_param.q_model_path
+
+q_model_path = "/home/amazon/PycharmProjects/quasistatic_simulator/qsim" \
+               "/../models" \
+               "/q_sys/allegro_hand_and_sphere.yml"
+
 h = irs_rrt_param.h
 q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
                                  internal_viz=True)
@@ -242,24 +248,13 @@ def click_callback(click_data, relayout_data):
         return fig
 
     # trace back to root to get path.
-    y_path = []
-    z_path = []
-    theta_path = []
-    idx_path = []
+    q_u_rot_path, x_trj = trace_path_to_root_from_node(
+        i_node=i_node, q_u_nodes=q_u_nodes_rot, q_nodes=q_nodes,
+        tree=tree, q_dynamics=q_dynamics)
 
-    while True:
-        y_path.append(q_u_nodes_rot[i_node, 0])
-        z_path.append(q_u_nodes_rot[i_node, 1])
-        theta_path.append(q_u_nodes_rot[i_node, 2])
-        idx_path.append(i_node)
-
-        i_parents = list(tree.predecessors(i_node))
-        assert len(i_parents) <= 1
-        if len(i_parents) == 0:
-            break
-
-        i_node = i_parents[0]
-    fig.update_traces(x=y_path, y=z_path, z=theta_path,
+    fig.update_traces(x=q_u_rot_path[:, 0],
+                      y=q_u_rot_path[:, 1],
+                      z=q_u_rot_path[:, 2],
                       selector=dict(name='path'))
     try:
         fig.update_layout(scene_camera=relayout_data['scene.camera'])
@@ -267,8 +262,7 @@ def click_callback(click_data, relayout_data):
         pass
 
     # show path in meshcat
-    idx_path.reverse()
-    q_dynamics.publish_trajectory(q_nodes[idx_path], h=2 / len(idx_path))
+    q_dynamics.publish_trajectory(x_trj, h=irs_rrt_param.h)
 
     return fig
 

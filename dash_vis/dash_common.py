@@ -1,6 +1,9 @@
+import networkx
 import numpy as np
 import meshcat
 import plotly.graph_objects as go
+
+from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 
 
 #%% meshcat
@@ -138,3 +141,52 @@ def make_ellipsoid_plotly(A_inv: np.ndarray, p_center: np.ndarray, r: float,
     x = R.T @ z + p_center[:, None]
 
     return x, 1 / np.prod(np.sqrt(Sigma))
+
+
+def edges_have_trj(tree: networkx.DiGraph):
+    for edge in tree.edges(0):
+        break
+    return not (tree.edges[edge]['edge'].trj is None)
+
+
+def trace_path_to_root_from_node(i_node: int, q_u_nodes: np.ndarray,
+                                 q_nodes: np.ndarray,
+                                 tree: networkx.DiGraph,
+                                 q_dynamics: QuasistaticDynamics):
+    q_u_path = []
+    node_idx_path = []
+
+    # trace back to root to get path.
+    while True:
+        q_u_path.append(q_u_nodes[i_node])
+        node_idx_path.append(i_node)
+
+        i_parents = list(tree.predecessors(i_node))
+        assert len(i_parents) <= 1
+        if len(i_parents) == 0:
+            break
+
+        i_node = i_parents[0]
+
+    # Trajectory.
+    node_idx_path.reverse()
+    if edges_have_trj(tree):
+        n_edges = len(node_idx_path) - 1
+        x_trj_list = []
+        x_trj_sizes_list = []
+        for i in range(n_edges):
+            node_i = node_idx_path[i]
+            node_j = node_idx_path[i + 1]
+            x_trj_i = tree.edges[node_i, node_j]['edge'].trj['x_trj']
+            x_trj_list.append(x_trj_i)
+            x_trj_sizes_list.append(len(x_trj_i))
+
+        x_trj = np.zeros((np.sum(x_trj_sizes_list), q_dynamics.dim_x))
+        i_start = 0
+        for x_trj_i, size_i in zip(x_trj_list, x_trj_sizes_list):
+            x_trj[i_start: i_start + size_i] = x_trj_i
+            i_start += size_i
+    else:
+        x_trj = q_nodes[node_idx_path]
+
+    return np.array(q_u_path), x_trj

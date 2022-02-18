@@ -89,7 +89,7 @@ params.distance_metric = 'local_u'
 params.global_metric = np.ones(x0.shape) * 0.1
 params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
 params.quat_metric = 5
-params.distance_threshold = 50
+params.distance_threshold = 500
 params.std_u = 0.1
 
 
@@ -99,4 +99,4 @@ irs_rrt = IrsRrtTrajOpt3D(rrt_params=params,
 irs_rrt.iterate()
 
 #%%
-irs_rrt.save_tree(f"tree_{params.max_size}_allegro_hand.pkl")
+irs_rrt.save_tree(f"tree_{irs_rrt.graph.size()}_allegro_hand.pkl")
