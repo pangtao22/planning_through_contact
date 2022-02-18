@@ -33,8 +33,8 @@ args = parser.parse_args()
 with open(args.tree_file_path, 'rb') as f:
     tree = pickle.load(f)
 
-irs_rrt = IrsRrt.make_from_pickled_tree(tree)
-q_dynamics = irs_rrt.q_dynamics
+irs_rrt_obj = IrsRrt.make_from_pickled_tree(tree)
+q_dynamics = irs_rrt_obj.q_dynamics
 q_sim_py = q_dynamics.q_sim_py
 vis = q_dynamics.q_sim_py.viz.vis
 set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
@@ -244,7 +244,7 @@ def plot_best_nodes(q_g_u: np.ndarray, distances: np.ndarray, best_n: int):
     best_n_plots = []
     for i, idx in enumerate(indices):
         width = 7 if i == 0 else 2
-        q_u = tree.nodes[idx]['node'].q[irs_rrt.q_u_indices_into_x]
+        q_u = tree.nodes[idx]['node'].q[irs_rrt_obj.q_u_indices_into_x]
         r, g, b = scalar_to_rgb255(distances[idx] / max_of_best_distances)
         best_n_plots.append(
             go.Scatter3d(x=[q_u[0], q_g_u[0]],
@@ -375,7 +375,7 @@ def click_callback(click_data, relayout_data):
         pass
 
     # show path in meshcat
-    q_dynamics.publish_trajectory(x_trj, h=3 / len(x_trj))
+    q_dynamics.publish_trajectory(x_trj, h=irs_rrt_obj.params.h)
 
     return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
 
@@ -400,10 +400,10 @@ def slider_callback(num_nodes, metric_to_plot, relayout_data):
     node_parent = tree.nodes[i_parent]['node']
 
     q_p = node_parent.q
-    q_p_u = q_p[irs_rrt.q_u_indices_into_x]
-    q_u = node_current.q[irs_rrt.q_u_indices_into_x]
+    q_p_u = q_p[irs_rrt_obj.q_u_indices_into_x]
+    q_u = node_current.q[irs_rrt_obj.q_u_indices_into_x]
     q_g = node_current.subgoal
-    q_g_u = q_g[irs_rrt.q_u_indices_into_x]
+    q_g_u = q_g[irs_rrt_obj.q_u_indices_into_x]
     traces_list.append(make_large_point_3d(
         p=q_g_u, name='subgoal', color='red'))
     traces_list.append(make_large_point_3d(
@@ -428,13 +428,13 @@ def slider_callback(num_nodes, metric_to_plot, relayout_data):
     traces_list.append(edge_to_parent)
 
     # Subgoal cost histogram
-    d_local = irs_rrt.calc_distance_batch(
+    d_local = irs_rrt_obj.calc_distance_batch(
         q_query=q_g, n_nodes=num_nodes - 1, distance_metric='local')
-    d_local_u = irs_rrt.calc_distance_batch(
+    d_local_u = irs_rrt_obj.calc_distance_batch(
         q_query=q_g, n_nodes=num_nodes - 1, distance_metric='local_u')
-    d_global = irs_rrt.calc_distance_batch(
+    d_global = irs_rrt_obj.calc_distance_batch(
         q_query=q_g, n_nodes=num_nodes - 1, distance_metric='global')
-    d_global_u = irs_rrt.calc_distance_batch(
+    d_global_u = irs_rrt_obj.calc_distance_batch(
         q_query=q_g, n_nodes=num_nodes - 1, distance_metric='global_u')
     assert len(d_local) == num_nodes - 1
     assert len(d_global) == num_nodes - 1
