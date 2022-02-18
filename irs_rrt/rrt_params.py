@@ -2,7 +2,6 @@ import numpy as np
 from irs_mpc.irs_mpc_params import BundleMode
 
 
-
 class RrtParams:
     """
     Base tree parameters class. Only "yaml'-able parameters should be stored
@@ -12,7 +11,7 @@ class RrtParams:
         self.max_size = 100
         self.goal = None  # q_goal.
         self.root_node = None
-        self.subgoal_prob = 0.5
+        self.goal_as_subgoal_prob = 0.5
         self.termination_tolerance = 0.1
         self.rewire = False
 
@@ -45,7 +44,25 @@ class IrsRrtParams(RrtParams):
         # TODO(terry-suh): the selection of this parameter should be automated.
         self.stepsize = 0.3
 
-        # Supports local, local_u, global, global_u
-        self.distance_metric = "global"
-        self.global_metric = None  # only used when distance_metric is "global".
 
+class IrsRrtParams3D(IrsRrtParams):
+    def __init__(self, q_model_path, joint_limits):
+        super().__init__(q_model_path, joint_limits)
+        # Distance metric for defining an adequate notion of distance for
+        # quaternions. Should be a scalar.
+        self.quat_metric = np.nan
+
+
+class IrsRrtRolloutParams(IrsRrtParams):
+    def __init__(self, q_model_path, joint_limits):
+        super().__init__(q_model_path, joint_limits)
+        # Rollout horizon to use for reaching the point with a long stepsize.
+        self.rollout_horizon = 3
+
+
+class IrsRrtTrajOptParams(IrsRrtParams):
+    def __init__(self, q_model_path, joint_limits):
+        super().__init__(q_model_path, joint_limits)
+        # Subgoals further away from any node in the tree than
+        # distance_threshold will be rejected.
+        self.distance_threshold = np.inf

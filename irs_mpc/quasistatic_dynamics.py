@@ -2,7 +2,7 @@ from typing import Dict, Set, Union
 import os
 
 import numpy as np
-import spdlog
+import logging
 from pydrake.all import (ModelInstanceIndex, MultibodyPlant,
                          PiecewisePolynomial)
 from qsim.parser import QuasistaticParser, GradientMode
@@ -41,23 +41,6 @@ class QuasistaticDynamics(DynamicalSystem):
             models_all_b=self.q_sim_py.get_all_models(),
             velocity_indices_a=self.q_sim.get_velocity_indices(),
             velocity_indices_b=self.q_sim.get_velocity_indices())
-
-        # logger
-        self.logger = self.get_logger()
-
-    @staticmethod
-    def get_logger():
-        pid = str(os.getpid())
-        try:
-            logger = spdlog.ConsoleLogger(pid, True)
-        except RuntimeError:
-            '''
-            Accessing the console loggers with the same name from different 
-            processes seems to crash.
-            '''
-            logger = spdlog.ConsoleLogger('QD' + pid)
-
-        return logger
 
     @staticmethod
     def check_plants(plant_a: MultibodyPlant, plant_b: MultibodyPlant,
@@ -174,8 +157,7 @@ class QuasistaticDynamics(DynamicalSystem):
 
         q_next_dict = self.q_sim_py.step(
             q_a_cmd_dict, tau_ext_dict, self.h,
-            mode=mode, gradient_mode=gradient_mode,
-            grad_from_active_constraints=True)
+            mode=mode, gradient_mode=gradient_mode, unactuated_mass_scale=None)
 
         return self.get_x_from_q_dict(q_next_dict)
 
@@ -191,17 +173,19 @@ class QuasistaticDynamics(DynamicalSystem):
         q_a_cmd_dict = self.get_q_a_cmd_dict_from_u(u)
         tau_ext_dict = self.q_sim.calc_tau_ext([])
 
+        sp = self.q_sim.get_sim_params()
+
         self.q_sim.step(
             q_a_cmd_dict=q_a_cmd_dict,
             tau_ext_dict=tau_ext_dict,
             h=self.h,
-            contact_detection_tolerance=self.q_sim_py.sim_params.contact_detection_tolerance,
+            contact_detection_tolerance=sp.contact_detection_tolerance,
             gradient_mode=gradient_mode,
-            grad_from_active_constraints=True)
+            unactuated_mass_scale=sp.unactuated_mass_scale)
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)
 
-    def dynamics_rollout(self, x0: np.ndarray, u_trj:np.ndarray):
+    def dynamics_rollout(self, x0: np.ndarray, u_trj: np.ndarray):
         """
         Given an initial state and trajectory of inputs, rollout the
         input and return a trajectory of states using the dynamics function.
@@ -209,10 +193,10 @@ class QuasistaticDynamics(DynamicalSystem):
         : params u_trj (T, dim_u): input trajectory to be applied
         """
         T = u_trj.shape[0]
-        x_trj = np.zeros((T+1,self.dim_x))
-        x_trj[0,:] = x0
+        x_trj = np.zeros((T + 1, self.dim_x))
+        x_trj[0, :] = x0
         for t in range(T):
-            x_trj[t+1,:] = self.dynamics(x_trj[t,:], u_trj[t,:])
+            x_trj[t + 1, :] = self.dynamics(x_trj[t, :], u_trj[t, :])
         return x_trj
 
     def dynamics_more_steps(self, x: np.ndarray, u: np.ndarray,
@@ -234,6 +218,8 @@ class QuasistaticDynamics(DynamicalSystem):
             [0, self.h / 2, self.h], np.vstack([u0, u, u]).T)
         h_small = self.h / n_steps
 
+        sp = self.q_sim.get_sim_params()
+
         for i in range(1, n_steps + 1):
             t = i / n_steps * self.h
             u_t = u_traj.value(t).ravel()
@@ -244,7 +230,7 @@ class QuasistaticDynamics(DynamicalSystem):
                 qa_dict, tau_ext_dict, h_small,
                 self.q_sim_py.sim_params.contact_detection_tolerance,
                 requires_grad=False,
-                grad_from_active_constraints=True)
+                unactuated_mass_scale=sp.unactuated_mass_scale)
 
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)
@@ -311,7 +297,7 @@ class QuasistaticDynamics(DynamicalSystem):
                 ABhat[:, self.dim_x:] += self.q_sim.get_Dq_nextDqa_cmd()
             except RuntimeError as err:
                 is_sample_good[i] = False
-                self.logger.warn(err.__str__())
+                logging.warning(err.__str__())
 
         ABhat /= is_sample_good.sum()
         return ABhat

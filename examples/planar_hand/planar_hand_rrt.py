@@ -62,13 +62,12 @@ params.distance_metric = 'local_u'
 params.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 10.0, 10.0, 1.0])
 
 
-tree = IrsRrt(params)
-tree.iterate()
+irs_rrt = IrsRrt(params)
+irs_rrt.iterate()
 
 #%%
-tree.save_tree(f"tree_{params.max_size}_planar_hand.pkl")
+irs_rrt.save_tree(f"tree_{params.max_size}_planar_hand.pkl")
 
-#print(tree.save_final_path())
 
 #%%
 #

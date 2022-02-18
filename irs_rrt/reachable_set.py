@@ -4,6 +4,7 @@ import networkx as nx
 from irs_rrt.rrt_params import IrsRrtParams
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
+from pydrake.all import AngleAxis, Quaternion, RotationMatrix
 from qsim_cpp import GradientMode
 
 
@@ -32,10 +33,9 @@ class ReachableSet:
         """
         x = q[None, :]
         u = ubar[None, :]
-
         (x_next, B, is_valid
          ) = self.q_dynamics_p.q_sim_batch.calc_dynamics_parallel(
-            x, u, self.q_dynamics.h, GradientMode.kBOnly)
+            x, u, self.q_dynamics.h, GradientMode.kBOnly, None)
 
         c = np.array(x_next).squeeze(0)
         B = np.array(B).squeeze(0)
@@ -51,7 +51,7 @@ class ReachableSet:
 
         (x_next_batch, B_batch, is_valid_batch
          ) = self.q_dynamics_p.q_sim_batch.calc_dynamics_parallel(
-            x_batch, u_batch, self.q_dynamics.h, GradientMode.kBOnly)
+            x_batch, u_batch, self.q_dynamics.h, GradientMode.kBOnly, None)
 
         B_batch = np.array(B_batch)
 
