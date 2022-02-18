@@ -88,6 +88,8 @@ class IrsRrtRandomGrasp(IrsRrt):
 
         else:
             # Compute least-squares solution.
+            # NOTE(terry-suh): it is important to only do this on the submatrix
+            # of B that has to do with u.
             du = np.linalg.lstsq(
                 parent_node.Bhat[
                     self.q_dynamics.get_q_u_indices_into_x(),:],
@@ -98,9 +100,6 @@ class IrsRrtRandomGrasp(IrsRrt):
             # Normalize least-squares solution.
             du = du / np.linalg.norm(du)
             ustar = parent_node.ubar + self.params.stepsize * du
-
-            # Linearly inteprolate between ubar and ustar with specified 
-            # rollout horizon.
 
             xnext = self.q_dynamics.dynamics(parent_node.q, ustar)
 

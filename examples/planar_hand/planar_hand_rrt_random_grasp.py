@@ -58,6 +58,7 @@ params.termination_tolerance = 1e-2
 params.goal_as_subgoal_prob = 0.1
 params.rewire = False
 params.grasp_prob = 0.2
+params.distance_threshold = 50
 params.distance_metric = 'local_u'
 
 # params.distance_metric = 'global'  # If using global metric
