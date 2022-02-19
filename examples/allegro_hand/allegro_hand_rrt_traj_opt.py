@@ -41,7 +41,9 @@ x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 num_joints = plant.num_joints() - 1 # The last joint is weldjoint (welded to the world)
 joint_limits = {
     # idx_u: np.array([[0, 0],[0, 0], [0, 0], [0, 0], [-0.16, -0.02], [-0.06, 0.06], [0.05, 0.09]]),
-    idx_u: np.array([[0, 0],[0, 0], [0, 0], [0, 0], [-0.081, -0.081], [0.001, 0.001], [0.071, 0.071]]),
+    idx_u: np.array([
+        [0, 0],[0, 0], [0, 0], [0, 0],
+        [-0.081, -0.081], [0.001, 0.001], [0.071, 0.071]]),
     idx_a: np.zeros([num_joints, 2])
 }
 
@@ -89,7 +91,7 @@ params.distance_metric = 'local_u'
 params.global_metric = np.ones(x0.shape) * 0.1
 params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
 params.quat_metric = 5
-params.distance_threshold = 300
+params.distance_threshold = 500
 params.std_u = 0.1
 
 

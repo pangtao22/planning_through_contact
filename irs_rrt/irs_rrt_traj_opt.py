@@ -36,7 +36,7 @@ class IrsRrtTrajOpt(IrsRrt):
         self.irs_mpc.initialize_problem(x0=q0, x_trj_d=q_trj_d, u_trj_0=u_trj_0)
         self.irs_mpc.iterate(
             10, cost_Qu_f_threshold=self.params.termination_tolerance)
-        self.irs_mpc.plot_costs()
+        #self.irs_mpc.plot_costs()
 
         child_node = IrsNode(self.irs_mpc.x_trj_best[-1])
         child_node.subgoal = q
