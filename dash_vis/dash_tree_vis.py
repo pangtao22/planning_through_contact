@@ -17,7 +17,8 @@ from dash_vis.dash_common import (hover_template_y_z_theta,
                                   make_ellipsoid_plotly,
                                   set_orthographic_camera_yz,
                                   add_goal_meshcat,
-                                  calc_X_WG)
+                                  calc_X_WG,
+                                  trace_path_to_root_from_node)
 from dash.exceptions import PreventUpdate
 
 import matplotlib.pyplot as plt
@@ -259,52 +260,6 @@ def plot_best_nodes(q_g_u: np.ndarray, distances: np.ndarray, best_n: int):
     return best_n_plots
 
 
-def trace_path_to_root_from_node(i_node: int):
-    q_u_path = []
-    node_idx_path = []
-
-    # trace back to root to get path.
-    while True:
-        q_u_path.append(q_u_nodes[i_node])
-        node_idx_path.append(i_node)
-
-        i_parents = list(tree.predecessors(i_node))
-        assert len(i_parents) <= 1
-        if len(i_parents) == 0:
-            break
-
-        i_node = i_parents[0]
-
-    # Trajectory.
-    node_idx_path.reverse()
-    if edges_have_trj():
-        n_edges = len(node_idx_path) - 1
-        x_trj_list = []
-        x_trj_sizes_list = []
-        for i in range(n_edges):
-            node_i = node_idx_path[i]
-            node_j = node_idx_path[i + 1]
-            x_trj_i = tree.edges[node_i, node_j]['edge'].trj['x_trj']
-            x_trj_list.append(x_trj_i)
-            x_trj_sizes_list.append(len(x_trj_i))
-
-        x_trj = np.zeros((np.sum(x_trj_sizes_list), q_dynamics.dim_x))
-        i_start = 0
-        for x_trj_i, size_i in zip(x_trj_list, x_trj_sizes_list):
-            x_trj[i_start: i_start + size_i] = x_trj_i
-            i_start += size_i
-    else:
-        x_trj = q_nodes[node_idx_path]
-
-    return np.array(q_u_path), x_trj
-
-
-def edges_have_trj():
-    for edge in tree.edges(0):
-        break
-    return not (tree.edges[edge]['edge'].trj is None)
-
-
 @app.callback(
     Output('hover-data', 'children'),
     Input('tree-fig', 'hoverData'))
@@ -366,7 +321,9 @@ def click_callback(click_data, relayout_data):
     if i_node is None:
         return fig
 
-    q_u_path, x_trj = trace_path_to_root_from_node(i_node)
+    q_u_path, x_trj = trace_path_to_root_from_node(
+        i_node=i_node, q_u_nodes=q_u_nodes, q_nodes=q_nodes,
+        tree=tree, q_dynamics=q_dynamics)
     fig.update_traces(x=q_u_path[:, 0], y=q_u_path[:, 1], z=q_u_path[:, 2],
                       selector=dict(name='path'))
     try:
