@@ -19,7 +19,7 @@ from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.reachable_set import ReachableSet
 from matplotlib import cm
 
-from pydrake.all import AngleAxis, Quaternion
+from pydrake.all import AngleAxis, Quaternion, AddTriad, RigidTransform
 
 parser = argparse.ArgumentParser()
 parser.add_argument("tree_file_path")
@@ -32,16 +32,34 @@ with open(args.tree_file_path, 'rb') as f:
 irs_rrt_param = tree.graph['irs_rrt_params']
 q_model_path = irs_rrt_param.q_model_path
 
-q_model_path = "/home/amazon/PycharmProjects/quasistatic_simulator/qsim" \
-               "/../models" \
-               "/q_sys/allegro_hand_and_sphere.yml"
-
 h = irs_rrt_param.h
 q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
                                  internal_viz=True)
 reachable_set = ReachableSet(q_dynamics, irs_rrt_param)
 q_sim_py = q_dynamics.q_sim_py
 # set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
+
+#%% visualize goal.
+AddTriad(
+    vis=q_dynamics.q_sim_py.viz.vis,
+    name='frame',
+    prefix='drake/plant/sphere/sphere',
+    length=0.1,
+    radius=0.001,
+    opacity=1)
+
+AddTriad(
+    vis=q_dynamics.q_sim_py.viz.vis,
+    name='frame',
+    prefix='goal',
+    length=0.1,
+    radius=0.005,
+    opacity=0.5)
+
+q_goal = irs_rrt_param.goal
+q_u_goal = q_goal[q_dynamics.get_q_u_indices_into_x()]
+q_dynamics.q_sim_py.viz.vis['goal'].set_transform(
+    RigidTransform(Quaternion(q_u_goal[:4]), q_u_goal[4:]).GetAsMatrix4())
 
 # %%
 """
