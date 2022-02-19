@@ -55,7 +55,7 @@ for i in range(num_joints):
 # IrsMpc params
 mpc_params = IrsMpcQuasistaticParameters()
 mpc_params.Q_dict = {
-    idx_u: np.array([10, 10, 10, 10, 1, 1, 1]),
+    idx_u: np.array([1, 1, 1, 1, 10, 10, 10]),
     idx_a: np.ones(dim_u) * 1e-3}
 mpc_params.Qd_dict = {
     model: Q_i * 100 for model, Q_i in mpc_params.Q_dict.items()}
@@ -76,7 +76,7 @@ mpc_params.parallel_mode = ParallelizationMode.kCppBundledB
 # IrsRrt params
 params = IrsRrtTrajOptParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
-params.max_size = 100
+params.max_size = 500
 params.goal = np.copy(x0)
 Q_WB_d = RollPitchYaw(0, 0, np.pi).ToQuaternion()
 params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
@@ -89,7 +89,7 @@ params.distance_metric = 'local_u'
 params.global_metric = np.ones(x0.shape) * 0.1
 params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
 params.quat_metric = 5
-params.distance_threshold = 50
+params.distance_threshold = 300
 params.std_u = 0.1
 
 
@@ -99,4 +99,4 @@ irs_rrt = IrsRrtTrajOpt3D(rrt_params=params,
 irs_rrt.iterate()
 
 #%%
-irs_rrt.save_tree(f"tree_{params.max_size}_allegro_hand.pkl")
+irs_rrt.save_tree(f"tree_{irs_rrt.graph.size()}_allegro_hand.pkl")

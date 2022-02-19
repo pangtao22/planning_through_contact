@@ -93,7 +93,11 @@ class IrsRrtTrajOpt(IrsRrt):
             pbar.update(1)
 
             # 3. Extend to subgoal.
-            child_node, edge = self.extend(parent_node, subgoal)
+            try:
+                child_node, edge = self.extend(parent_node, subgoal)
+            except RuntimeError as err:
+                print(err)
+                continue
 
             # 4. Attempt to rewire a candidate child node.
             if self.params.rewire:

@@ -65,6 +65,8 @@ def solve_mpc(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None,
     NOTE(terry-suh): This implementation needs to be "blazing fast.". It is 
     performed O(iterations * timesteps^2).
     """
+    if np.isnan(At).any() or np.isnan(Bt).any():
+        raise RuntimeError("At or Bt is nan.")
 
     prog = MathematicalProgram()
 

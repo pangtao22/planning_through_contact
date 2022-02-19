@@ -13,11 +13,13 @@ from dash.dependencies import Input, Output, State
 from dash_vis.dash_common import (hover_template_y_z_theta,
                                   layout, make_large_point_3d,
                                   make_ellipsoid_plotly,
+                                  trace_path_to_root_from_node,
                                   set_orthographic_camera_yz)
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.reachable_set import ReachableSet
 from matplotlib import cm
-from scipy.spatial.transform import Rotation as R
+
+from pydrake.all import AngleAxis, Quaternion
 
 parser = argparse.ArgumentParser()
 parser.add_argument("tree_file_path")
@@ -29,6 +31,11 @@ with open(args.tree_file_path, 'rb') as f:
     tree = pickle.load(f)
 irs_rrt_param = tree.graph['irs_rrt_params']
 q_model_path = irs_rrt_param.q_model_path
+
+q_model_path = "/home/amazon/PycharmProjects/quasistatic_simulator/qsim" \
+               "/../models" \
+               "/q_sys/allegro_hand_and_sphere.yml"
+
 h = irs_rrt_param.h
 q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
                                  internal_viz=True)
@@ -45,37 +52,41 @@ q_nodes = np.zeros((n_nodes, q_dynamics.dim_x))
 
 # node coordinates.
 for i in range(n_nodes):
-
     node = tree.nodes[i]["node"]
     q_nodes[i] = node.q
 
 q_u_nodes = q_nodes[:, q_dynamics.get_q_u_indices_into_x()]
-# for i in range(q_u_nodes):
-q_u_nodes = np.hstack((q_u_nodes[:, 1:4], q_u_nodes[:, 0, None]))
-q_u_nodes = R.from_quat(q_u_nodes[:, :4]).as_euler('zyx')
+q_u_nodes_rot = np.zeros((n_nodes, 3))
+for i in range(n_nodes):
+    aa = AngleAxis(Quaternion(q_u_nodes[i][:4]))
+    q_u_nodes_rot[i] = aa.axis() * aa.angle()
 
 # edges.
-roll_edges = []
-pitch_edges = []
-yaw_edges = []
-for i_u, i_v in tree.edges:
-    roll_edges += [q_u_nodes[i_u, 0], q_u_nodes[i_v, 0], None]
-    pitch_edges += [q_u_nodes[i_u, 1], q_u_nodes[i_v, 1], None]
-    yaw_edges += [q_u_nodes[i_u, 2], q_u_nodes[i_v, 2], None]
+x_edges = []
+y_edges = []
+z_edges = []
+for i_node in tree.nodes:
+    if i_node == 0:
+        continue
+    i_parents = list(tree.predecessors(i_node))
+    i_parent = i_parents[0]
+    x_edges += [q_u_nodes_rot[i_node, 0], q_u_nodes_rot[i_parent, 0], None]
+    y_edges += [q_u_nodes_rot[i_node, 1], q_u_nodes_rot[i_parent, 1], None]
+    z_edges += [q_u_nodes_rot[i_node, 2], q_u_nodes_rot[i_parent, 2], None]
 
 
 def create_tree_plot_up_to_node(num_nodes: int):
-    nodes_plot = go.Scatter3d(x=q_u_nodes[:num_nodes, 0],
-                              y=q_u_nodes[:num_nodes, 1],
-                              z=q_u_nodes[:num_nodes, 2],
+    nodes_plot = go.Scatter3d(x=q_u_nodes_rot[:num_nodes, 0],
+                              y=q_u_nodes_rot[:num_nodes, 1],
+                              z=q_u_nodes_rot[:num_nodes, 2],
                               name='nodes',
                               mode='markers',
                               hovertemplate=hover_template_y_z_theta,
                               marker=dict(size=3))
 
-    edges_plot = go.Scatter3d(x=roll_edges[:num_nodes * 3],
-                              y=pitch_edges[:num_nodes * 3],
-                              z=yaw_edges[:num_nodes * 3],
+    edges_plot = go.Scatter3d(x=x_edges[:num_nodes * 3],
+                              y=y_edges[:num_nodes * 3],
+                              z=z_edges[:num_nodes * 3],
                               name='edges',
                               mode='lines',
                               line=dict(color='blue', width=2),
@@ -88,7 +99,7 @@ def create_tree_plot_up_to_node(num_nodes: int):
                              mode='lines',
                              line=dict(color='crimson', width=5))
 
-    root_plot = make_large_point_3d(q_u_nodes[0], name='root')
+    root_plot = make_large_point_3d(q_u_nodes_rot[0], name='root')
 
     return [nodes_plot, edges_plot, root_plot, path_plot]
 
@@ -124,8 +135,11 @@ It is important to put the ellipsoid list in the front, so that the
 curveNumber of the first ellipsoid is 0, which can be used to index into tree 
 nodes.
 '''
-fig = go.Figure(data= create_tree_plot_up_to_node(n_nodes),
+fig = go.Figure(data=create_tree_plot_up_to_node(n_nodes),
                 layout=layout)
+fig.update_layout(scene=dict(xaxis_title_text='x_rot',
+                             yaxis_title_text='y_rot',
+                             zaxis_title_text='z_rot',))
 
 # %% dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -234,24 +248,13 @@ def click_callback(click_data, relayout_data):
         return fig
 
     # trace back to root to get path.
-    y_path = []
-    z_path = []
-    theta_path = []
-    idx_path = []
+    q_u_rot_path, x_trj = trace_path_to_root_from_node(
+        i_node=i_node, q_u_nodes=q_u_nodes_rot, q_nodes=q_nodes,
+        tree=tree, q_dynamics=q_dynamics)
 
-    while True:
-        y_path.append(q_u_nodes[i_node, 0])
-        z_path.append(q_u_nodes[i_node, 1])
-        theta_path.append(q_u_nodes[i_node, 2])
-        idx_path.append(i_node)
-
-        i_parents = list(tree.predecessors(i_node))
-        assert len(i_parents) <= 1
-        if len(i_parents) == 0:
-            break
-
-        i_node = i_parents[0]
-    fig.update_traces(x=y_path, y=z_path, z=theta_path,
+    fig.update_traces(x=q_u_rot_path[:, 0],
+                      y=q_u_rot_path[:, 1],
+                      z=q_u_rot_path[:, 2],
                       selector=dict(name='path'))
     try:
         fig.update_layout(scene_camera=relayout_data['scene.camera'])
@@ -259,15 +262,14 @@ def click_callback(click_data, relayout_data):
         pass
 
     # show path in meshcat
-    idx_path.reverse()
-    q_dynamics.publish_trajectory(q_nodes[idx_path], h=2 / len(idx_path))
+    q_dynamics.publish_trajectory(x_trj, h=irs_rrt_param.h)
 
     return fig
 
 
 def slider_callback(num_nodes, relayout_data):
     print(num_nodes)
-    traces_list = e_plot_list[:num_nodes]
+    traces_list = []
     traces_list += create_tree_plot_up_to_node(num_nodes)
     global fig
     fig = go.Figure(data=traces_list, layout=layout)
