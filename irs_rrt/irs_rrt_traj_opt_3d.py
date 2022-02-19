@@ -1,5 +1,6 @@
 import numpy as np
 
+from pydrake.math import RollPitchYaw
 from irs_rrt.irs_rrt_3d import IrsRrt3D
 from irs_rrt.irs_rrt_traj_opt import IrsRrtTrajOpt
 from irs_rrt.rrt_base import Node
@@ -17,6 +18,16 @@ class IrsRrtTrajOpt3D(IrsRrtTrajOpt):
         self.irs_rrt_3d = IrsRrt3D(rrt_params)
     
     def sample_subgoal(self):
-        return self.irs_rrt_3d.sample_subgoal()
+        subgoal = np.random.rand(self.q_dynamics.dim_x)
+        subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
+
+        yaw = - np.random.rand() * np.pi
+        subgoal[self.irs_rrt_3d.quat_ind] = (
+            RollPitchYaw([0, 0, yaw]).ToQuaternion().wxyz())
+
+        return subgoal
+
+
+        # return self.irs_rrt_3d.sample_subgoal()
 
 
