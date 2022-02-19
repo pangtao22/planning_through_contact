@@ -82,7 +82,7 @@ class IrsRrtRandomGrasp(IrsRrt):
         """
         regrasp = (np.random.rand() < self.params.grasp_prob)
 
-        if (regrasp):
+        if regrasp:
             xnext = self.contact_sampler.sample_contact(
                 parent_node.q[self.q_dynamics.get_q_u_indices_into_x()])
 
@@ -113,7 +113,7 @@ class IrsRrtRandomGrasp(IrsRrt):
         edge.child = child_node
         edge.cost = cost
 
-        if(regrasp):
+        if regrasp:
             edge.du = np.nan
             edge.u = np.nan
         else:
