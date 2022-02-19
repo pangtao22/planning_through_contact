@@ -19,7 +19,8 @@ from irs_mpc.irs_mpc_quasistatic import (
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from irs_rrt.irs_rrt import IrsRrt, IrsNode
-from irs_rrt.rrt_params import IrsRrtParams
+from irs_rrt.rrt_params import IrsRrtRandomGraspParams
+from irs_rrt.irs_rrt_random_grasp import IrsRrtRandomGrasp
 
 from planar_hand_setup import *
 from contact_sampler import PlanarHandContactSampler
@@ -35,7 +36,7 @@ plant = q_sim_py.get_plant()
 idx_a_l = plant.GetModelInstanceByName(robot_l_name)
 idx_a_r = plant.GetModelInstanceByName(robot_r_name)
 idx_u = plant.GetModelInstanceByName(object_name)
-contact_sampler = PlanarHandContactSampler(q_dynamics, 0.5)
+contact_sampler = PlanarHandContactSampler(q_dynamics, pinch_prob=0.5)
 
 q_u0 = np.array([0.0, 0.35, 0])
 q0_dict = contact_sampler.calc_enveloping_grasp(q_u0)
@@ -48,25 +49,26 @@ joint_limits = {
 }
 
 #%% RRT testing
-params = IrsRrtParams(q_model_path, joint_limits)
+params = IrsRrtRandomGraspParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
-params.max_size = 300
+params.max_size = 2000
 params.goal = np.copy(x0)
 params.goal[6] = np.pi
 params.termination_tolerance = 1e-2
-params.goal_as_subgoal_prob = 0.5
+params.goal_as_subgoal_prob = 0.1
 params.rewire = False
+params.grasp_prob = 0.2
+params.distance_threshold = 50
 params.distance_metric = 'local_u'
 
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 10.0, 10.0, 1.0])
 
-
-irs_rrt = IrsRrt(params)
+irs_rrt = IrsRrtRandomGrasp(params, contact_sampler)
 irs_rrt.iterate()
 
 #%%
-irs_rrt.save_tree(f"tree_{params.max_size}_planar_hand.pkl")
+irs_rrt.save_tree(f"tree_{params.max_size}_planar_hand_random_grasp.pkl")
 
 
 #%%
