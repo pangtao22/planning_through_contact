@@ -20,9 +20,9 @@ class IrsRrt3D(IrsRrt):
         subgoal = np.random.rand(self.q_dynamics.dim_x)
         subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
 
-        rpy = RollPitchYaw(subgoal[self.quat_ind][0:3])
-        subgoal[self.quat_ind] = Quaternion(
-            RotationMatrix(rpy).matrix()).wxyz()
+        # Sample quaternion uniformly following https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.128.8767&rep=rep1&type=pdf
+        quat_xyzw = R.random().as_quat()
+        subgoal[self.quat_ind] = self.convert_quat_xyzw_to_wxyz(quat_xyzw)
 
         return subgoal
 
