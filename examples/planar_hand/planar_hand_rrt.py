@@ -35,7 +35,7 @@ plant = q_sim_py.get_plant()
 idx_a_l = plant.GetModelInstanceByName(robot_l_name)
 idx_a_r = plant.GetModelInstanceByName(robot_r_name)
 idx_u = plant.GetModelInstanceByName(object_name)
-contact_sampler = PlanarHandContactSampler(q_dynamics)
+contact_sampler = PlanarHandContactSampler(q_dynamics, 0.5)
 
 q_u0 = np.array([0.0, 0.35, 0])
 q0_dict = contact_sampler.calc_enveloping_grasp(q_u0)
@@ -54,7 +54,7 @@ params.max_size = 300
 params.goal = np.copy(x0)
 params.goal[6] = np.pi
 params.termination_tolerance = 1e-2
-params.subgoal_prob = 0.5
+params.goal_as_subgoal_prob = 0.5
 params.rewire = False
 params.distance_metric = 'local_u'
 
