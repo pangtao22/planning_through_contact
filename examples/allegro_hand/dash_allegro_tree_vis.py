@@ -13,11 +13,13 @@ from dash.dependencies import Input, Output, State
 from dash_vis.dash_common import (hover_template_y_z_theta,
                                   layout, make_large_point_3d,
                                   make_ellipsoid_plotly,
+                                  hover_template_trj,
                                   trace_path_to_root_from_node,
                                   set_orthographic_camera_yz)
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.reachable_set import ReachableSet
 from matplotlib import cm
+import matplotlib.pyplot as plt
 
 from pydrake.all import AngleAxis, Quaternion, AddTriad, RigidTransform
 
@@ -93,18 +95,40 @@ for i_node in tree.nodes:
     z_edges += [q_u_nodes_rot[i_node, 2], q_u_nodes_rot[i_parent, 2], None]
 
 
+# compute ellipsoid volumes.
+ellipsoid_mesh_points = []
+ellipsoid_volumes = []
+for i in range(n_nodes):
+    node = tree.nodes[i]["node"]
+    cov_u, _ = reachable_set.calc_unactuated_metric_parameters(
+        node.Bhat, node.chat)
+    U, Sigma, Vh = np.linalg.svd(cov_u)
+    ellipsoid_volumes.append(np.prod(np.sqrt(Sigma)))
+
+# compute color
+ellipsoid_volumes = np.log10(np.array(ellipsoid_volumes))
+v_95 = np.percentile(ellipsoid_volumes, 95)
+v_clipped = np.minimum(ellipsoid_volumes, v_95)
+# plt.hist(v_clipped, bins=20)
+# plt.show()
+
+
 def create_tree_plot_up_to_node(num_nodes: int):
     nodes_plot = go.Scatter3d(x=q_u_nodes_rot[:num_nodes, 0],
                               y=q_u_nodes_rot[:num_nodes, 1],
                               z=q_u_nodes_rot[:num_nodes, 2],
                               name='nodes',
                               mode='markers',
-                              hovertemplate=hover_template_y_z_theta,
-                              marker=dict(size=3))
+                              hovertemplate=hover_template_trj,
+                              marker=dict(size=3.5,
+                                          color=v_clipped,
+                                          colorscale='jet',
+                                          showscale=True,
+                                          opacity=0.9))
 
-    edges_plot = go.Scatter3d(x=x_edges[:num_nodes * 3],
-                              y=y_edges[:num_nodes * 3],
-                              z=z_edges[:num_nodes * 3],
+    edges_plot = go.Scatter3d(x=x_edges[:(num_nodes - 1) * 3],
+                              y=y_edges[:(num_nodes - 1) * 3],
+                              z=z_edges[:(num_nodes - 1) * 3],
                               name='edges',
                               mode='lines',
                               line=dict(color='blue', width=2),
@@ -121,38 +145,9 @@ def create_tree_plot_up_to_node(num_nodes: int):
 
     return [nodes_plot, edges_plot, root_plot, path_plot]
 
-# # Draw ellipsoids.
-# ellipsoid_mesh_points = []
-# ellipsoid_volumes = []
-# for i in range(n_nodes):
-#     node = tree.nodes[i]["node"]
-#     cov_u, _ = reachable_set.calc_unactuated_metric_parameters(
-#         node.Bhat, node.chat)
-#     cov_inv = np.linalg.inv(cov_u)
-#     p_center = node.q[-3:]
-#     e_points, volume = make_ellipsoid_plotly(cov_inv, p_center, 0.05, 8)
-#     ellipsoid_mesh_points.append(e_points)
-#     ellipsoid_volumes.append(volume)
 
-# # compute color
-# ellipsoid_volumes = np.array(ellipsoid_volumes)
-# v_99 = np.percentile(ellipsoid_volumes, 99)
-# v_normalized = np.minimum(ellipsoid_volumes / v_99, 1)
-# e_plot_list = []
-# for i, (x, v) in enumerate(zip(ellipsoid_mesh_points, v_normalized)):
-#     r, g, b = cm.jet(v)[:3]
-#     r = int(r * 255)
-#     g = int(g * 255)
-#     b = int(b * 255)
-#     e_plot_list.append(
-#         go.Mesh3d(dict(x=x[0], y=x[1], z=x[2], alphahull=0, name=f"ellip{i}",
-#                        color=f"rgb({r}, {g}, {b})", opacity=0.5)))
 
-'''
-It is important to put the ellipsoid list in the front, so that the 
-curveNumber of the first ellipsoid is 0, which can be used to index into tree 
-nodes.
-'''
+
 fig = go.Figure(data=create_tree_plot_up_to_node(n_nodes),
                 layout=layout)
 fig.update_layout(scene=dict(xaxis_title_text='x_rot',
@@ -185,7 +180,8 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Col([
             html.H3('Tree Growth'),
-            dcc.Slider(id='tree-progress', min=0, max=n_nodes, value=0, step=1,
+            dcc.Slider(id='tree-progress', min=0, max=n_nodes - 1,
+                       value=0, step=1,
                        marks={0: {'label': '0'},
                               n_nodes: {'label': f'{n_nodes}'}},
                        tooltip={"placement": "bottom", "always_visible": True}

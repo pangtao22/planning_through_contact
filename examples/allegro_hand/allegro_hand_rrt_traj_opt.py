@@ -78,7 +78,7 @@ mpc_params.parallel_mode = ParallelizationMode.kCppBundledB
 # IrsRrt params
 params = IrsRrtTrajOptParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
-params.max_size = 500
+params.max_size = 1000
 params.goal = np.copy(x0)
 Q_WB_d = RollPitchYaw(0, 0, np.pi).ToQuaternion()
 params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
