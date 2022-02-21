@@ -1,13 +1,10 @@
 import unittest
-from typing import Dict, Any
 
 import numpy as np
 
-from .context import examples, irs_mpc, irs_rrt
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_rrt.rrt_base import Node
 
-from examples.allegro_hand.contact_sampler import AllegroHandContactSampler
+from irs_rrt.contact_sampler_allegro import AllegroHandContactSampler
 from examples.allegro_hand.allegro_hand_setup import *
 
 

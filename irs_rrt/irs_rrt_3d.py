@@ -2,16 +2,16 @@ import numpy as np
 from irs_rrt.irs_rrt import IrsRrt, IrsNode, IrsEdge
 from irs_rrt.rrt_base import Node
 from irs_rrt.rrt_params import IrsRrtParams
+from pydrake.all import RollPitchYaw, Quaternion, RotationMatrix
 from scipy.spatial.transform import Rotation as R
 
 
 class IrsRrt3D(IrsRrt):
-    def __init__(self, params: IrsRrtParams):
-        super().__init__(params)
-        self.qa_dim = self.q_dynamics.dim_u
-        self.params.stepsize = 0.2
-        # Global metric 
+    def __init__(self, params):
+        IrsRrt.__init__(self, params)
 
+        self.qa_dim = self.q_dynamics.dim_u
+        # Global metric
         self.quat_ind = self.q_dynamics.get_q_u_indices_into_x()[:4]
         assert (self.params.global_metric[self.quat_ind] == 0).all()
 
@@ -23,6 +23,7 @@ class IrsRrt3D(IrsRrt):
         # Sample quaternion uniformly following https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.128.8767&rep=rep1&type=pdf
         quat_xyzw = R.random().as_quat()
         subgoal[self.quat_ind] = self.convert_quat_xyzw_to_wxyz(quat_xyzw)
+
         return subgoal
 
     def extend_towards_q(self, parent_node: Node, q: np.array):

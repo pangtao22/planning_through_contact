@@ -21,7 +21,8 @@ from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 from irs_rrt.irs_rrt import IrsRrt, IrsNode, IrsRrtParams
 from irs_rrt.contact_sampler import ContactSampler
 
-from .planar_pushing_setup import *
+from planar_pushing_setup import *
+
 
 
 class PlanarPushingContactSampler(ContactSampler):

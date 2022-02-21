@@ -48,8 +48,8 @@ class IrsRrtParams(RrtParams):
 class IrsRrtParams3D(IrsRrtParams):
     def __init__(self, q_model_path, joint_limits):
         super().__init__(q_model_path, joint_limits)
-        # Distance metric for defining an adequate notion of distance for quaternions.
-        # Should be a scalar
+        # Distance metric for defining an adequate notion of distance for
+        # quaternions. Should be a scalar.
         self.quat_metric = np.nan
 
 
@@ -58,3 +58,19 @@ class IrsRrtRolloutParams(IrsRrtParams):
         super().__init__(q_model_path, joint_limits)
         # Rollout horizon to use for reaching the point with a long stepsize.
         self.rollout_horizon = 3
+
+
+class IrsRrtTrajOptParams(IrsRrtParams):
+    def __init__(self, q_model_path, joint_limits):
+        super().__init__(q_model_path, joint_limits)
+        # Subgoals further away from any node in the tree than
+        # distance_threshold will be rejected.
+        self.distance_threshold = np.inf
+
+class IrsRrtRandomGraspParams(IrsRrtParams):
+    def __init__(self, q_model_path, joint_limits):
+        super().__init__(q_model_path, joint_limits)
+        # Subgoals further away from any node in the tree than
+        # distance_threshold will be rejected.
+        self.distance_threshold = np.inf
+        self.grasp_prob = 0.2
