@@ -225,6 +225,28 @@ class IrsRrt(Rrt):
 
         return metric_batch
 
+    def calc_pairwise_distance_batch_local(
+        self, q_query_batch: np.ndarray, n_nodes: int,
+                                  is_q_u_only: bool):
+        """
+        q_query_batch consists is a (N x n) array  where N is the number of
+        nodes to be queried for. THe returned array will be a (N x B) array
+        where each element is the distance between the two nodes.
+        """                                
+        # N x n
+        if is_q_u_only:
+            q_query_batch = q_query_batch[:,self.q_u_indices_into_x]
+        # B x n
+        mu_batch = self.get_chat_matrix_up_to(n_nodes, is_q_u_only)
+        # B x n x n
+        covinv_tensor = self.get_covinv_tensor_up_to(n_nodes, is_q_u_only)
+
+        # N x B x n
+        error_batch = q_query_batch[:,None,:] - mu_batch[None,:,:]
+        int_batch = np.einsum('Bij,NBi -> NBj', covinv_tensor, error_batch)
+        metric_batch = np.einsum('NBi,NBi -> NB', int_batch, error_batch)
+        return metric_batch
+
     def calc_distance_batch_global(self, q_query: np.ndarray, n_nodes: int,
                                    is_q_u_only: bool):
         q_batch = self.get_q_matrix_up_to(n_nodes)
