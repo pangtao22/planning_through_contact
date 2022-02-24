@@ -94,9 +94,8 @@ def plot_filename_array(filename_array, color, label):
         cost_array_lst.append(cost_array)
         packing_ratio_lst.append(packing_ratio_array)
 
-
     plt.subplot(1,2,1)
-    cost_array_lst = np.log(np.array(cost_array_lst))
+    cost_array_lst = np.array(cost_array_lst)
     mean_cost = np.mean(cost_array_lst, axis=0)
     std_cost  = np.std(cost_array_lst, axis=0)
 
@@ -105,7 +104,7 @@ def plot_filename_array(filename_array, color, label):
     plt.fill_between(range(len(mean_cost)),
         mean_cost - std_cost, mean_cost + std_cost, color=color, alpha=0.1)
     plt.xlabel('Iterations')
-    plt.ylabel('L2 Distance to Root Node')
+    plt.ylabel('Closest Distance to Goal')
 
     plt.subplot(1,2,2)
     packing_ratio_lst = np.array(packing_ratio_lst)
@@ -119,8 +118,8 @@ def plot_filename_array(filename_array, color, label):
     plt.xlabel('Iterations')
     plt.ylabel('Packing Ratio')
 
-plt.figure()
-plt.rcParams['font.size'] = '32'
+fig = plt.figure(figsize=(16,4))
+plt.rcParams['font.size'] = '16'
 filename_array = [
     "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_1.pkl",
     "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_2.pkl",
@@ -148,5 +147,11 @@ filename_array = [
 ]
 plot_filename_array(filename_array, 'royalblue', 'No Contact')
 
+plt.subplot(1,2,1)
 plt.legend()
+plt.subplot(1,2,2)
+plt.legend()
+
+fig.set_figheight(6)
+fig.set_figwidth(12)
 plt.show()
