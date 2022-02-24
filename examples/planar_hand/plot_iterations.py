@@ -40,6 +40,7 @@ def get_cost_array(irs_rrt, global_metric):
     n_nodes = len(irs_rrt.graph.nodes)
     costs = np.zeros(n_nodes)
 
+    irs_rrt.params.global_metric = global_metric
     for n in range(1,n_nodes):
         costs[n] = np.min(
                 irs_rrt.calc_distance_batch_global(
@@ -80,11 +81,11 @@ def compute_statistics(filename):
 
     cost_array = get_cost_array(irs_rrt, global_metric)
     packing_ratio_array = get_packing_ratio_array(irs_rrt,
-        sampling_function, n_samples, threshold=3)
+        sampling_function, n_samples, threshold)
 
     return cost_array, packing_ratio_array
 
-def plot_filename_array(filename_array):
+def plot_filename_array(filename_array, color, label):
     cost_array_lst = []
     packing_ratio_lst = []
 
@@ -93,16 +94,16 @@ def plot_filename_array(filename_array):
         cost_array_lst.append(cost_array)
         packing_ratio_lst.append(packing_ratio_array)
 
-    plt.figure()
+
     plt.subplot(1,2,1)
     cost_array_lst = np.log(np.array(cost_array_lst))
     mean_cost = np.mean(cost_array_lst, axis=0)
     std_cost  = np.std(cost_array_lst, axis=0)
 
-    plt.plot(range(len(mean_cost)), mean_cost, 'r-')
+    plt.plot(range(len(mean_cost)), mean_cost, '-', color=color,
+        label=label)
     plt.fill_between(range(len(mean_cost)),
-        mean_cost - std_cost, mean_cost + std_cost,
-        color=[1,0,0,0.1])
+        mean_cost - std_cost, mean_cost + std_cost, color=color, alpha=0.1)
     plt.xlabel('Iterations')
     plt.ylabel('L2 Distance to Root Node')
 
@@ -111,21 +112,41 @@ def plot_filename_array(filename_array):
     mean_cost = np.mean(packing_ratio_lst, axis=0)
     std_cost = np.std(packing_ratio_lst, axis=0)
 
-    plt.plot(range(len(mean_cost)), mean_cost, '-', color='springgreen')
+    plt.plot(range(len(mean_cost)), mean_cost, '-', color=color,
+        label=label)
     plt.fill_between(range(len(mean_cost)),
-        mean_cost - std_cost, mean_cost + std_cost, color='springgreen',
-        alpha=0.1)
+        mean_cost - std_cost, mean_cost + std_cost, color=color, alpha=0.1)
     plt.xlabel('Iterations')
     plt.ylabel('Packing Ratio')
 
-    plt.show()
+plt.figure()
+plt.rcParams['font.size'] = '32'
+filename_array = [
+    "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_1.pkl",
+    "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_2.pkl",
+    "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_3.pkl",
+    "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_4.pkl",
+    "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_5.pkl",
+]
+plot_filename_array(filename_array, 'springgreen', 'iRS-RRT')
 
 filename_array = [
-    "tree_2000_planar_hand_rg_1.pkl",
-    "tree_2000_planar_hand_rg_2.pkl",
-    #"tree_2000_planar_hand_regrasp_2d_3.pkl",
-    #"tree_2000_planar_hand_regrasp_2d_4.pkl",
-    #"tree_2000_planar_hand_regrasp_2d_5.pkl"
+    "data/planar_hand/projection/global/tree_2000_planar_hand_rg_global_1.pkl",
+    "data/planar_hand/projection/global/tree_2000_planar_hand_rg_global_2.pkl",
+    "data/planar_hand/projection/global/tree_2000_planar_hand_rg_global_3.pkl",
+    "data/planar_hand/projection/global/tree_2000_planar_hand_rg_global_4.pkl",
+    "data/planar_hand/projection/global/tree_2000_planar_hand_rg_global_5.pkl",
 ]
+plot_filename_array(filename_array, 'red', 'Global Metric')
 
-plot_filename_array(filename_array)
+filename_array = [
+    "data/planar_hand/projection/nocontact/tree_2000_planar_hand_rg_nocontact_1.pkl",
+    "data/planar_hand/projection/nocontact/tree_2000_planar_hand_rg_nocontact_2.pkl",
+    "data/planar_hand/projection/nocontact/tree_2000_planar_hand_rg_nocontact_3.pkl",
+    "data/planar_hand/projection/nocontact/tree_2000_planar_hand_rg_nocontact_4.pkl",
+    "data/planar_hand/projection/nocontact/tree_2000_planar_hand_rg_nocontact_5.pkl",
+]
+plot_filename_array(filename_array, 'royalblue', 'No Contact')
+
+plt.legend()
+plt.show()
