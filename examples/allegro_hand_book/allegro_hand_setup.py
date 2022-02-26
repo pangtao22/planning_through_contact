@@ -5,11 +5,11 @@ from irs_mpc.irs_mpc_params import (BundleMode,
 from qsim.model_paths import models_dir
 
 
-q_model_path = os.path.join(models_dir, 'q_sys', 'allegro_hand_door_push.yml')
+q_model_path = os.path.join(models_dir, 'q_sys', 'allegro_hand_book.yml')
 
 # names.
 robot_name = 'allegro_hand_right'
-object_name = 'door'
+object_name = 'book'
 
 # environment
 h = 0.05

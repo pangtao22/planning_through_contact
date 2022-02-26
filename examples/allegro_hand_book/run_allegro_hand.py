@@ -2,6 +2,7 @@
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+import meshcat
 
 from pydrake.all import (PiecewisePolynomial, RotationMatrix, AngleAxis,
                          Quaternion, RigidTransform)
@@ -35,12 +36,12 @@ idx_a = plant.GetModelInstanceByName(robot_name)
 idx_u = plant.GetModelInstanceByName(object_name)
 
 # initial conditions.
-q_a0 = np.array([-0.3, -0.1, -0.1,
-                 0.03501504, 0.75276565, 0.74146232, 0.83261002, 0.63256269,
-                 1.02378254, 0.64089555, 0.82444782, -0.1438725, 0.74696812,
-                 0.61908827, 0.70064279, -0.06922541, 0.78533142, 0.82942863,
-                 0.90415436])
-q_u0 = np.array([0])
+q_a0 = np.array([0.0, -0.2, 0.15,
+                 0.03501504, 0.75276565, 0.74146232, 0.83261002, 
+                 0.03256269, 1.02378254, 0.64089555, 0.82444782, 
+                 -0.0438725, 0.74696812, 0.61908827, 0.70064279,
+                 -0.06922541, 0.78533142, 0.82942863, 0.90415436])
+q_u0 = np.array([1, 0, 0, 0, 0.0, -0.3, 0.05])
 q0_dict = {idx_a: q_a0, idx_u: q_u0}
 
 #%%
@@ -50,8 +51,8 @@ idx_a_cost = np.ones(dim_u) * 1e-4
 idx_a_cost[0:3] = 1e-1
 
 params.Q_dict = {
-    idx_u: np.array([10]),
-    idx_a: idx_a_cost}
+    idx_u: np.array([10, 10, 10, 10, 1, 1, 1]),
+    idx_a: np.ones(dim_u) * 1e-3}
 
 params.Qd_dict = {}
 for model in q_dynamics.models_actuated:
@@ -77,31 +78,32 @@ irs_mpc = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
 
 
 #%%
-#Q_WB_d = RollPitchYaw(0, 0, -np.pi / 8).ToQuaternion()
-#p_WB_d = q_u0[4:] + np.array([0, 0.1, 0], dtype=float)
-q_d_dict = {idx_u: np.array([np.pi/3]),
+Q_WB_d = RollPitchYaw(0, 0, np.pi / 8).ToQuaternion()
+p_WB_d = q_u0[4:] + np.array([0, 0.2, 0.2], dtype=float)
+q_d_dict = {idx_u: np.hstack([Q_WB_d.wxyz(), p_WB_d]),
             idx_a: q_a0}
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
-
+u0 = q_dynamics.get_u_from_q_cmd_dict(q0_dict)
 xd = q_dynamics.get_x_from_q_dict(q_d_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
-u_trj_0 = np.tile(q_a0, (T, 1))
-u_trj_0[:,0] = np.linspace(-0.3, 0.1, T)
+u_trj_0 = np.tile(u0, (T, 1))
+u_trj_0[:,1] = np.linspace(-0.2, -0.5, T)
 irs_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 
 #%%
 # irs_lqr_q.q_dynamics_parallel.q_sim_batch.set_num_max_parallel_executions(10)
-t0 = time.time()
-irs_mpc.iterate(num_iters, cost_Qu_f_threshold=0)
-t1 = time.time()
-
-print(f"iterate took {t1 - t0} seconds.")
+try:
+    t0 = time.time()
+    irs_mpc.iterate(num_iters, cost_Qu_f_threshold=0)
+    t1 = time.time()
+except:
+    pass
 
 #%% visualize goal.
 AddTriad(
     vis=q_dynamics.q_sim_py.viz.vis,
     name='frame',
-    prefix='drake/plant/sphere/sphere',
+    prefix='drake/plant/pen/pen',
     length=0.1,
     radius=0.001,
     opacity=1)
@@ -113,6 +115,9 @@ AddTriad(
     length=0.1,
     radius=0.005,
     opacity=0.5)
+
+q_dynamics.q_sim_py.viz.vis['goal'].set_transform(
+    RigidTransform(Q_WB_d, p_WB_d).GetAsMatrix4())
 
 #%%
 x_traj_to_publish = irs_mpc.x_trj_list[0]
