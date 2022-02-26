@@ -260,8 +260,6 @@ class QuasistaticDynamicsParallel:
                 x_trj, u_trj, self.q_dynamics.h, std_u,
                 n_samples, None))
         else:
-            # If a float is passed, this line silently parses it to a vector
-            # with all identical elements
             Bt = np.array(self.q_sim_batch.calc_bundled_B_trj(
                 x_trj, u_trj, self.q_dynamics.h, std_u,
                 n_samples, None))
