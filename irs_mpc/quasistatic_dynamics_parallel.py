@@ -264,7 +264,7 @@ class QuasistaticDynamicsParallel:
             # with all identical elements
             if (type(std_u) == float) or (type(std_u) == np.float64):
                 std_u = std_u * np.ones(self.dim_u)
-            print(std_u)
+
             Bt = np.array(self.q_sim_batch.calc_bundled_B_trj(
                 x_trj, u_trj, self.q_dynamics.h, std_u,
                 n_samples, None))
