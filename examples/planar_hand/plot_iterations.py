@@ -48,6 +48,7 @@ def get_cost_array(irs_rrt, global_metric):
 
     return costs[1:]
 
+
 def get_packing_ratio_array(irs_rrt, sampling_function, n_samples, threshold):
     n_nodes = len(irs_rrt.graph.nodes)
     costs = np.zeros(n_nodes)
@@ -60,6 +61,7 @@ def get_packing_ratio_array(irs_rrt, sampling_function, n_samples, threshold):
         costs[n] = np.sum(dist < threshold) / n_samples
 
     return costs[1:]
+
 
 def compute_statistics(filename):
     with open(filename, 'rb') as f:

@@ -191,7 +191,7 @@ def update_qa0(n_clicks, q_u0_json):
         return json.dumps({'qa_l': [0., 0.], 'qa_r': [0., 0.]}), html.Div('')
     q_u0_dict = json.loads(q_u0_json)
     q_u0 = np.array([q_u0_dict['y'], q_u0_dict['z'], q_u0_dict['theta']])
-    q_dict = contact_sampler.calc_enveloping_grasp(q_u=q_u0)
+    q_dict = q_dynamics.get_q_dict_from_x(contact_sampler.sample_contact(q_u0))
     q_sim_py.update_mbp_positions(q_dict)
     q_sim_py.draw_current_configuration()
 
@@ -384,4 +384,4 @@ def calc_trajectory(n_clicks, q_u_goal_json, q_u0_json, q_a0_json):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=False)
