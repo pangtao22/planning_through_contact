@@ -145,10 +145,9 @@ class QuasistaticDynamicsParallel:
             computing bundled B from averaging gradients, Zero-order
             methods such as least-squared is not supported.
             '''
-            assert np.allclose(std_u, std_u[0])
             assert bundle_mode == BundleMode.kFirst
             At, Bt, = self.calc_bundled_AB_cpp(
-                x_trj, u_trj, std_u[0], n_samples,
+                x_trj, u_trj, std_u, n_samples,
                 is_direct=parallel_mode == ParallelizationMode.kCppBundledBDirect)
         elif parallel_mode == ParallelizationMode.kCppDebug:
             '''
@@ -156,9 +155,8 @@ class QuasistaticDynamicsParallel:
              between sampling in python and sampling in C++. The conclusion 
              so far is that there doesn't seem to be much difference. 
             '''
-            assert np.allclose(std_u, std_u[0])
             assert bundle_mode == BundleMode.kFirst
-            du_samples = np.random.normal(0, std_u[0],
+            du_samples = np.random.normal(0, std_u,
                                           [T, n_samples, self.dim_u])
             At = np.zeros((T, self.dim_x, self.dim_x))
             Bt = self.calc_bundled_B_cpp_debug(x_trj, u_trj, du_samples)
@@ -247,7 +245,7 @@ class QuasistaticDynamicsParallel:
         return At, Bt
 
     def calc_bundled_AB_cpp(self, x_trj: np.ndarray, u_trj: np.ndarray,
-                            std_u: float, n_samples: int,
+                            std_u: np.ndarray, n_samples: int,
                             is_direct: bool):
         """
         Dispatches to BatchQuasistaticSimulator::CalcBundledBTrj or
