@@ -12,7 +12,7 @@ robot_name = 'allegro_hand_right'
 object_name = 'plate'
 
 # environment
-h = 0.05
+h = 0.025
 
 # gradient computation
 bundle_mode = BundleMode.kFirst
