@@ -26,7 +26,7 @@ from planar_hand_plotly_vis import (pink, dark_red, bright_blue, blue,
 import plotly.io as pio
 pio.renderers.default = "browser"  # see plotly charts in pycharm.
 
-line_width = 5
+line_width = 12
 
 # %% quasistatic dynamics
 q_dynamics = QuasistaticDynamics(h=h,
@@ -120,14 +120,14 @@ def create_pca_plots(cov_u: np.ndarray, name: str, color: str):
 
     return principal_axes_plot, p_W_major, p_W_minor
 
+#%%
+ellipsoid_plot0, c_u_hat_0, cov_u0 = create_ellipsoid_plot(x0, u0)
+ellipsoid_plot1, c_u_hat_1, cov_u1 = create_ellipsoid_plot(x1, u1)
 
 # %%
 ellipsoid_colors = ['blue', 'red']
 colors0 = [blue, bright_blue]
 colors1 = [dark_red, pink]
-
-ellipsoid_plot0, c_u_hat_0, cov_u0 = create_ellipsoid_plot(x0, u0)
-ellipsoid_plot1, c_u_hat_1, cov_u1 = create_ellipsoid_plot(x1, u1)
 
 pca0, p_W_major0, p_W_minor0 = create_pca_plots(
     cov_u0, name='pca0', color=ellipsoid_colors[0])
@@ -138,12 +138,26 @@ pca1, p_W_major1, p_W_minor1 = create_pca_plots(
 def create_major_minor_plots(
         idx: int, p_W_major: np.ndarray, p_W_minor: np.ndarray,
         colors: List[Tuple]):
-    p_W_major_plot = make_large_point_3d(
-        p_W_major, 'p_W_major0',
-        color=rgb_tuple_2_rgba_str(colors[0], 1.0), symbol='circle')
-    p_W_minor_plot = make_large_point_3d(
-        p_W_minor, 'p_W_minor0',
-        color=rgb_tuple_2_rgba_str(colors[1], 1.0), symbol='square')
+    p_W_major_plot = go.Scatter3d(
+        x=[p_W_major[0]],
+        y=[p_W_major[1]],
+        z=[p_W_major[2]],
+        name=f'p_W_major{idx}',
+        mode='markers',
+        hovertemplate=hover_template_y_z_theta,
+        marker=dict(size=20, symbol='circle', opacity=1.0,
+                 color=rgb_tuple_2_rgba_str(colors[0], 1.0)))
+
+    p_W_minor_plot = go.Scatter3d(
+        x=[p_W_minor[0]],
+        y=[p_W_minor[1]],
+        z=[p_W_minor[2]],
+        name=f'p_W_minor{idx}',
+        mode='markers',
+        hovertemplate=hover_template_y_z_theta,
+        marker=dict(size=20, symbol='square', opacity=1.0,
+                    color=rgb_tuple_2_rgba_str(colors[1], 1.0)))
+
     dashed_line = go.Scatter3d(
         x=[0., p_W_minor[0]],
         y=[0., p_W_minor[1]],
@@ -156,7 +170,6 @@ def create_major_minor_plots(
 
 
 # %%
-
 plots = [ellipsoid_plot0, ellipsoid_plot1, pca0, pca1]
 plots += create_major_minor_plots(0, p_W_major0, p_W_minor0,
                                   colors=colors0)
