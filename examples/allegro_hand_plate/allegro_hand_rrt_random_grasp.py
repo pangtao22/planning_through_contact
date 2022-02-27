@@ -42,7 +42,7 @@ num_joints = 19 # The last joint is weldjoint (welded to the world)
 joint_limits = {
     idx_u: np.array([
         [-0.1, np.pi/2 + 0.1],[-0.2, 0.2], [-0.2, 0.2], [0, 0],
-        [-0.1, 0.1], [-0.5, -0.4], [0.0, 0.3]]),
+        [-0.1, 0.1], [-0.5, -0.3], [0.0, 0.3]]),
     idx_a: np.zeros([num_joints, 2])
 }
 
@@ -65,6 +65,7 @@ params.max_size = 500
 params.goal = np.copy(x0)
 Q_WB_d = RollPitchYaw(np.pi/2, 0, 0).ToQuaternion()
 params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
+params.goal[q_dynamics.get_q_u_indices_into_x()[5]] = -0.3
 params.goal[q_dynamics.get_q_u_indices_into_x()[6]] = 0.3 
 params.termination_tolerance = 1e-1  # used in irs_rrt.iterate() as cost threshold.
 params.goal_as_subgoal_prob = 0.1
@@ -76,9 +77,9 @@ params.global_metric = np.ones(x0.shape) * 0.1
 params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
 params.quat_metric = 5
 params.distance_threshold = np.inf
-params.stepsize = 0.15
+params.stepsize = 0.2
 std_u = 0.1 * np.ones(19)
-std_u[0:3] = 0.01
+std_u[0:3] = 0.03
 params.std_u = std_u
 params.grasp_prob = 0.4
 
