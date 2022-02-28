@@ -20,5 +20,4 @@ parallel_mode = ParallelizationMode.kCppBundledB
 decouple_AB = True
 
 # IrsLqr
-num_iters = 0
 num_samples = 100

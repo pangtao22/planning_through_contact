@@ -69,7 +69,11 @@ class IrsMpcQuasistatic:
         self.solver = get_solver(params.solver_name)
 
         # logger
-        self.logger = spdlog.ConsoleLogger("IrsMpc")
+        try:
+            self.logger = spdlog.ConsoleLogger("IrsMpc")
+        except RuntimeError as e:
+            spdlog.drop("IrsMpc")
+            self.logger = spdlog.ConsoleLogger("IrsMpc")
 
         # parallelization.
         use_zmq_workers = (
