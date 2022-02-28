@@ -67,6 +67,7 @@ class IrsRrtTrajOptParams(IrsRrtParams):
         # distance_threshold will be rejected.
         self.distance_threshold = np.inf
 
+
 class IrsRrtRandomGraspParams(IrsRrtParams):
     def __init__(self, q_model_path, joint_limits):
         super().__init__(q_model_path, joint_limits)
