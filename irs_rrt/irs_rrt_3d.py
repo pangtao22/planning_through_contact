@@ -13,7 +13,7 @@ class IrsRrt3D(IrsRrt):
         self.qa_dim = self.q_dynamics.dim_u
         # Global metric
         self.quat_ind = self.q_dynamics.get_q_u_indices_into_x()[:4]
-        assert (self.params.global_metric[self.quat_ind] == 0).all()
+        # assert (self.params.global_metric[self.quat_ind] == 0).all()
 
     def sample_subgoal(self):
         # Sample translation

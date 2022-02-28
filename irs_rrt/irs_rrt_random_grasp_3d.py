@@ -20,6 +20,7 @@ class IrsRrtRandomGrasp3D(IrsRrtRandomGrasp):
     def __init__(self, params: IrsRrtParams, contact_sampler):
         super().__init__(params, contact_sampler)
         self.irs_rrt_3d = IrsRrt3D(params)
+        self.quat_ind = self.irs_rrt_3d.quat_ind
 
     def sample_subgoal(self):
         # Sample translation

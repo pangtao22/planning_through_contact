@@ -5,7 +5,7 @@ from irs_mpc.irs_mpc_params import (BundleMode,
 from qsim.model_paths import models_dir
 
 
-q_model_path = os.path.join(models_dir, 'q_sys', 'allegro_hand_baoding_0.03.yml')
+q_model_path = os.path.join(models_dir, 'q_sys', 'allegro_hand_baoding_0.035.yml')
 
 # names.
 robot_name = 'allegro_hand_right'
