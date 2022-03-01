@@ -78,15 +78,18 @@ class AllegroHandPenContactSampler(ContactSampler):
 
                 max_rp = np.max(rpy_vec[0:2])
 
-                q_a0[0] = q_u[4] + 0.07 + 0.02 * (np.random.rand() - 0.5)
-                q_a0[1] = q_u[5] + 0.01 * (np.random.rand() - 0.5)
-                q_a0[2] = q_u[6] - 0.05 - 0.05 * np.abs(np.sin(max_rp))
+                print(q_u)
+
+                q_a0[0] = -q_u[5] - (0.01 * (np.random.rand() - 0.5))
+                q_a0[1] = -q_u[4] - (+ 0.07 + 0.02 * (np.random.rand() -
+                                                      0.5))
+
+                q_a0[2] = q_u[6] - 0.05 #- 0.05 * np.abs(np.sin(max_rp))
                 q_a0[8] = np.pi / 2
 
                 q0_dict = {self.idx_a: q_a0, self.idx_u: q_u}
                 x0 = self.q_dynamics.get_x_from_q_dict(q0_dict)
-                self.q_dynamics.q_sim_py.update_mbp_positions_from_vector(x0)
-                self.q_dynamics.q_sim_py.draw_current_configuration()
+
 
                 w_torsion = 0.03 * (np.random.rand() - 0.5)
                 w_anti_torsion = 0.03 * (np.random.rand() - 0.5)
@@ -100,8 +103,12 @@ class AllegroHandPenContactSampler(ContactSampler):
                     w_pinch_flexion * self.qdot_pinch_flexion
 
                 xnext, q_dict_lst = self.simulate_qdot(x0, qdot, self.T)
-                self.q_dynamics.q_sim_py.animate_system_trajectory(self.q_dynamics.h,
-                    q_dict_lst)
+                self.q_dynamics.q_sim_py.update_mbp_positions_from_vector(xnext)
+                self.q_dynamics.q_sim_py.draw_current_configuration()
+                # self.q_dynamics.q_sim_py.animate_system_trajectory(
+                #     self.q_dynamics.h, q_dict_lst)
+
+                # print(q_dict_lst[-1])
 
                 is_success = True
             except Exception as e:

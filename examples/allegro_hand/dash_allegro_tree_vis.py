@@ -142,8 +142,10 @@ def create_tree_plot_up_to_node(num_nodes: int):
                              line=dict(color='crimson', width=5))
 
     root_plot = make_large_point_3d(q_u_nodes_rot[0], name='root')
+    goal_plot = make_large_point_3d([0.3, 0.2, 1.0], name='goal',
+                                    color="green")
 
-    return [nodes_plot, edges_plot, root_plot, path_plot]
+    return [nodes_plot, edges_plot, root_plot, goal_plot, path_plot]
 
 
 

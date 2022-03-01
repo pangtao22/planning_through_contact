@@ -69,7 +69,7 @@ class IrsMpcQuasistatic:
         self.solver = get_solver(params.solver_name)
 
         # logger
-        self.logger = spdlog.ConsoleLogger("IrsMpc")
+        # self.logger = spdlog.ConsoleLogger("IrsMpc")
 
         # parallelization.
         use_zmq_workers = (
@@ -264,10 +264,10 @@ class IrsMpcQuasistatic:
          max_iterations is reached.
         """
         while True:
-            self.logger.info(
-                'Iter {:02d}, '.format(self.current_iter) +
-                'cost: {:0.4f}, '.format(self.cost) +
-                'time: {:0.2f}.'.format(time.time() - self.start_time))
+            # print(
+            #     'Iter {:02d}, '.format(self.current_iter) +
+            #     'cost: {:0.4f}, '.format(self.cost) +
+            #     'time: {:0.2f}.'.format(time.time() - self.start_time))
 
             x_trj_new, u_trj_new = self.local_descent(self.x_trj, self.u_trj)
             (cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final,
