@@ -74,7 +74,7 @@ params.root_node = IrsNode(x0)
 params.max_size = 100
 params.goal = np.copy(x0)
 params.goal[q_dynamics.get_q_u_indices_into_x()] = [door_angle_goal, np.pi / 2]
-params.termination_tolerance = 0.1
+params.termination_tolerance = 0
 params.goal_as_subgoal_prob = 0.1
 params.global_metric = np.ones(x0.shape) * 0.1
 params.global_metric[q_dynamics.get_q_u_indices_into_x()] = [1, 1]
@@ -87,12 +87,12 @@ params.distance_metric = 'local_u'
 params.grasp_prob = 0.2
 
 
-tree = IrsRrtTrajOpt(rrt_params=params,
-                     mpc_params=mpc_params,
-                     contact_sampler=contact_sampler)
-tree.iterate()
+for i in range(2, 5):
+    tree = IrsRrtTrajOpt(rrt_params=params,
+                         mpc_params=mpc_params,
+                         contact_sampler=contact_sampler)
+    tree.iterate()
 
-#%%
-tree.save_tree(
-    "tree_traj_opt_{}_{}.pkl".format(params.distance_metric, params.max_size))
-
+    name = "tree_traj_opt_{}_{}_{}.pkl".format(
+        params.distance_metric, params.max_size, i)
+    tree.save_tree(name)

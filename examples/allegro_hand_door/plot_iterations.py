@@ -1,30 +1,8 @@
-from distutils.dir_util import create_tree
-import os.path
-from struct import pack
-import time
-from matplotlib import patches
-from matplotlib import cm
+
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
-import argparse
-import networkx as nx
-
-import cProfile
-from dash_vis.dash_common import create_pca_plots
-
-from pydrake.all import PiecewisePolynomial
-
-from qsim.simulator import QuasistaticSimulator, GradientMode
-from qsim_cpp import QuasistaticSimulatorCpp
-
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_mpc.quasistatic_dynamics_parallel import (
-    QuasistaticDynamicsParallel)
-from irs_mpc.irs_mpc_quasistatic import (
-    IrsMpcQuasistatic)
-from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from irs_rrt.irs_rrt import IrsRrt, IrsNode
 
@@ -66,15 +44,16 @@ def compute_statistics(filename):
     """Modify the below lines for specific implementations."""
 
     irs_rrt = IrsRrt.make_from_pickled_tree(tree)
-    global_metric = np.array([0.1, 0.1, 0.1, 0.1, 1.0, 1.0, 0.2])
+    global_metric = np.ones(21) * 0.1
+    global_metric[-2:] = 1
     n_samples = 100
     threshold = 3
 
     def sampling_function(n_samples):
-        samples = np.random.rand(n_samples, 7)
-        samples[:, 4] = 0.2 * samples[:, 4] - 0.1
-        samples[:, 5] = 0.2 * samples[:, 5] + 0.3
-        samples[:, 6] = (np.pi + 0.01) * samples[:, 6] - 0.01
+        samples = np.random.rand(n_samples, 21)
+        door_angle_goal = -np.pi / 12 * 5
+        samples[:, -2] = door_angle_goal * samples[:, 0]
+        samples[:, -1] = samples[:, 1] * np.pi / 4 + np.pi / 4
         return samples
 
     cost_array = get_cost_array(irs_rrt, global_metric)
@@ -123,33 +102,20 @@ def plot_filename_array(filename_array, color, label):
 
 fig = plt.figure(figsize=(16, 4))
 plt.rcParams['font.size'] = '16'
-filename_array = [
-    "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_1.pkl",
-    "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_2.pkl",
-    "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_3.pkl",
-    "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_4.pkl",
-    "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_5.pkl",
-]
+prefix = "tree"  # tree_traj_opt
+n_nodes = 500  # 100
+filename_array = [f"{prefix}_local_u_{n_nodes}_{i}.pkl" for i in range(5)]
 plot_filename_array(filename_array, 'springgreen', 'iRS-RRT')
 
-filename_array = [
-    "data/planar_hand/projection/global/tree_2000_planar_hand_rg_global_1.pkl",
-    "data/planar_hand/projection/global/tree_2000_planar_hand_rg_global_2.pkl",
-    "data/planar_hand/projection/global/tree_2000_planar_hand_rg_global_3.pkl",
-    "data/planar_hand/projection/global/tree_2000_planar_hand_rg_global_4.pkl",
-    "data/planar_hand/projection/global/tree_2000_planar_hand_rg_global_5.pkl",
-]
+filename_array = [f"{prefix}_global_u_{n_nodes}_{i}.pkl"
+                  for i in range(5)]
 plot_filename_array(filename_array, 'red', 'Global Metric')
 
-filename_array = [
-    "data/planar_hand/projection/nocontact/tree_2000_planar_hand_rg_nocontact_1.pkl",
-    "data/planar_hand/projection/nocontact/tree_2000_planar_hand_rg_nocontact_2.pkl",
-    "data/planar_hand/projection/nocontact/tree_2000_planar_hand_rg_nocontact_3.pkl",
-    "data/planar_hand/projection/nocontact/tree_2000_planar_hand_rg_nocontact_4.pkl",
-    "data/planar_hand/projection/nocontact/tree_2000_planar_hand_rg_nocontact_5.pkl",
-]
+filename_array = [f"{prefix}_local_u_{n_nodes}_no_contact_{i}.pkl"
+                  for i in range(5)]
 plot_filename_array(filename_array, 'royalblue', 'No Contact')
 
+#%%
 plt.subplot(1, 2, 1)
 plt.legend()
 plt.subplot(1, 2, 2)
