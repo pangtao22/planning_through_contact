@@ -106,7 +106,7 @@ class AllegroHandPlateContactSampler(ContactSampler):
                 w_enveloping_flexion = 0.04 + 0.02 * (np.random.rand() - 0.5)
                 w_pinch_flexion = 0.01 + 0.03 * (np.random.rand() - 0.5)
 
-                w_thumb = 0.04 * np.random.rand()
+                w_thumb = 0.02 * np.random.rand()
 
                 qdot = w_torsion * self.qdot_torsion + \
                        w_anti_torsion * self.qdot_anti_torsion + \

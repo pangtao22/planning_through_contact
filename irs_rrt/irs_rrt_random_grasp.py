@@ -53,7 +53,6 @@ class IrsRrtRandomGrasp(IrsRrt):
             if parent_node is None:
                 continue
             # update progress only if a valid parent_node is chosen.
-            pbar.update(1)
 
             # 3. Extend to subgoal.
             child_node, edge = self.extend(parent_node, subgoal)
@@ -64,7 +63,13 @@ class IrsRrtRandomGrasp(IrsRrt):
                     parent_node, child_node)
 
             # 5. Register the new node to the graph.
-            self.add_node(child_node)
+            try:
+                self.add_node(child_node)
+            except RuntimeError as e:
+                print(e)
+                continue
+            pbar.update(1)
+
             child_node.value = parent_node.value + edge.cost
             self.add_edge(edge)
 

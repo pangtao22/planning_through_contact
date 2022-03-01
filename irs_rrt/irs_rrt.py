@@ -162,13 +162,16 @@ class IrsRrt(Rrt):
         return self.chat_matrix[:n_nodes]
 
     def add_node(self, node: IrsNode):
+        self.q_dynamics.q_sim_py.update_mbp_positions_from_vector(node.q)
+        self.q_dynamics.q_sim_py.draw_current_configuration()
+        self.populate_node_parameters(node)  # exception may be thrown here.
+
         super().add_node(node)
         # In addition to the add_node operation, we'll have to add the
         # B and c matrices of the node into our batch tensor.
 
         # Note we use self.size-1 here since the parent method increments
         # size by 1.
-        self.populate_node_parameters(node)
 
         self.Bhat_tensor[node.id] = node.Bhat
         self.covinv_tensor[node.id] = node.covinv

@@ -20,4 +20,4 @@ for i in range(plant.num_joints()):
     print(plant.get_joint(JointIndex(i)))
 
 #%%
-contact_sampler.sample_contact(np.array([0, np.pi/4]))
+contact_sampler.sample_contact(np.array([0, 0]))

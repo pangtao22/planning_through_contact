@@ -53,6 +53,9 @@ class ReachableSet:
          ) = self.q_dynamics_p.q_sim_batch.calc_dynamics_parallel(
             x_batch, u_batch, self.q_dynamics.h, GradientMode.kBOnly, None)
 
+        if np.sum(is_valid_batch) == 0:
+            raise RuntimeError('Cannot compute B and c hat for reachable sets.')
+
         B_batch = np.array(B_batch)
 
         chat = np.mean(x_next_batch[is_valid_batch], axis=0)
