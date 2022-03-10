@@ -3,10 +3,12 @@ import enum
 
 class BundleMode(enum.Enum):
     # Supports "first_order", "exact", "zero_order_B", "zero_order_AB"
+    # This is also used in IrsRrt to decide which smoothing scehme to use.
     kFirst = enum.auto()
     kExact = enum.auto()
     kZeroB = enum.auto()
     kZeroAB = enum.auto()
+    kFirstAnalytic = enum.auto()
 
 
 class ParallelizationMode(enum.Enum):

@@ -129,11 +129,15 @@ class IrsRrt(Rrt):
 
         # For q_u and q_a.
         if self.params.bundle_mode == BundleMode.kExact:
-            Bhat, chat = self.reachable_set.calc_exact_Bc(
+            Bhat, chat = self.reachable_set.calc_exact_Bc(node.q, node.ubar)
+        elif self.params.bundle_mode == BundleMode.kFirst:
+            Bhat, chat = self.reachable_set.calc_bundled_Bc(node.q, node.ubar)
+        elif self.params.bundle_mode == BundleMode.kFirstAnalytic:
+            Bhat, chat = self.reachable_set.calc_bundled_Bc_analytic(
                 node.q, node.ubar)
         else:
-            Bhat, chat = self.reachable_set.calc_bundled_Bc(
-                node.q, node.ubar)
+            raise NotImplementedError(
+                f"{self.params.bundle_mode} is not supported.")
 
         node.Bhat = Bhat
         node.chat = chat

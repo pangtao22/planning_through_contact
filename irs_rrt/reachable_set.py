@@ -62,6 +62,13 @@ class ReachableSet:
         Bhat = np.mean(B_batch[is_valid_batch], axis=0)
         return Bhat, chat
 
+    def calc_bundled_Bc_analytic(self, q, ubar):
+        q_next = self.q_dynamics.dynamics_py(
+            x=q, u=ubar, mode="log_mp", gradient_mode=GradientMode.kBOnly)
+        Bhat = self.q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
+
+        return Bhat, q_next
+
     def calc_metric_parameters(self, Bhat, chat):
         cov = Bhat @ Bhat.T + self.params.regularization * np.eye(
             self.q_dynamics.dim_x)

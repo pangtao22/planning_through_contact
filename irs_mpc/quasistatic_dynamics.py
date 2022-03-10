@@ -17,7 +17,9 @@ class QuasistaticDynamics(DynamicalSystem):
         super().__init__()
         self.q_model_path = q_model_path
         self.parser = QuasistaticParser(q_model_path)
-        self.parser.set_quasi_dynamic(is_quasi_dynamic=True)
+        # TODO: setting of parameters should not happen here......
+        self.parser.set_sim_params(is_quasi_dynamic=True,
+                                   log_barrier_weight=200)
 
         self.h = h
         self.q_sim_py = self.parser.make_simulator_py(internal_vis=internal_viz)
