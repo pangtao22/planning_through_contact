@@ -54,7 +54,7 @@ u_traj_0 = np.tile(u0, (T, 1))
 #%%
 params = IrsMpcQuasistaticParameters()
 params.Q_dict = {
-    idx_u: np.array([20, 20, 20]),
+    idx_u: np.array([1, 1, 10]),
     idx_a_l: np.array([1e-3, 1e-3]),
     idx_a_r: np.array([1e-3, 1e-3])}
 params.Qd_dict = {model: Q_i * 100 for model, Q_i in params.Q_dict.items()}
@@ -67,18 +67,25 @@ params.T = T
 params.u_bounds_abs = np.array([
     -np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
 
+params.decouple_AB = decouple_AB
+params.parallel_mode = parallel_mode
+
+# sampling-based bundling
+params.bundle_mode = BundleMode.kFirst
 params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
-
-params.decouple_AB = decouple_AB
 params.num_samples = num_samples
-params.bundle_mode = bundle_mode
-params.parallel_mode = parallel_mode
+
+# analytic bundling
+# params.bundle_mode = BundleMode.kFirstAnalytic
+# params.log_barrier_weight_initial = 10
+# params.log_barrier_weight_multiplier = 2
+
 
 irs_mpc = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
 
 #%%
-xd_dict = {idx_u: q_u0 + np.array([-0.3, 0, 0.3]),
+xd_dict = {idx_u: q_u0 + np.array([-0.3, 0, 0.5]),
            idx_a_l: q_a_l0,
            idx_a_r: q_a_r0}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
@@ -88,7 +95,7 @@ irs_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_traj_0)
 
 #%%
 t0 = time.time()
-irs_mpc.iterate(num_iters, cost_Qu_f_threshold=5)
+irs_mpc.iterate(num_iters, cost_Qu_f_threshold=1)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")

@@ -12,12 +12,12 @@ from dash_vis.dash_common import (add_goal_meshcat, hover_template_y_z_theta,
                                   create_pca_plots, calc_X_WG, make_large_point_3d)
 from irs_mpc.irs_mpc_quasistatic import (IrsMpcQuasistatic)
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from irs_mpc.quasistatic_dynamics import QuasistaticDynamics, BundleMode
 from irs_rrt.reachable_set import ReachableSet
 from irs_rrt.rrt_params import IrsRrtParams
 
 from planar_hand_setup import (h, q_model_path,
-                               decouple_AB, bundle_mode, num_samples,
+                               decouple_AB, num_samples,
                                robot_l_name, robot_r_name, object_name)
 
 from contact_sampler import PlanarHandContactSampler, sample_on_sphere
@@ -50,12 +50,19 @@ params.R_dict = {
     model_a_l: 5 * np.array([1, 1]),
     model_a_r: 5 * np.array([1, 1])}
 
-params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
-params.std_u_initial = np.ones(dim_u) * 0.3
-
 params.decouple_AB = decouple_AB
-params.bundle_mode = bundle_mode
-params.num_samples = num_samples
+
+# sampling-based bundling
+# params.bundle_mode = BundleMode.kFirst
+# params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
+# params.std_u_initial = np.ones(dim_u) * 0.3
+# params.num_samples = num_samples
+
+# analytic bundling
+params.bundle_mode = BundleMode.kFirstAnalytic
+params.log_barrier_weight_initial = 10
+params.log_barrier_weight_multiplier = 2
+
 params.u_bounds_abs = np.array(
     [-np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
 params.publish_every_iteration = False
@@ -384,4 +391,4 @@ def calc_trajectory(n_clicks, q_u_goal_json, q_u0_json, q_a0_json):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=False)

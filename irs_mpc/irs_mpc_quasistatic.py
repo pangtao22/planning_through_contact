@@ -12,7 +12,7 @@ from zmq_parallel_cmp.array_io import *
 
 from .irs_mpc_params import (IrsMpcQuasistaticParameters,
                              ParallelizationMode)
-from .quasistatic_dynamics import QuasistaticDynamics
+from .quasistatic_dynamics import QuasistaticDynamics, GradientMode
 from .quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 from .mpc import solve_mpc, get_solver
 
@@ -48,7 +48,8 @@ class IrsMpcQuasistatic:
         self.dim_x = q_dynamics.dim_x
         self.dim_u = q_dynamics.dim_u
 
-        self.params = params
+        self.irs_mpc_params = params
+        self.q_sim_params = q_dynamics.q_sim_py.get_sim_parmas_copy()
 
         self.T = params.T
         self.Q_dict = params.Q_dict
@@ -77,9 +78,9 @@ class IrsMpcQuasistatic:
 
         # parallelization.
         use_zmq_workers = (
-                self.params.parallel_mode ==
+                self.irs_mpc_params.parallel_mode ==
                 ParallelizationMode.kZmq or
-                self.params.parallel_mode ==
+                self.irs_mpc_params.parallel_mode ==
                 ParallelizationMode.kZmqDebug)
 
         self.q_dynamics_parallel = QuasistaticDynamicsParallel(
@@ -125,7 +126,10 @@ class IrsMpcQuasistatic:
         x_trj = np.zeros((T + 1, self.dim_x))
         x_trj[0, :] = x0
         for t in range(T):
-            x_trj[t + 1, :] = self.q_dynamics.dynamics(x_trj[t, :], u_trj[t, :])
+            x_trj[t + 1, :] = self.q_dynamics.dynamics(
+                x_trj[t, :], u_trj[t, :],
+                forward_mode=self.q_sim_params.forward_mode,
+                gradient_mode=GradientMode.kNone)
         return x_trj
 
     @staticmethod
@@ -190,15 +194,22 @@ class IrsMpcQuasistatic:
         :param u_trj:
         :return:
         """
-        std_u = self.params.calc_std_u(
-            self.params.std_u_initial, self.current_iter)
+        if self.irs_mpc_params.bundle_mode == BundleMode.kFirst:
+            std_u = self.irs_mpc_params.calc_std_u(
+                self.irs_mpc_params.std_u_initial, self.current_iter)
+            log_barrier_weight = None
+        elif self.irs_mpc_params.bundle_mode == BundleMode.kFirstAnalytic:
+            std_u = None
+            beta = self.irs_mpc_params.log_barrier_weight_multiplier
+            log_barrier_weight = (self.irs_mpc_params.log_barrier_weight_initial
+                                  * (beta ** self.current_iter))
+        else:
+            raise NotImplementedError
+
         return self.q_dynamics_parallel.calc_bundled_ABc(
             x_trj=x_trj, u_trj=u_trj,
-            n_samples=self.params.num_samples,
-            std_u=std_u,
-            decouple_AB=self.params.decouple_AB,
-            bundle_mode=self.params.bundle_mode,
-            parallel_mode=self.params.parallel_mode)
+            irs_mpc_params=self.irs_mpc_params,
+            std_u=std_u, log_barrier_weight=log_barrier_weight)
 
     def local_descent(self, x_trj: np.ndarray, u_trj: np.ndarray):
         """
@@ -223,8 +234,10 @@ class IrsMpcQuasistatic:
             # u_bounds_abs are used to establish a trust region around a current
             # trajectory.
             u_bounds_abs = np.zeros((2, self.T, self.dim_u))
-            u_bounds_abs[0] = x_trj[:-1, self.indices_u_into_x] + self.u_bounds_abs[0]
-            u_bounds_abs[1] = x_trj[:-1, self.indices_u_into_x] + self.u_bounds_abs[1]
+            u_bounds_abs[0] = (x_trj[:-1, self.indices_u_into_x]
+                               + self.u_bounds_abs[0])
+            u_bounds_abs[1] = (x_trj[:-1, self.indices_u_into_x]
+                               + self.u_bounds_abs[1])
         if self.x_bounds_rel is not None:
             # this should be rarely used.
             x_bounds_rel = np.zeros((2, self.T, self.dim_x))
@@ -256,8 +269,10 @@ class IrsMpcQuasistatic:
                 xinit=None,
                 uinit=None)
             u_trj_new[t, :] = u_star[0]
-            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(x_trj_new[t],
-                                                           u_trj_new[t])
+            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(
+                x_trj_new[t], u_trj_new[t],
+                forward_mode=self.q_sim_params.forward_mode,
+                gradient_mode=GradientMode.kNone)
 
         return x_trj_new, u_trj_new
 

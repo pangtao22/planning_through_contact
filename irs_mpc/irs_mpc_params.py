@@ -57,11 +57,15 @@ class IrsMpcQuasistaticParameters:
         self.x_bounds_rel = None
         self.u_bounds_rel = None
 
-        # Necessary arguments related to sampling.
+        # Arguments related to sampling, i.e. BundleMode.kFirst.
         # calc_std_u is a function with two inputs (std_u_initial, iteration)
         self.calc_std_u = None
         self.std_u_initial = None
         self.num_samples = 100
+
+        # Arguments for analytic smoothing, i.e. BundleMode.kFirstAnalytic.
+        self.log_barrier_weight_initial = None
+        self.log_barrier_weight_multiplier = None
 
         # Arguments related to various options.
         self.decouple_AB = True
