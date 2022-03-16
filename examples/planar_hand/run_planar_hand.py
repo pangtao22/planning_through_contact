@@ -77,7 +77,7 @@ for i in range(T):
     Dq_nextDq = q_dynamics.q_sim_py.get_Dq_nextDq()
     Dq_nextDqa_cmd = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
 
-    q_dynamics.dynamics(x, u, gradient_mode=GradientMode.kBOnly)
+    q_dynamics.dynamics(x, u, params=GradientMode.kBOnly)
     Dq_nextDq_cpp = q_dynamics.q_sim.get_Dq_nextDq()
     Dq_nextDqa_cmd_cpp = q_dynamics.q_sim.get_Dq_nextDqa_cmd()
 

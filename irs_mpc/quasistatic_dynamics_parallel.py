@@ -280,10 +280,9 @@ class QuasistaticDynamicsParallel:
             n_good_samples = 0
             for i in range(n_samples):
                 try:
-                    self.q_dynamics.dynamics(
-                        x_trj[t],
-                        u_trj[t] + du_samples[t, i],
-                        gradient_mode=GradientMode.kBOnly)
+                    self.q_dynamics.dynamics(x_trj[t],
+                                             u_trj[t] + du_samples[t, i],
+                                             params=GradientMode.kBOnly)
                     Bt[t] += self.q_dynamics.q_sim.get_Dq_nextDqa_cmd()
                     n_good_samples += 1
                 except RuntimeError as err:

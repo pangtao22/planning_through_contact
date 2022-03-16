@@ -50,6 +50,7 @@ joint_limits = {
 
 #%% RRT testing
 params = IrsRrtRandomGraspParams(q_model_path, joint_limits)
+params.bundle_mode = BundleMode.kFirstAnalytic
 params.root_node = IrsNode(x0)
 params.max_size = 2000
 params.goal = np.copy(x0)

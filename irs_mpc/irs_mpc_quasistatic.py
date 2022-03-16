@@ -256,8 +256,8 @@ class IrsMpcQuasistatic:
                 xinit=None,
                 uinit=None)
             u_trj_new[t, :] = u_star[0]
-            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(
-                x_trj_new[t], u_trj_new[t])
+            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(x_trj_new[t],
+                                                           u_trj_new[t])
 
         return x_trj_new, u_trj_new
 
