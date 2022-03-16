@@ -68,12 +68,14 @@ params.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 10.0, 10.0, 1.0])
 irs_rrt = IrsRrtRandomGrasp(params, contact_sampler)
 irs_rrt.iterate()
 
+d_batch = irs_rrt.calc_distance_batch(params.goal)
+print("minimum distance: ", d_batch.min())
+
 #%%
 irs_rrt.save_tree(f"tree_{params.max_size}_planar_hand_random_grasp.pkl")
 
 
 #%%
-#
-# cProfile.runctx('tree.iterate()',
+# cProfile.runctx('irs_rrt.iterate()',
 #                  globals=globals(), locals=locals(),
 #                  filename='irs_rrt_profile.stat')

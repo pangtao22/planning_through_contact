@@ -35,6 +35,7 @@ class QuasistaticDynamicsParallel:
         self.dim_x = q_dynamics.dim_x
         self.dim_u = q_dynamics.dim_u
         self.indices_u_into_x = q_dynamics.get_q_a_indices_into_x()
+        self.q_sim_params = self.q_dynamics.q_sim_py.get_sim_parmas_copy()
 
         if use_zmq_workers:
             context = zmq.Context()
@@ -145,10 +146,17 @@ class QuasistaticDynamicsParallel:
             computing bundled B from averaging gradients, Zero-order
             methods such as least-squared is not supported.
             '''
-            assert bundle_mode == BundleMode.kFirst
-            At, Bt, = self.calc_bundled_AB_cpp(
-                x_trj, u_trj, std_u, n_samples,
-                is_direct=parallel_mode == ParallelizationMode.kCppBundledBDirect)
+            if bundle_mode == BundleMode.kFirst:
+                is_direct = (parallel_mode
+                             == ParallelizationMode.kCppBundledBDirect)
+                At, Bt, = self.calc_bundled_AB_cpp(
+                    x_trj, u_trj, std_u, n_samples,
+                    is_direct=is_direct)
+            elif bundle_mode == BundleMode.kFirstAnalytic:
+                pass
+            else:
+                raise NotImplementedError
+
         elif parallel_mode == ParallelizationMode.kCppDebug:
             '''
             This mode exists because I'd like to compare the difference 
@@ -257,12 +265,10 @@ class QuasistaticDynamicsParallel:
         At, Bt = self.initialize_AB(T)
         if is_direct:
             Bt = np.array(self.q_sim_batch.calc_bundled_B_trj_direct(
-                x_trj, u_trj, self.q_dynamics.h, std_u,
-                n_samples, None))
+                x_trj, u_trj, std_u, self.q_sim_params, n_samples, None))
         else:
             Bt = np.array(self.q_sim_batch.calc_bundled_B_trj(
-                x_trj, u_trj, self.q_dynamics.h, std_u,
-                n_samples, None))
+                x_trj, u_trj, std_u, self.q_sim_params, n_samples, None))
 
         return At, Bt
 
