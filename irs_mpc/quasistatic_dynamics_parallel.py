@@ -2,7 +2,6 @@ import logging
 from typing import Union
 
 import numpy as np
-import spdlog
 import zmq
 from qsim.simulator import QuasistaticSimulator, ForwardDynamicsMode
 from qsim_cpp import GradientMode

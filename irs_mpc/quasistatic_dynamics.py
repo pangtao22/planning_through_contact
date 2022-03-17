@@ -9,11 +9,10 @@ from qsim.parser import (QuasistaticParser, GradientMode, QuasistaticSimulator,
                          QuasistaticSimParameters)
 from qsim.simulator import ForwardDynamicsMode
 
-from .dynamical_system import DynamicalSystem
 from irs_mpc.irs_mpc_params import BundleMode
 
 
-class QuasistaticDynamics(DynamicalSystem):
+class QuasistaticDynamics:
     def __init__(self, h: float, q_model_path: str,
                  internal_viz: bool):
         super().__init__()

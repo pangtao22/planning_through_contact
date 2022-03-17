@@ -68,13 +68,6 @@ class IrsMpcQuasistatic:
         # solver
         self.solver = get_solver(params.solver_name)
 
-        # logger
-        try:
-            self.logger = spdlog.ConsoleLogger("IrsMpc")
-        except RuntimeError as e:
-            spdlog.drop("IrsMpc")
-            self.logger = spdlog.ConsoleLogger("IrsMpc")
-
         # parallelization.
         use_zmq_workers = (
                 self.irs_mpc_params.parallel_mode ==
@@ -271,10 +264,9 @@ class IrsMpcQuasistatic:
         return x_trj_new, u_trj_new
 
     def print_iterate_info(self):
-        self.logger.info(
-            'Iter {:02d}, '.format(self.current_iter) +
-            'cost: {:0.4f}, '.format(self.cost) +
-            'time: {:0.2f}.'.format(time.time() - self.start_time))
+        print('Iter {:02d}, '.format(self.current_iter) +
+              'cost: {:0.4f}, '.format(self.cost) +
+              'time: {:0.2f}.'.format(time.time() - self.start_time))
 
     def iterate(self, max_iterations: int,
                 cost_Qu_f_threshold: float = 0):
