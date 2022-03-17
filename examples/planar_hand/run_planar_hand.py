@@ -71,15 +71,15 @@ params.decouple_AB = decouple_AB
 params.parallel_mode = parallel_mode
 
 # sampling-based bundling
-params.bundle_mode = BundleMode.kFirst
-params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
-params.std_u_initial = np.ones(dim_u) * 0.3
-params.num_samples = num_samples
+# params.bundle_mode = BundleMode.kFirst
+# params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
+# params.std_u_initial = np.ones(dim_u) * 0.3
+# params.num_samples = num_samples
 
 # analytic bundling
-# params.bundle_mode = BundleMode.kFirstAnalytic
-# params.log_barrier_weight_initial = 10
-# params.log_barrier_weight_multiplier = 2
+params.bundle_mode = BundleMode.kFirstAnalytic
+params.log_barrier_weight_initial = 50
+params.log_barrier_weight_multiplier = 2
 
 
 irs_mpc = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
@@ -95,7 +95,7 @@ irs_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_traj_0)
 
 #%%
 t0 = time.time()
-irs_mpc.iterate(num_iters, cost_Qu_f_threshold=1)
+irs_mpc.iterate(10, cost_Qu_f_threshold=1)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")

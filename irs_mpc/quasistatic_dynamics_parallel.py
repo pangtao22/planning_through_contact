@@ -319,7 +319,6 @@ class QuasistaticDynamicsParallel:
                     self.q_dynamics.dynamics(
                         x_trj[t],
                         u_trj[t] + du_samples[t, i],
-                        forward_mode=self.q_sim_params.forward_mode,
                         gradient_mode=GradientMode.kBOnly)
                     Bt[t] += self.q_dynamics.q_sim.get_Dq_nextDqa_cmd()
                     n_good_samples += 1
@@ -346,9 +345,9 @@ class QuasistaticDynamicsParallel:
         x_batch_m = x_batch.view().reshape([T * n_samples, self.dim_x])
         u_batch_m = u_batch.view().reshape([T * n_samples, self.dim_u])
         sp = self.q_dynamics.q_sim.get_sim_params()
+        sp.gradient_mode = GradientMode.kBOnly
         (x_next_batch_m, B_batch, is_valid_batch
-         ) = self.q_sim_batch.calc_dynamics_parallel(
-            x_batch_m, u_batch_m, self.q_dynamics.h, GradientMode.kBOnly, None)
+         ) = self.q_sim_batch.calc_dynamics_parallel(x_batch_m, u_batch_m, sp)
 
         # Shape of B_batch: (T * self.n_samples, self.dim_x, self.dim_u).
         B_batch = np.array(B_batch)

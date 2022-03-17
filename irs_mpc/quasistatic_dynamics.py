@@ -48,8 +48,7 @@ class QuasistaticDynamics(DynamicalSystem):
             velocity_indices_a=self.q_sim.get_velocity_indices(),
             velocity_indices_b=self.q_sim.get_velocity_indices())
 
-        self.q_sim_params_py = self.q_sim_py.get_sim_parmas_copy()
-        self.q_sim_params_cpp = self.q_sim.get_sim_params()
+        self.q_sim_params_default = self.q_sim.get_sim_params()
 
     @staticmethod
     def check_plants(plant_a: MultibodyPlant, plant_b: MultibodyPlant,
@@ -150,9 +149,20 @@ class QuasistaticDynamics(DynamicalSystem):
         self.q_sim_py.animate_system_trajectory(h=self.h if h is None else h,
                                                 q_dict_traj=q_dict_traj)
 
+    def make_sim_params(self, forward_mode: ForwardDynamicsMode,
+                        gradient_mode: GradientMode):
+        sim_params = QuasistaticSimulator.copy_sim_params(
+            self.q_sim_params_default)
+        if forward_mode is not None:
+            sim_params.forward_mode = forward_mode
+        if gradient_mode is not None:
+            sim_params.gradient_mode = gradient_mode
+
+        return sim_params
+
     def dynamics_py(
             self, x: np.ndarray, u: np.ndarray,
-            forward_mode: ForwardDynamicsMode = ForwardDynamicsMode.kQpMp,
+            forward_mode: ForwardDynamicsMode = None,
             gradient_mode: GradientMode = GradientMode.kNone):
         """
         :param x: the position vector of self.q_sim.plant.
@@ -165,22 +175,21 @@ class QuasistaticDynamics(DynamicalSystem):
         q_a_cmd_dict = self.get_q_a_cmd_dict_from_u(u)
         tau_ext_dict = self.q_sim_py.calc_tau_ext([])
 
-        self.q_sim_params_py.forward_mode = forward_mode
-        self.q_sim_params_py.gradient_mode = gradient_mode
+        sim_params = self.make_sim_params(forward_mode, gradient_mode)
 
-        q_next_dict = self.q_sim_py.step(
-            q_a_cmd_dict, tau_ext_dict, self.q_sim_params_py)
+        q_next_dict = self.q_sim_py.step(q_a_cmd_dict, tau_ext_dict, sim_params)
 
         return self.get_x_from_q_dict(q_next_dict)
 
     def dynamics(self, x: np.ndarray, u: np.ndarray,
-                 forward_mode: ForwardDynamicsMode,
-                 gradient_mode: GradientMode):
+                 forward_mode: ForwardDynamicsMode = None,
+                 gradient_mode: GradientMode = GradientMode.kNone):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
             self.q_sim.models_actuated, concatenated into one vector.
         """
+        sim_params = self.make_sim_params(forward_mode, gradient_mode)
 
         q_dict = self.get_q_dict_from_x(x)
         self.q_sim.update_mbp_positions(q_dict)
@@ -190,7 +199,7 @@ class QuasistaticDynamics(DynamicalSystem):
         self.q_sim.step(
             q_a_cmd_dict=q_a_cmd_dict,
             tau_ext_dict=tau_ext_dict,
-            sim_params=self.q_sim_params_cpp)
+            sim_params=sim_params)
 
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)

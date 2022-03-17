@@ -49,7 +49,6 @@ class IrsMpcQuasistatic:
         self.dim_u = q_dynamics.dim_u
 
         self.irs_mpc_params = params
-        self.q_sim_params = q_dynamics.q_sim_py.get_sim_parmas_copy()
 
         self.T = params.T
         self.Q_dict = params.Q_dict
@@ -117,8 +116,7 @@ class IrsMpcQuasistatic:
         self.cost_Qa_final_list = [cost_Qa_final]
         self.cost_R_list = [cost_R]
 
-        self.current_iter = 1
-        self.start_time = time.time()
+        self.current_iter = 0
 
     def rollout(self, x0: np.ndarray, u_trj: np.ndarray):
         T = u_trj.shape[0]
@@ -127,9 +125,7 @@ class IrsMpcQuasistatic:
         x_trj[0, :] = x0
         for t in range(T):
             x_trj[t + 1, :] = self.q_dynamics.dynamics(
-                x_trj[t, :], u_trj[t, :],
-                forward_mode=self.q_sim_params.forward_mode,
-                gradient_mode=GradientMode.kNone)
+                x_trj[t, :], u_trj[t, :])
         return x_trj
 
     @staticmethod
@@ -196,7 +192,7 @@ class IrsMpcQuasistatic:
         """
         if self.irs_mpc_params.bundle_mode == BundleMode.kFirst:
             std_u = self.irs_mpc_params.calc_std_u(
-                self.irs_mpc_params.std_u_initial, self.current_iter)
+                self.irs_mpc_params.std_u_initial, self.current_iter + 1)
             log_barrier_weight = None
         elif self.irs_mpc_params.bundle_mode == BundleMode.kFirstAnalytic:
             std_u = None
@@ -270,11 +266,15 @@ class IrsMpcQuasistatic:
                 uinit=None)
             u_trj_new[t, :] = u_star[0]
             x_trj_new[t + 1, :] = self.q_dynamics.dynamics(
-                x_trj_new[t], u_trj_new[t],
-                forward_mode=self.q_sim_params.forward_mode,
-                gradient_mode=GradientMode.kNone)
+                x_trj_new[t], u_trj_new[t])
 
         return x_trj_new, u_trj_new
+
+    def print_iterate_info(self):
+        self.logger.info(
+            'Iter {:02d}, '.format(self.current_iter) +
+            'cost: {:0.4f}, '.format(self.cost) +
+            'time: {:0.2f}.'.format(time.time() - self.start_time))
 
     def iterate(self, max_iterations: int,
                 cost_Qu_f_threshold: float = 0):
@@ -282,12 +282,10 @@ class IrsMpcQuasistatic:
         Terminates after the trajectory cost is less than cost_threshold or
          max_iterations is reached.
         """
-        while True:
-            self.logger.info(
-                'Iter {:02d}, '.format(self.current_iter) +
-                'cost: {:0.4f}, '.format(self.cost) +
-                'time: {:0.2f}.'.format(time.time() - self.start_time))
+        self.start_time = time.time()
+        self.print_iterate_info()
 
+        while True:
             x_trj_new, u_trj_new = self.local_descent(self.x_trj, self.u_trj)
             (cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final,
              cost_R) = self.calc_cost(x_trj_new, u_trj_new)
@@ -310,15 +308,16 @@ class IrsMpcQuasistatic:
                 self.cost_best = cost
                 self.idx_best = self.current_iter
 
-            if (self.current_iter > max_iterations
-                    or cost_Qu_final < cost_Qu_f_threshold):
-                break
-
             # Go over to next iteration.
             self.cost = cost
             self.x_trj = x_trj_new
             self.u_trj = u_trj_new
             self.current_iter += 1
+            self.print_iterate_info()
+
+            if (self.current_iter > max_iterations
+                    or cost_Qu_final < cost_Qu_f_threshold):
+                break
 
         return self.x_trj, self.u_trj, self.cost
 
