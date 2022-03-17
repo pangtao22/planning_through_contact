@@ -38,7 +38,7 @@ irs_rrt_obj = IrsRrt.make_from_pickled_tree(tree)
 q_dynamics = irs_rrt_obj.q_dynamics
 q_sim_py = q_dynamics.q_sim_py
 vis = q_dynamics.q_sim_py.viz.vis
-# set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
+set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
 add_goal_meshcat(vis)
 
 # %%
@@ -100,7 +100,11 @@ def create_tree_plot_up_to_node(num_nodes: int):
 
     root_plot = make_large_point_3d(q_u_nodes[0], name='root')
 
-    return [nodes_plot, edges_plot, root_plot, path_plot]
+    q_goal = tree.graph['irs_rrt_params'].goal
+    q_u_goal = q_goal[q_dynamics.get_q_u_indices_into_x()]
+    goal_plot = make_large_point_3d(q_u_goal, name='goal')
+
+    return [nodes_plot, edges_plot, root_plot, goal_plot, path_plot]
 
 
 def scalar_to_rgb255(v: float):
@@ -119,7 +123,7 @@ for i in range(n_nodes):
     node = tree.nodes[i]["node"]
     cov_inv_u = node.covinv_u
     p_center = node.q[idx_q_u_into_x]
-    e_points, volume = make_ellipsoid_plotly(cov_inv_u, p_center, 0.02, 6)
+    e_points, volume = make_ellipsoid_plotly(cov_inv_u, p_center, 0.08, 10)
     ellipsoid_mesh_points.append(e_points)
     ellipsoid_volumes.append(volume)
 
