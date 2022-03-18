@@ -27,7 +27,8 @@ from matplotlib import cm
 from irs_rrt.irs_rrt import IrsRrt
 
 parser = argparse.ArgumentParser()
-parser.add_argument("tree_file_path")
+parser.add_argument("tree_file_path", type=str)
+parser.add_argument('--two_d', default=False, action='store_true')
 args = parser.parse_args()
 
 # %% Construct computational tools.
@@ -38,7 +39,8 @@ irs_rrt_obj = IrsRrt.make_from_pickled_tree(tree)
 q_dynamics = irs_rrt_obj.q_dynamics
 q_sim_py = q_dynamics.q_sim_py
 vis = q_dynamics.q_sim_py.viz.vis
-set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
+if args.two_d:
+    set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
 add_goal_meshcat(vis)
 
 # %%
@@ -102,7 +104,7 @@ def create_tree_plot_up_to_node(num_nodes: int):
 
     q_goal = tree.graph['irs_rrt_params'].goal
     q_u_goal = q_goal[q_dynamics.get_q_u_indices_into_x()]
-    goal_plot = make_large_point_3d(q_u_goal, name='goal')
+    goal_plot = make_large_point_3d(q_u_goal, name='goal', color='green')
 
     return [nodes_plot, edges_plot, root_plot, goal_plot, path_plot]
 
