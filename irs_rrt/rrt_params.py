@@ -25,8 +25,12 @@ class IrsRrtParams(RrtParams):
         self.q_model_path = q_model_path
         self.std_u = 0.1
 
-        # kFirst and kExact are supported.
         self.bundle_mode = BundleMode.kFirstRandomized
+
+        # When self.bundle_mode == BundleMode.kFirstAnalytic,
+        #  this log_barrier_weight is used in
+        #  ReachableSet.calc_bundled_Bc_analytic.
+        self.log_barrier_weight_for_bundling = 100
 
         # State-space limits for sampling, provided as a bounding box.
         # During tree expansion, samples that go outside of this limit will be
