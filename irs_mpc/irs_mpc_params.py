@@ -2,9 +2,13 @@ import enum
 
 
 class BundleMode(enum.Enum):
-    # Supports "first_order", "exact", "zero_order_B", "zero_order_AB"
-    kFirst = enum.auto()
-    kExact = enum.auto()
+    # This is also used in IrsRrtParams to decide which smoothing scheme to use.
+    kFirstRandomized = enum.auto()
+    kFirstExact = enum.auto()
+    kFirstAnalytic = enum.auto()
+
+    # These have not been updated in a while and we are no longer sure if
+    # they behave...
     kZeroB = enum.auto()
     kZeroAB = enum.auto()
 
@@ -55,15 +59,19 @@ class IrsMpcQuasistaticParameters:
         self.x_bounds_rel = None
         self.u_bounds_rel = None
 
-        # Necessary arguments related to sampling.
+        # Arguments related to sampling, i.e. BundleMode.kFirst.
         # calc_std_u is a function with two inputs (std_u_initial, iteration)
         self.calc_std_u = None
         self.std_u_initial = None
         self.num_samples = 100
 
+        # Arguments for analytic smoothing, i.e. BundleMode.kFirstAnalytic.
+        self.log_barrier_weight_initial = None
+        self.log_barrier_weight_multiplier = None
+
         # Arguments related to various options.
         self.decouple_AB = True
         self.solver_name = "gurobi"
         self.publish_every_iteration = False
-        self.bundle_mode = BundleMode.kFirst
+        self.bundle_mode = BundleMode.kFirstRandomized
         self.parallel_mode = ParallelizationMode.kCppBundledB

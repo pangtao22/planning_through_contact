@@ -100,7 +100,7 @@ def make_large_point_3d(p: np.ndarray, name='q_u0', symbol='cross',
                         color='magenta'):
     return go.Scatter3d(x=[p[0]],
                         y=[p[1]],
-                        z=[p[2]],
+                        z=[p[2] if len(p) == 3 else 0],
                         name=name,
                         mode='markers',
                         hovertemplate=hover_template_y_z_theta,
@@ -136,9 +136,19 @@ def make_ellipsoid_plotly(A_inv: np.ndarray, p_center: np.ndarray, r: float,
     U, Sigma, Vh = np.linalg.svd(A_inv)
     z[0] *= r / np.sqrt(Sigma[0])
     z[1] *= r / np.sqrt(Sigma[1])
-    z[2] *= r / np.sqrt(Sigma[2])
+    if len(p_center) == 3:
+        z[2] *= r / np.sqrt(Sigma[2])
+    else:
+        z[2] *= 1e-3
     R = U.T
-    x = R.T @ z + p_center[:, None]
+    if len(p_center) == 3:
+        x = R.T @ z + p_center[:, None]
+    else:
+        # p_center == 2
+        R3 = np.zeros((3, 3))
+        R3[:2, :2] = R
+        R3[2, 2] = 1
+        x = R3.T @ z + np.array([p_center[0], p_center[1], 0])[:, None]
 
     return x, 1 / np.prod(np.sqrt(Sigma))
 

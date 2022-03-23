@@ -19,8 +19,8 @@ from irs_mpc.irs_mpc_quasistatic import (
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from irs_rrt.irs_rrt import IrsRrt, IrsNode
-from irs_rrt.rrt_params import IrsRrtRandomGraspParams
-from irs_rrt.irs_rrt_random_grasp import IrsRrtRandomGrasp
+from irs_rrt.rrt_params import IrsRrtProjectionParams
+from irs_rrt.irs_rrt_projection import IrsRrtProjection
 
 from planar_hand_setup import *
 from contact_sampler import PlanarHandContactSampler
@@ -49,7 +49,8 @@ joint_limits = {
 }
 
 #%% RRT testing
-params = IrsRrtRandomGraspParams(q_model_path, joint_limits)
+params = IrsRrtProjectionParams(q_model_path, joint_limits)
+params.bundle_mode = BundleMode.kFirstAnalytic
 params.root_node = IrsNode(x0)
 params.max_size = 2000
 params.goal = np.copy(x0)
@@ -64,15 +65,17 @@ params.distance_metric = 'local_u'
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 10.0, 10.0, 1.0])
 
-irs_rrt = IrsRrtRandomGrasp(params, contact_sampler)
+irs_rrt = IrsRrtProjection(params, contact_sampler)
 irs_rrt.iterate()
+
+d_batch = irs_rrt.calc_distance_batch(params.goal)
+print("minimum distance: ", d_batch.min())
 
 #%%
 irs_rrt.save_tree(f"tree_{params.max_size}_planar_hand_random_grasp.pkl")
 
 
 #%%
-#
-# cProfile.runctx('tree.iterate()',
+# cProfile.runctx('irs_rrt.iterate()',
 #                  globals=globals(), locals=locals(),
 #                  filename='irs_rrt_profile.stat')

@@ -4,8 +4,8 @@ from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from irs_rrt.irs_rrt import IrsNode
-from irs_rrt.irs_rrt_random_grasp_3d import IrsRrtRandomGrasp3D
-from irs_rrt.rrt_params import IrsRrtTrajOptParams, IrsRrtRandomGraspParams
+from irs_rrt.irs_rrt_projection_3d import IrsRrtProjection3D
+from irs_rrt.rrt_params import IrsRrtTrajOptParams, IrsRrtProjectionParams
 
 from allegro_hand_setup import *
 from irs_rrt.contact_sampler_allegro import AllegroHandContactSampler
@@ -72,11 +72,11 @@ mpc_params.std_u_initial = np.ones(dim_u) * 0.3
 
 mpc_params.decouple_AB = True
 mpc_params.num_samples = 100
-mpc_params.bundle_mode = BundleMode.kFirst
+mpc_params.bundle_mode = BundleMode.kFirstRandomized
 mpc_params.parallel_mode = ParallelizationMode.kCppBundledB
 
 # IrsRrt params
-params = IrsRrtRandomGraspParams(q_model_path, joint_limits)
+params = IrsRrtProjectionParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
 params.max_size = 5000
 params.goal = np.copy(x0)
@@ -97,7 +97,7 @@ params.std_u = 0.1
 params.grasp_prob = 0.4
 
 
-irs_rrt = IrsRrtRandomGrasp3D(params, contact_sampler)
+irs_rrt = IrsRrtProjection3D(params, contact_sampler)
 irs_rrt.iterate()
 
 #%%

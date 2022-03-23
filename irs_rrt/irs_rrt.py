@@ -128,12 +128,16 @@ class IrsRrt(Rrt):
         node.ubar = node.q[self.q_dynamics.get_q_a_indices_into_x()]
 
         # For q_u and q_a.
-        if self.params.bundle_mode == BundleMode.kExact:
-            Bhat, chat = self.reachable_set.calc_exact_Bc(
+        if self.params.bundle_mode == BundleMode.kFirstExact:
+            Bhat, chat = self.reachable_set.calc_exact_Bc(node.q, node.ubar)
+        elif self.params.bundle_mode == BundleMode.kFirstRandomized:
+            Bhat, chat = self.reachable_set.calc_bundled_Bc(node.q, node.ubar)
+        elif self.params.bundle_mode == BundleMode.kFirstAnalytic:
+            Bhat, chat = self.reachable_set.calc_bundled_Bc_analytic(
                 node.q, node.ubar)
         else:
-            Bhat, chat = self.reachable_set.calc_bundled_Bc(
-                node.q, node.ubar)
+            raise NotImplementedError(
+                f"{self.params.bundle_mode} is not supported.")
 
         node.Bhat = Bhat
         node.chat = chat
@@ -162,13 +166,16 @@ class IrsRrt(Rrt):
         return self.chat_matrix[:n_nodes]
 
     def add_node(self, node: IrsNode):
+        self.q_dynamics.q_sim_py.update_mbp_positions_from_vector(node.q)
+        self.q_dynamics.q_sim_py.draw_current_configuration()
+        self.populate_node_parameters(node)  # exception may be thrown here.
+
         super().add_node(node)
         # In addition to the add_node operation, we'll have to add the
         # B and c matrices of the node into our batch tensor.
 
         # Note we use self.size-1 here since the parent method increments
         # size by 1.
-        self.populate_node_parameters(node)
 
         self.Bhat_tensor[node.id] = node.Bhat
         self.covinv_tensor[node.id] = node.covinv

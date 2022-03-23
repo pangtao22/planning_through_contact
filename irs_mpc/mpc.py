@@ -18,9 +18,6 @@ def get_solver(solver_name: str):
     if solver_name == "clp":
         return ClpSolver()
 
-    if solver_name == "scs":
-        return ScsSolver()
-
     if solver_name == "gurobi":
         return GurobiSolver()
 

@@ -140,8 +140,8 @@ class Rrt:
         """
         Given a subgoal, and find the node that is closest from the subgoal.
         """
-        metric_batch = self.calc_distance_batch(subgoal)
-        selected_node = self.get_node_from_id(np.argmin(metric_batch))
+        d_batch = self.calc_distance_batch(subgoal)
+        selected_node = self.get_node_from_id(np.argmin(d_batch))
         return selected_node
 
     def extend_towards_q(self, parent_node: Node, q: np.array):

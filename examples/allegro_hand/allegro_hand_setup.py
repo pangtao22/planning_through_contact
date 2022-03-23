@@ -15,7 +15,7 @@ object_name = 'sphere'
 h = 0.1
 
 # gradient computation
-bundle_mode = BundleMode.kFirst
+bundle_mode = BundleMode.kFirstRandomized
 parallel_mode = ParallelizationMode.kCppBundledB
 decouple_AB = True
 

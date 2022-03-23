@@ -47,6 +47,10 @@ class IrsRrtTrajOpt(IrsRrt):
         q_a = q_grasp[self.idx_q_a_into_x]
         child_node.q[self.idx_q_a_into_x] = q_a
 
+        # draw the subgoal.
+        self.q_dynamics.q_sim_py.update_mbp_positions_from_vector(child_node.q)
+        self.q_dynamics.q_sim_py.draw_current_configuration()
+
         edge = IrsEdge()
         edge.parent = parent_node
         edge.child = child_node
@@ -90,7 +94,6 @@ class IrsRrtTrajOpt(IrsRrt):
             if parent_node is None:
                 continue
             # update progress only if a valid parent_node is chosen.
-            pbar.update(1)
 
             # 3. Extend to subgoal.
             try:
@@ -98,6 +101,7 @@ class IrsRrtTrajOpt(IrsRrt):
             except RuntimeError as err:
                 print(err)
                 continue
+            pbar.update(1)
 
             # 4. Attempt to rewire a candidate child node.
             if self.params.rewire:
