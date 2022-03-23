@@ -13,8 +13,8 @@ from qsim_cpp import QuasistaticSimulatorCpp
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 
 from irs_rrt.irs_rrt import IrsNode
-from irs_rrt.irs_rrt_random_grasp import IrsRrtRandomGrasp
-from irs_rrt.rrt_params import IrsRrtRandomGraspParams
+from irs_rrt.irs_rrt_projection import IrsRrtProjection
+from irs_rrt.rrt_params import IrsRrtProjectionParams
 
 from contact_sampler_allegro_door import AllegroHandPlateContactSampler
 
@@ -57,7 +57,7 @@ contact_sampler = AllegroHandPlateContactSampler(q_dynamics=q_dynamics)
 
 
 #%% RRT testing
-params = IrsRrtRandomGraspParams(q_model_path, joint_limits)
+params = IrsRrtProjectionParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
 params.max_size = 500
 params.goal = np.copy(x0)
@@ -77,7 +77,7 @@ params.grasp_prob = 0.2
 
 
 for i in range(3, 4):
-    tree = IrsRrtRandomGrasp(params, contact_sampler)
+    tree = IrsRrtProjection(params, contact_sampler)
     tree.iterate()
     name = "tree_{}_{}_{}.pkl".format(
         params.distance_metric, params.max_size, i)

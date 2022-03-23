@@ -68,7 +68,7 @@ class IrsRrtTrajOptParams(IrsRrtParams):
         self.distance_threshold = np.inf
 
 
-class IrsRrtRandomGraspParams(IrsRrtParams):
+class IrsRrtProjectionParams(IrsRrtParams):
     def __init__(self, q_model_path, joint_limits):
         super().__init__(q_model_path, joint_limits)
         # Subgoals further away from any node in the tree than
