@@ -8,6 +8,7 @@ from irs_rrt.rrt_base import Node
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 from .rrt_params import IrsRrtTrajOptParams
 from .contact_sampler import ContactSampler
+from pydrake.all import RollPitchYaw, Quaternion, RotationMatrix
 
 
 class IrsRrtTrajOpt3D(IrsRrtTrajOpt):
@@ -18,12 +19,12 @@ class IrsRrtTrajOpt3D(IrsRrtTrajOpt):
         self.irs_rrt_3d = IrsRrt3D(rrt_params)
     
     def sample_subgoal(self):
-        # subgoal = np.random.rand(self.q_dynamics.dim_x)
-        # subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
-        #
-        # yaw = - np.random.rand() * np.pi
-        # subgoal[self.irs_rrt_3d.quat_ind] = (
-        #     RollPitchYaw([0, 0, yaw]).ToQuaternion().wxyz())
-        #
-        # return subgoal
-        return self.irs_rrt_3d.sample_subgoal()
+        # Sample translation
+        subgoal = np.random.rand(self.q_dynamics.dim_x)
+        subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
+
+        rpy = RollPitchYaw(subgoal[self.irs_rrt_3d.quat_ind][0:3])
+        subgoal[self.irs_rrt_3d.quat_ind] = Quaternion(
+            RotationMatrix(rpy).matrix()).wxyz()
+
+        return subgoal

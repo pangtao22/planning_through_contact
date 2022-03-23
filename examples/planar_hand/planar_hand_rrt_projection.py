@@ -50,13 +50,13 @@ joint_limits = {
 
 #%% RRT testing
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
-params.bundle_mode = BundleMode.kFirstAnalytic
+params.bundle_mode = BundleMode.kFirstRandomized
 params.root_node = IrsNode(x0)
 params.max_size = 2000
 params.goal = np.copy(x0)
 params.goal[6] = np.pi
-params.termination_tolerance = 1e-2
-params.goal_as_subgoal_prob = 0.1
+params.termination_tolerance = 1
+params.goal_as_subgoal_prob = 0.3
 params.rewire = False
 params.grasp_prob = 0.2
 params.distance_threshold = 50

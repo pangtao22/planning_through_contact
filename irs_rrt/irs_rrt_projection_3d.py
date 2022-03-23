@@ -7,7 +7,7 @@ import pickle
 
 from irs_rrt.rrt_base import Node, Edge, Rrt, RrtParams
 from irs_rrt.irs_rrt import IrsRrtParams, IrsRrt, IrsNode, IrsEdge
-from irs_rrt.irs_rrt_random_grasp import IrsRrtProjection
+from irs_rrt.irs_rrt_projection import IrsRrtProjection
 from irs_rrt.irs_rrt_3d import IrsRrt3D
 from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
@@ -26,8 +26,8 @@ class IrsRrtProjection3D(IrsRrtProjection):
         subgoal = np.random.rand(self.q_dynamics.dim_x)
         subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
 
-        rpy = RollPitchYaw(subgoal[self.quat_ind][0:3])
-        subgoal[self.quat_ind] = Quaternion(
+        rpy = RollPitchYaw(subgoal[self.irs_rrt_3d.quat_ind][0:3])
+        subgoal[self.irs_rrt_3d.quat_ind] = Quaternion(
             RotationMatrix(rpy).matrix()).wxyz()
 
         return subgoal
