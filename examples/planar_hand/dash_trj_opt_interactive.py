@@ -373,7 +373,7 @@ def calc_trajectory(n_clicks, q_u_goal_json, q_u0_json, q_a0_json,
 
     # Traj Opt------------------------------------------------------------
     smoothing_scheme_dict = {
-        'Randomized Smoothing': BundleMode.kFirst,
+        'Randomized Smoothing': BundleMode.kFirstRandomized,
         'Analytic Smoothing': BundleMode.kFirstAnalytic}
     irs_mpc.irs_mpc_params.bundle_mode = (
         smoothing_scheme_dict[smoothing_scheme])

@@ -18,11 +18,9 @@ class QuasistaticDynamics:
         super().__init__()
         self.q_model_path = q_model_path
         self.parser = QuasistaticParser(q_model_path)
-        # TODO: setting of parameters should not happen here......
         self.parser.set_sim_params(
             h=h,
-            is_quasi_dynamic=True,
-            log_barrier_weight=200)
+            is_quasi_dynamic=True)
 
         self.h = h
         self.q_sim_py = self.parser.make_simulator_py(internal_vis=internal_viz)
@@ -273,7 +271,7 @@ class QuasistaticDynamics:
         n = x_nominals.shape[0]
         ABhat_list = np.zeros((n, self.dim_x, self.dim_x + self.dim_u))
 
-        if bundle_mode == BundleMode.kFirst:
+        if bundle_mode == BundleMode.kFirstRandomized:
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_first_order(
                     x_nominals[i], u_nominals[i], n_samples, std_u)
@@ -285,7 +283,7 @@ class QuasistaticDynamics:
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_zero_order(
                     x_nominals[i], u_nominals[i], n_samples, std_u)
-        elif bundle_mode == BundleMode.kExact:
+        elif bundle_mode == BundleMode.kFirstExact:
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_exact(
                     x_nominals[i], u_nominals[i])

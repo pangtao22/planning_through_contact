@@ -152,7 +152,7 @@ class QuasistaticDynamicsParallel:
             computing bundled B from averaging gradients, Zero-order
             methods such as least-squared is not supported.
             '''
-            if bundle_mode == BundleMode.kFirst:
+            if bundle_mode == BundleMode.kFirstRandomized:
                 is_direct = (parallel_mode
                              == ParallelizationMode.kCppBundledBDirect)
                 At, Bt, = self.calc_bundled_AB_cpp(
@@ -170,7 +170,7 @@ class QuasistaticDynamicsParallel:
              between sampling in python and sampling in C++. The conclusion 
              so far is that there doesn't seem to be much difference. 
             '''
-            assert bundle_mode == BundleMode.kFirst
+            assert bundle_mode == BundleMode.kFirstRandomized
             du_samples = np.random.normal(0, std_u,
                                           [T, n_samples, self.dim_u])
             At = np.zeros((T, self.dim_x, self.dim_x))

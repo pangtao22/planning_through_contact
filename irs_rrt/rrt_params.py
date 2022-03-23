@@ -26,7 +26,7 @@ class IrsRrtParams(RrtParams):
         self.std_u = 0.1
 
         # kFirst and kExact are supported.
-        self.bundle_mode = BundleMode.kFirst
+        self.bundle_mode = BundleMode.kFirstRandomized
 
         # State-space limits for sampling, provided as a bounding box.
         # During tree expansion, samples that go outside of this limit will be

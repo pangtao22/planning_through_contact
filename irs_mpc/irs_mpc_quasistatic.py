@@ -44,11 +44,12 @@ class IrsMpcQuasistatic:
         sampling receives sampling(initial_std, iter) and returns the 
         current std.
         """
+        self.check_irs_mpc_params(params)
+        self.irs_mpc_params = params
+
         self.q_dynamics = q_dynamics
         self.dim_x = q_dynamics.dim_x
         self.dim_u = q_dynamics.dim_u
-
-        self.irs_mpc_params = params
 
         self.T = params.T
         self.Q_dict = params.Q_dict
@@ -78,6 +79,11 @@ class IrsMpcQuasistatic:
         self.q_dynamics_parallel = QuasistaticDynamicsParallel(
             q_dynamics=q_dynamics,
             use_zmq_workers=use_zmq_workers)
+
+    @staticmethod
+    def check_irs_mpc_params(irs_mpc_params: IrsMpcQuasistaticParameters):
+        if irs_mpc_params.bundle_mode == BundleMode.kFirstAnalytic:
+            assert irs_mpc_params.log_barrier_weight_multiplier >= 1
 
     def initialize_problem(self, x0, x_trj_d, u_trj_0):
         # initial trajectory.
@@ -183,7 +189,7 @@ class IrsMpcQuasistatic:
         :param u_trj:
         :return:
         """
-        if self.irs_mpc_params.bundle_mode == BundleMode.kFirst:
+        if self.irs_mpc_params.bundle_mode == BundleMode.kFirstRandomized:
             std_u = self.irs_mpc_params.calc_std_u(
                 self.irs_mpc_params.std_u_initial, self.current_iter + 1)
             log_barrier_weight = None

@@ -128,9 +128,9 @@ class IrsRrt(Rrt):
         node.ubar = node.q[self.q_dynamics.get_q_a_indices_into_x()]
 
         # For q_u and q_a.
-        if self.params.bundle_mode == BundleMode.kExact:
+        if self.params.bundle_mode == BundleMode.kFirstExact:
             Bhat, chat = self.reachable_set.calc_exact_Bc(node.q, node.ubar)
-        elif self.params.bundle_mode == BundleMode.kFirst:
+        elif self.params.bundle_mode == BundleMode.kFirstRandomized:
             Bhat, chat = self.reachable_set.calc_bundled_Bc(node.q, node.ubar)
         elif self.params.bundle_mode == BundleMode.kFirstAnalytic:
             Bhat, chat = self.reachable_set.calc_bundled_Bc_analytic(

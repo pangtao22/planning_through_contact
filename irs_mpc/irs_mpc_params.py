@@ -2,13 +2,15 @@ import enum
 
 
 class BundleMode(enum.Enum):
-    # Supports "first_order", "exact", "zero_order_B", "zero_order_AB"
-    # This is also used in IrsRrt to decide which smoothing scehme to use.
-    kFirst = enum.auto()
-    kExact = enum.auto()
+    # This is also used in IrsRrtParams to decide which smoothing scheme to use.
+    kFirstRandomized = enum.auto()
+    kFirstExact = enum.auto()
+    kFirstAnalytic = enum.auto()
+
+    # These have not been updated in a while and we are no longer sure if
+    # they behave...
     kZeroB = enum.auto()
     kZeroAB = enum.auto()
-    kFirstAnalytic = enum.auto()
 
 
 class ParallelizationMode(enum.Enum):
@@ -71,5 +73,5 @@ class IrsMpcQuasistaticParameters:
         self.decouple_AB = True
         self.solver_name = "gurobi"
         self.publish_every_iteration = False
-        self.bundle_mode = BundleMode.kFirst
+        self.bundle_mode = BundleMode.kFirstRandomized
         self.parallel_mode = ParallelizationMode.kCppBundledB

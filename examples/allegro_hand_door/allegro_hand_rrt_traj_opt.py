@@ -66,7 +66,7 @@ mpc_params.std_u_initial = np.ones(dim_u) * 0.3
 
 mpc_params.decouple_AB = True
 mpc_params.num_samples = 100
-mpc_params.bundle_mode = BundleMode.kFirst
+mpc_params.bundle_mode = BundleMode.kFirstRandomized
 mpc_params.parallel_mode = ParallelizationMode.kCppBundledB
 
 params = IrsRrtTrajOptParams(q_model_path, joint_limits)
