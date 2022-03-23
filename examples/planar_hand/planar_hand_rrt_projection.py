@@ -50,7 +50,7 @@ joint_limits = {
 
 #%% RRT testing
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
-params.bundle_mode = BundleMode.kFirstRandomized
+params.bundle_mode = BundleMode.kFirstAnalytic
 params.root_node = IrsNode(x0)
 params.max_size = 2000
 params.goal = np.copy(x0)

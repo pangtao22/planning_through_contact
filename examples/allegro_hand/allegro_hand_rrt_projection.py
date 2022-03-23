@@ -82,6 +82,10 @@ params.stepsize = 0.3
 params.std_u = 0.1
 params.grasp_prob = 0.3
 
+<<<<<<< HEAD:examples/allegro_hand/allegro_hand_rrt_projection.py
+=======
+
+>>>>>>> 20e7e6d596ffbff23bbc463bef92ec62b204fd44:examples/allegro_hand/allegro_hand_rrt_random_grasp.py
 irs_rrt = IrsRrtProjection3D(params, contact_sampler)
 irs_rrt.iterate()
 

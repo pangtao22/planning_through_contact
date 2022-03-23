@@ -1,5 +1,5 @@
-from typing import Dict
 import numpy as np
+<<<<<<< HEAD:irs_rrt/irs_rrt_projection_3d.py
 import networkx as nx
 from tqdm import tqdm
 import time
@@ -8,12 +8,12 @@ import pickle
 from irs_rrt.rrt_base import Node, Edge, Rrt, RrtParams
 from irs_rrt.irs_rrt import IrsRrtParams, IrsRrt, IrsNode, IrsEdge
 from irs_rrt.irs_rrt_projection import IrsRrtProjection
+=======
+from irs_rrt.irs_rrt import IrsRrtParams
+>>>>>>> 20e7e6d596ffbff23bbc463bef92ec62b204fd44:irs_rrt/irs_rrt_random_grasp_3d.py
 from irs_rrt.irs_rrt_3d import IrsRrt3D
-from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
+from irs_rrt.irs_rrt_projection import IrsRrtProjection
 from pydrake.all import RollPitchYaw, Quaternion, RotationMatrix
-from qsim_cpp import GradientMode
 
 
 class IrsRrtProjection3D(IrsRrtProjection):
