@@ -7,7 +7,7 @@ import pickle
 
 from irs_rrt.rrt_base import Node, Edge, Rrt, RrtParams
 from irs_rrt.irs_rrt import IrsRrtParams, IrsRrt, IrsNode, IrsEdge
-from irs_rrt.irs_rrt_random_grasp import IrsRrtRandomGrasp
+from irs_rrt.irs_rrt_random_grasp import IrsRrtProjection
 from irs_rrt.irs_rrt_3d import IrsRrt3D
 from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
@@ -16,7 +16,7 @@ from pydrake.all import RollPitchYaw, Quaternion, RotationMatrix
 from qsim_cpp import GradientMode
 
 
-class IrsRrtRandomGrasp3D(IrsRrtRandomGrasp):
+class IrsRrtProjection3D(IrsRrtProjection):
     def __init__(self, params: IrsRrtParams, contact_sampler):
         super().__init__(params, contact_sampler)
         self.irs_rrt_3d = IrsRrt3D(params)

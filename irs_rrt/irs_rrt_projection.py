@@ -13,7 +13,7 @@ from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 from qsim_cpp import GradientMode
 
 
-class IrsRrtRandomGrasp(IrsRrt):
+class IrsRrtProjection(IrsRrt):
     def __init__(self, params: IrsRrtParams, contact_sampler):
         self.contact_sampler = contact_sampler
         super().__init__(params)
