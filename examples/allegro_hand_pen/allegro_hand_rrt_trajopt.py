@@ -114,7 +114,7 @@ for iter in range(5):
     std_u[0:3] = 0.03
     params.std_u = std_u
     params.grasp_prob = 0.1
-    params.distance_threshold = np.inf
+    params.distance_threshold = 2
 
     irs_rrt = IrsRrtTrajOpt3D(rrt_params=params,
                               mpc_params=mpc_params,
@@ -122,6 +122,6 @@ for iter in range(5):
     irs_rrt.iterate()
 
     #%%
-    irs_rrt.save_tree(f"data/trajopt/ours/tree"
+    irs_rrt.save_tree(f"data/trajopt/nocontact/tree"
                       f"_{params.max_size}_allegro_hand_random_grasp_"
                       f"{iter+1}.pkl")

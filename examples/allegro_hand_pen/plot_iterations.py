@@ -71,7 +71,7 @@ def compute_statistics(filename):
     irs_rrt = IrsRrt.make_from_pickled_tree(tree)
     global_metric = np.ones(26)
     n_samples = 100
-    threshold = 0.5
+    threshold = 5
 
     def sampling_function(n_samples):
         samples = np.random.rand(n_samples,26)
@@ -136,6 +136,10 @@ fig = plt.figure(figsize=(16,4))
 plt.rcParams['font.size'] = '16'
 filename_array = [
     "data/trajopt/ours/tree_50_allegro_hand_random_grasp_1.pkl",
+    "data/trajopt/ours/tree_50_allegro_hand_random_grasp_2.pkl",
+    "data/trajopt/ours/tree_50_allegro_hand_random_grasp_3.pkl",
+    "data/trajopt/ours/tree_50_allegro_hand_random_grasp_4.pkl",
+    "data/trajopt/ours/tree_50_allegro_hand_random_grasp_5.pkl",
 ]
 plot_filename_array(filename_array, 'springgreen', 'iRS-RRT')
 
@@ -148,16 +152,16 @@ filename_array = [
 ]
 plot_filename_array(filename_array, 'red', 'Global Metric')
 
-"""
+
 filename_array = [
-    "data/pen/project/nocontact/tree_1000_1.pkl",
-    "data/pen/project/nocontact/tree_1000_2.pkl",
-    "data/pen/project/nocontact/tree_1000_3.pkl",
-    "data/pen/project/nocontact/tree_1000_4.pkl",
-    "data/pen/project/nocontact/tree_1000_5.pkl",
+    "data/trajopt/nocontact/tree_50_allegro_hand_random_grasp_1.pkl",
+    "data/trajopt/nocontact/tree_50_allegro_hand_random_grasp_2.pkl",
+    "data/trajopt/nocontact/tree_50_allegro_hand_random_grasp_3.pkl",
+    "data/trajopt/nocontact/tree_50_allegro_hand_random_grasp_4.pkl",
+    "data/trajopt/nocontact/tree_50_allegro_hand_random_grasp_5.pkl",
 ]
 plot_filename_array(filename_array, 'royalblue', 'No Contact')
-"""
+
 plt.subplot(1,2,1)
 plt.legend()
 plt.subplot(1,2,2)
@@ -165,4 +169,5 @@ plt.legend()
 
 fig.set_figheight(6)
 fig.set_figwidth(12)
-plt.show()
+# plt.show()
+plt.savefig("trajopt_pen.png")
