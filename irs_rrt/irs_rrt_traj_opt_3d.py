@@ -24,7 +24,6 @@ class IrsRrtTrajOpt3D(IrsRrtTrajOpt):
         subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
 
         rpy = RollPitchYaw(subgoal[self.irs_rrt_3d.quat_ind][0:3])
-        subgoal[self.irs_rrt_3d.quat_ind] = Quaternion(
-            RotationMatrix(rpy).matrix()).wxyz()
+        subgoal[self.irs_rrt_3d.quat_ind] = rpy.ToQuaternion().wxyz()
 
         return subgoal
