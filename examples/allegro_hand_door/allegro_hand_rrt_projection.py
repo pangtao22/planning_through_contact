@@ -76,7 +76,7 @@ params.distance_metric = 'local_u'
 params.grasp_prob = 0.2
 
 
-for i in range(3, 4):
+for i in range(1):
     tree = IrsRrtProjection(params, contact_sampler)
     tree.iterate()
     name = "tree_{}_{}_{}.pkl".format(
