@@ -1,22 +1,18 @@
 import numpy as np
-
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from allegro_hand_setup import *
+from contact_sampler_allegro_plate import AllegroHandPlateContactSampler
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
-
+from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.irs_rrt import IrsNode
 from irs_rrt.irs_rrt_traj_opt_3d import IrsRrtTrajOpt3D
 from irs_rrt.rrt_params import IrsRrtTrajOptParams
-
-from allegro_hand_setup import *
-from contact_sampler_allegro_plate import AllegroHandPlateContactSampler
-
-from pydrake.multibody.tree import JointIndex
 from pydrake.math import RollPitchYaw
+from pydrake.multibody.tree import JointIndex
 
-#%% quasistatic dynamical system
+# %% quasistatic dynamical system
 q_dynamics = QuasistaticDynamics(h=h,
-                                q_model_path=q_model_path,
-                                internal_viz=True)
+                                 q_model_path=q_model_path,
+                                 internal_viz=True)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 q_sim_py = q_dynamics.q_sim_py
@@ -31,13 +27,13 @@ q = contact_sampler.sample_contact(q_u0)
 q_a0 = q[q_dynamics.get_q_a_indices_into_x()]
 
 q0_dict = {idx_u: q_u0,
-        idx_a: q_a0}
+           idx_a: q_a0}
 
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
-num_joints = 19 # The last joint is weldjoint (welded to the world)
+num_joints = 19  # The last joint is weldjoint (welded to the world)
 joint_limits = {
     idx_u: np.array([
-        [-0.1, np.pi/2 + 0.1],[-0.2, 0.2], [-0.2, 0.2], [0, 0],
+        [-0.1, np.pi / 2 + 0.1], [-0.2, 0.2], [-0.2, 0.2], [0, 0],
         [-0.1, 0.1], [-0.5, -0.3], [0.0, 0.3]]),
     idx_a: np.zeros([num_joints, 2])
 }
@@ -53,7 +49,7 @@ joint_limits[idx_a][0, :] = joint_limits[idx_u][4, :]
 joint_limits[idx_a][1, :] = joint_limits[idx_u][5, :]
 joint_limits[idx_a][2, :] = joint_limits[idx_u][6, :]
 
-#%% RRT testing
+# %% RRT testing
 # IrsMpc params
 mpc_params = IrsMpcQuasistaticParameters()
 mpc_params.Q_dict = {
@@ -80,10 +76,10 @@ params = IrsRrtTrajOptParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
 params.max_size = 50
 params.goal = np.copy(x0)
-Q_WB_d = RollPitchYaw(np.pi/2, 0, 0).ToQuaternion()
+Q_WB_d = RollPitchYaw(np.pi / 2, 0, 0).ToQuaternion()
 params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
 params.goal[q_dynamics.get_q_u_indices_into_x()[5]] = -0.3
-params.goal[q_dynamics.get_q_u_indices_into_x()[6]] = 0.3 
+params.goal[q_dynamics.get_q_u_indices_into_x()[6]] = 0.3
 
 params.termination_tolerance = 0  # used in irs_rrt.iterate() as cost threshold.
 params.goal_as_subgoal_prob = 0.4
@@ -103,15 +99,12 @@ params.contact = False
 runs = 5
 iter = 1
 
-
-while(True):
+while True:
     try:
         irs_rrt = IrsRrtTrajOpt3D(rrt_params=params,
-                                mpc_params=mpc_params,
-                                contact_sampler=contact_sampler)
+                                  mpc_params=mpc_params,
+                                  contact_sampler=contact_sampler)
         irs_rrt.iterate()
-
-        #%%
         irs_rrt.save_tree(
             f"data/plate/trajopt/nocontact/tree_{params.max_size}_{iter}.pkl")
         iter += 1
@@ -120,5 +113,5 @@ while(True):
         print(e)
         continue
 
-    if (iter > runs):
-        break        
+    if iter > runs:
+        break
