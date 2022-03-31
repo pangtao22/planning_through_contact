@@ -66,6 +66,10 @@ class QuasistaticDynamics:
             idx_b = velocity_indices_b[model]
             assert idx_a == idx_b
 
+    def update_default_sim_params(self, **kwargs):
+        QuasistaticSimulator.set_sim_params(
+            self.q_sim_params_default, **kwargs)
+
     # TODO (pang): consider moving functions that convert between state
     #  dictionaries and state vectors to QuasistaticSimulator, together with
     #  the relevant tests.

@@ -29,7 +29,8 @@ class ReachableSet:
         self.regularization = self.params.regularization
 
         # QuasistaticSimulationParams
-        self.q_sim_params = self.q_dynamics.q_sim_py.get_sim_parmas_copy()
+        self.q_sim_params = QuasistaticSimulator.copy_sim_params(
+            self.q_dynamics.q_sim_params_default)
         self.q_sim_params.gradient_mode = GradientMode.kBOnly
 
     def calc_exact_Bc(self, q, ubar):

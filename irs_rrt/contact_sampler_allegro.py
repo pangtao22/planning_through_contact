@@ -2,6 +2,7 @@ import numpy as np
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics, GradientMode
 from irs_rrt.contact_sampler import ContactSampler
 
+from tests.context import examples
 from examples.allegro_hand.allegro_hand_setup import *
 
 

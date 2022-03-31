@@ -54,7 +54,8 @@ class IrsRrt(Rrt):
             h=params.h,
             q_model_path=params.q_model_path,
             internal_viz=True)
-
+        self.q_dynamics.update_default_sim_params(
+            log_barrier_weight=params.log_barrier_weight_for_bundling)
         self.params = self.load_params(params)
         self.reachable_set = ReachableSet(self.q_dynamics, params)
         self.max_size = params.max_size
