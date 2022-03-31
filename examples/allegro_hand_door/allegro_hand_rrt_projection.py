@@ -59,7 +59,7 @@ contact_sampler = AllegroHandPlateContactSampler(q_dynamics=q_dynamics)
 #%% RRT testing
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
-params.max_size = 500
+params.max_size = 2000
 params.goal = np.copy(x0)
 params.goal[q_dynamics.get_q_u_indices_into_x()] = [door_angle_goal, np.pi / 2]
 params.termination_tolerance = 0
@@ -76,7 +76,7 @@ params.distance_metric = 'local_u'
 params.grasp_prob = 0.2
 
 
-for i in range(3, 4):
+for i in range(1):
     tree = IrsRrtProjection(params, contact_sampler)
     tree.iterate()
     name = "tree_{}_{}_{}.pkl".format(
