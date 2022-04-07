@@ -12,13 +12,12 @@ robot_name = 'allegro_hand_right'
 object_name = 'pen'
 
 # environment
-h = 0.05
+h = 0.025
 
 # gradient computation
-bundle_mode = BundleMode.kFirst
+bundle_mode = BundleMode.kFirstRandomized
 parallel_mode = ParallelizationMode.kCppBundledB
 decouple_AB = True
 
 # IrsLqr
-num_iters = 0
 num_samples = 100

@@ -2,6 +2,7 @@ import numpy as np
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics, GradientMode
 from irs_rrt.contact_sampler import ContactSampler
 
+from tests.context import examples
 from examples.allegro_hand.allegro_hand_setup import *
 
 
@@ -45,15 +46,14 @@ class AllegroHandContactSampler(ContactSampler):
             q_a_cmd_dict = self.q_dynamics.get_q_a_cmd_dict_from_u(ubar + qdot)
             tau_ext_dict = self.q_sim.calc_tau_ext([])
 
-            sp = self.q_sim.get_sim_params()
+            sim_params = self.q_sim.get_sim_params()
+            sim_params.unactuated_mass_scale = 0
+            sim_params.gradient_mode = GradientMode.kNone
 
             self.q_sim.step(
                 q_a_cmd_dict=q_a_cmd_dict,
                 tau_ext_dict=tau_ext_dict,
-                h=self.q_dynamics.h,
-                contact_detection_tolerance=sp.contact_detection_tolerance,
-                gradient_mode=GradientMode.kNone,
-                unactuated_mass_scale=0)
+                sim_params=sim_params)
 
             q_next_dict = self.q_sim.get_mbp_positions()
             x = self.q_dynamics.get_x_from_q_dict(q_next_dict)

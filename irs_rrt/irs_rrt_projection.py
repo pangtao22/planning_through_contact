@@ -1,19 +1,10 @@
-from typing import Dict
 import numpy as np
-import networkx as nx
-from tqdm import tqdm
-import time
-import pickle
-
-from irs_rrt.rrt_base import Node, Edge, Rrt, RrtParams
 from irs_rrt.irs_rrt import IrsRrtParams, IrsRrt, IrsNode, IrsEdge
-from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
-from qsim_cpp import GradientMode
+from irs_rrt.rrt_base import Node
+from tqdm import tqdm
 
 
-class IrsRrtRandomGrasp(IrsRrt):
+class IrsRrtProjection(IrsRrt):
     def __init__(self, params: IrsRrtParams, contact_sampler):
         self.contact_sampler = contact_sampler
         super().__init__(params)
@@ -53,7 +44,6 @@ class IrsRrtRandomGrasp(IrsRrt):
             if parent_node is None:
                 continue
             # update progress only if a valid parent_node is chosen.
-            pbar.update(1)
 
             # 3. Extend to subgoal.
             child_node, edge = self.extend(parent_node, subgoal)
@@ -64,7 +54,13 @@ class IrsRrtRandomGrasp(IrsRrt):
                     parent_node, child_node)
 
             # 5. Register the new node to the graph.
-            self.add_node(child_node)
+            try:
+                self.add_node(child_node)
+            except RuntimeError as e:
+                print(e)
+                continue
+            pbar.update(1)
+
             child_node.value = parent_node.value + edge.cost
             self.add_edge(edge)
 

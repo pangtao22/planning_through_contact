@@ -5,7 +5,8 @@ from irs_rrt.rrt_params import IrsRrtParams
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 from pydrake.all import AngleAxis, Quaternion, RotationMatrix
-from qsim_cpp import GradientMode
+from qsim.simulator import (QuasistaticSimulator, QuasistaticSimParameters,
+                            GradientMode, ForwardDynamicsMode)
 
 
 class ReachableSet:
@@ -26,6 +27,11 @@ class ReachableSet:
         self.n_samples = self.params.n_samples
         self.std_u = self.params.std_u
         self.regularization = self.params.regularization
+
+        # QuasistaticSimulationParams
+        self.q_sim_params = QuasistaticSimulator.copy_sim_params(
+            self.q_dynamics.q_sim_params_default)
+        self.q_sim_params.gradient_mode = GradientMode.kBOnly
 
     def calc_exact_Bc(self, q, ubar):
         """
@@ -51,13 +57,23 @@ class ReachableSet:
 
         (x_next_batch, B_batch, is_valid_batch
          ) = self.q_dynamics_p.q_sim_batch.calc_dynamics_parallel(
-            x_batch, u_batch, self.q_dynamics.h, GradientMode.kBOnly, None)
+            x_batch, u_batch, self.q_sim_params)
+
+        if np.sum(is_valid_batch) == 0:
+            raise RuntimeError('Cannot compute B and c hat for reachable sets.')
 
         B_batch = np.array(B_batch)
 
         chat = np.mean(x_next_batch[is_valid_batch], axis=0)
         Bhat = np.mean(B_batch[is_valid_batch], axis=0)
         return Bhat, chat
+
+    def calc_bundled_Bc_analytic(self, q, ubar):
+        q_next = self.q_dynamics.dynamics(
+            x=q, u=ubar, forward_mode=ForwardDynamicsMode.kLogPyramidMp,
+            gradient_mode=GradientMode.kBOnly)
+        Bhat = self.q_dynamics.q_sim.get_Dq_nextDqa_cmd()
+        return Bhat, q_next
 
     def calc_metric_parameters(self, Bhat, chat):
         cov = Bhat @ Bhat.T + self.params.regularization * np.eye(

@@ -15,10 +15,9 @@ object_name = 'door'
 h = 0.05
 
 # gradient computation
-bundle_mode = BundleMode.kFirst
+bundle_mode = BundleMode.kFirstRandomized
 parallel_mode = ParallelizationMode.kCppBundledB
 decouple_AB = True
 
 # IrsLqr
-num_iters = 0
 num_samples = 100

@@ -26,7 +26,7 @@ from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from irs_rrt.irs_rrt import IrsRrt, IrsNode
 from irs_rrt.rrt_params import IrsRrtParams
-from irs_rrt.irs_rrt_random_grasp import IrsRrtRandomGrasp
+from irs_rrt.irs_rrt_projection import IrsRrtProjection
 
 from planar_hand_setup import *
 from contact_sampler import PlanarHandContactSampler2D

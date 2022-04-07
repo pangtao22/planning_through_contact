@@ -1,31 +1,12 @@
-import os.path
-import time
-import matplotlib.pyplot as plt
 import numpy as np
-import pickle
-
-import cProfile
-
-from pydrake.all import PiecewisePolynomial
-
-from qsim.simulator import QuasistaticSimulator, GradientMode
-from qsim_cpp import QuasistaticSimulatorCpp
-
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_mpc.quasistatic_dynamics_parallel import (
-    QuasistaticDynamicsParallel)
-from irs_mpc.irs_mpc_quasistatic import (
-    IrsMpcQuasistatic)
-from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
-
-from irs_rrt.irs_rrt import IrsRrt, IrsNode
-from irs_rrt.rrt_params import IrsRrtRandomGraspParams
-from irs_rrt.irs_rrt_random_grasp import IrsRrtRandomGrasp
-
-from planar_hand_setup import *
 from contact_sampler import PlanarHandContactSampler
+from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from irs_rrt.irs_rrt import IrsNode
+from irs_rrt.irs_rrt_projection import IrsRrtProjection
+from irs_rrt.rrt_params import IrsRrtProjectionParams
+from planar_hand_setup import *
 
-#%% quasistatic dynamical system
+# %% quasistatic dynamical system
 q_dynamics = QuasistaticDynamics(h=h,
                                  q_model_path=q_model_path,
                                  internal_viz=True)
@@ -48,10 +29,12 @@ joint_limits = {
     idx_a_r: np.array([[-np.pi / 2, np.pi / 2], [0, np.pi / 2]])
 }
 
-#%% RRT testing
-params = IrsRrtRandomGraspParams(q_model_path, joint_limits)
+# %% RRT testing
+params = IrsRrtProjectionParams(q_model_path, joint_limits)
+params.bundle_mode = BundleMode.kFirstAnalytic
+params.log_barrier_weight_for_bundling = 100
 params.root_node = IrsNode(x0)
-params.max_size = 2000
+params.max_size = 100
 params.goal = np.copy(x0)
 params.goal[6] = np.pi
 params.termination_tolerance = 1e-2
@@ -64,15 +47,16 @@ params.distance_metric = 'local_u'
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 10.0, 10.0, 1.0])
 
-irs_rrt = IrsRrtRandomGrasp(params, contact_sampler)
+irs_rrt = IrsRrtProjection(params, contact_sampler)
 irs_rrt.iterate()
 
-#%%
+d_batch = irs_rrt.calc_distance_batch(params.goal)
+print("minimum distance: ", d_batch.min())
+
+# %%
 irs_rrt.save_tree(f"tree_{params.max_size}_planar_hand_random_grasp.pkl")
 
-
-#%%
-#
-# cProfile.runctx('tree.iterate()',
+# %%
+# cProfile.runctx('irs_rrt.iterate()',
 #                  globals=globals(), locals=locals(),
 #                  filename='irs_rrt_profile.stat')

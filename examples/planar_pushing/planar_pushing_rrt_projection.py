@@ -12,8 +12,8 @@ from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from irs_rrt.irs_rrt import IrsNode
-from irs_rrt.irs_rrt_traj_opt import IrsRrtTrajOpt
-from irs_rrt.rrt_params import IrsRrtTrajOptParams
+from irs_rrt.irs_rrt_projection import IrsRrtProjection
+from irs_rrt.rrt_params import IrsRrtProjectionParams
 
 from planar_pushing_setup import *
 from contact_sampler import PlanarPushingContactSampler
@@ -49,27 +49,15 @@ mpc_params.Qd_dict = {
     model: Q_i * 100 for model, Q_i in mpc_params.Q_dict.items()}
 mpc_params.R_dict = {
     idx_a: 10 * np.array([1, 1])}
-mpc_params.T = 20
-
-mpc_params.u_bounds_abs = np.array([
-    -np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
-
-mpc_params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
-mpc_params.std_u_initial = np.ones(dim_u) * 0.3
-
-mpc_params.decouple_AB = True
-mpc_params.num_samples = 100
-mpc_params.bundle_mode = BundleMode.kFirstRandomized
-mpc_params.parallel_mode = ParallelizationMode.kCppBundledB
 
 # IrsRrt params
-params = IrsRrtTrajOptParams(q_model_path, joint_limits)
+params = IrsRrtProjectionParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
-params.max_size = 100
+params.max_size = 2000
 params.goal = np.copy(x0)
 params.goal[1] = 0.1
 params.goal[3] = -0.5
-params.termination_tolerance = 1  # used in irs_rrt.iterate() as cost threshold.
+params.termination_tolerance = 0.1  # used in irs_rrt.iterate() as cost threshold.
 params.goal_as_subgoal_prob = 0.1
 params.rewire = False
 params.distance_metric = 'local_u'
@@ -79,10 +67,9 @@ params.global_metric = q_dynamics.get_x_from_q_dict(mpc_params.Q_dict)
 params.distance_threshold = 50
 
 
-irs_rrt = IrsRrtTrajOpt(rrt_params=params,
-                        mpc_params=mpc_params,
+irs_rrt = IrsRrtProjection(params=params,
                         contact_sampler=contact_sampler)
 irs_rrt.iterate()
 
 #%%
-irs_rrt.save_tree(f"data/trajopt/tree_{params.max_size}_planar_pushing.pkl")
+irs_rrt.save_tree(f"data/tree_{params.max_size}_planar_pushing.pkl")
