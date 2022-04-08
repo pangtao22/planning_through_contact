@@ -38,26 +38,27 @@ plant = q_sim_py.get_plant()
 idx_a = plant.GetModelInstanceByName(robot_name)
 idx_u = plant.GetModelInstanceByName(object_name)
 
+contact_sampler = AllegroHandPlateContactSampler(q_dynamics=q_dynamics)
+
 # trajectory and initial conditions.
 q_a0 = np.array([-0.14775985, -0.07837441, -0.08875541, 0.03732591, 0.74914169,
                  0.74059597, 0.83309505, 0.62379958, 1.02520157, 0.63739027,
                  0.82612123, -0.14798914, 0.73583272, 0.61479455, 0.7005708,
                  -0.06922541, 0.78533142, 0.82942863, 0.90415436])
 q_u0 = np.array([0, 0.])
+x0 = contact_sampler.sample_contact(q_u0)
 
-q0_dict = {idx_u: q_u0, idx_a: q_a0}
-
-x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 door_angle_goal = -np.pi / 12 * 5
 joint_limits = {
     idx_u: np.array([[door_angle_goal, 0], [np.pi/4, np.pi / 2]]),
     idx_a: np.zeros([q_dynamics.dim_u, 2])
 }
-contact_sampler = AllegroHandPlateContactSampler(q_dynamics=q_dynamics)
+
 
 
 #%% RRT testing
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
+params.bundle_mode = BundleMode.kFirstAnalytic
 params.root_node = IrsNode(x0)
 params.max_size = 2000
 params.goal = np.copy(x0)
@@ -76,10 +77,11 @@ params.distance_metric = 'local_u'
 params.grasp_prob = 0.2
 
 
-for i in range(1):
-    tree = IrsRrtProjection(params, contact_sampler)
-    tree.iterate()
-    name = "tree_{}_{}_{}.pkl".format(
-        params.distance_metric, params.max_size, i)
-    tree.save_tree(name)
+for i in range(5):
+    irs_rrt = IrsRrtProjection(params, contact_sampler)
+    irs_rrt.iterate()
 
+    irs_rrt.save_tree(os.path.join(
+            data_folder,
+            "analytic",
+            f"tree_{params.max_size}_{i}.pkl"))
