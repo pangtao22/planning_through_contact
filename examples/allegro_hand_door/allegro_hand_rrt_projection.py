@@ -2,13 +2,6 @@ import os.path
 import time
 import matplotlib.pyplot as plt
 import numpy as np
-import pickle
-
-from pydrake.all import PiecewisePolynomial
-from pydrake.math import RollPitchYaw
-
-from qsim.simulator import QuasistaticSimulator, GradientMode
-from qsim_cpp import QuasistaticSimulatorCpp
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 
@@ -17,6 +10,7 @@ from irs_rrt.irs_rrt_projection import IrsRrtProjection
 from irs_rrt.rrt_params import IrsRrtProjectionParams
 
 from contact_sampler_allegro_door import AllegroHandPlateContactSampler
+from qsim_cpp import ForwardDynamicsMode
 
 from allegro_hand_setup import *
 
@@ -31,6 +25,10 @@ duration = T * h
 q_dynamics = QuasistaticDynamics(h=h,
                                  q_model_path=q_model_path,
                                  internal_viz=True)
+q_dynamics.update_default_sim_params(
+    forward_mode=ForwardDynamicsMode.kSocpMp,
+    log_barrier_weight=100)
+
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 q_sim_py = q_dynamics.q_sim_py

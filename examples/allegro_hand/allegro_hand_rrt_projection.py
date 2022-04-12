@@ -7,6 +7,7 @@ from irs_rrt.irs_rrt import IrsNode
 from irs_rrt.irs_rrt_projection_3d import IrsRrtProjection3D
 from irs_rrt.rrt_params import IrsRrtTrajOptParams, IrsRrtProjectionParams
 
+from qsim_cpp import ForwardDynamicsMode
 from allegro_hand_setup import *
 from irs_rrt.contact_sampler_allegro import AllegroHandContactSampler
 
@@ -17,6 +18,10 @@ from pydrake.math import RollPitchYaw
 q_dynamics = QuasistaticDynamics(h=h,
                                  q_model_path=q_model_path,
                                  internal_viz=True)
+q_dynamics.update_default_sim_params(
+    forward_mode=ForwardDynamicsMode.kSocpMp,
+    log_barrier_weight=100)
+
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 q_sim_py = q_dynamics.q_sim_py
@@ -62,7 +67,7 @@ for i in range(num_joints):
 
 # IrsRrt params
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
-params.bundle_mode = BundleMode.kFirstRandomized
+params.bundle_mode = BundleMode.kFirstAnalytic
 params.root_node = IrsNode(x0)
 params.max_size = 2000
 params.goal = np.copy(x0)
