@@ -53,10 +53,9 @@ mpc_params.R_dict = {
 # IrsRrt params
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
 params.root_node = IrsNode(x0)
-params.max_size = 2000
+params.max_size = 500
 params.goal = np.copy(x0)
-params.goal[1] = 0.1
-params.goal[3] = -0.5
+params.goal[1] = -0.5
 params.termination_tolerance = 0.1  # used in irs_rrt.iterate() as cost threshold.
 params.goal_as_subgoal_prob = 0.1
 params.rewire = False
@@ -68,7 +67,7 @@ params.distance_threshold = 50
 
 
 irs_rrt = IrsRrtProjection(params=params,
-                        contact_sampler=contact_sampler)
+                           contact_sampler=contact_sampler)
 irs_rrt.iterate()
 
 #%%
