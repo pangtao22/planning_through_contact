@@ -95,10 +95,13 @@ def solve_mpc(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None,
 
         # Compute differences. 
         if indices_u_into_x is not None:
+            """
             if t == 0:
                 du = ut[t] - xt[t, indices_u_into_x]
             else:
                 du = ut[t] - ut[t - 1]
+            """
+            du = ut[t] - xt[t, indices_u_into_x]
             dx = xt[t + 1] - xt[t]
 
             prog.AddConstraint(eq(du, dut[t]))

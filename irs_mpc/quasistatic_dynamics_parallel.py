@@ -12,6 +12,8 @@ from .irs_mpc_params import (BundleMode, ParallelizationMode,
 from .quasistatic_dynamics import QuasistaticDynamics
 from .zmq_dynamics_worker import kTaskVentSocket, kTaskSinkSocket
 
+import matplotlib.pyplot as plt
+
 
 class QuasistaticDynamicsParallel:
     """
@@ -155,6 +157,25 @@ class QuasistaticDynamicsParallel:
             if bundle_mode == BundleMode.kFirstRandomized:
                 is_direct = (parallel_mode
                              == ParallelizationMode.kCppBundledBDirect)
+                At, Bt, = self.calc_bundled_B_cpp(
+                    x_trj, u_trj, std_u, n_samples,
+                    is_direct=is_direct)
+            elif bundle_mode == BundleMode.kFirstAnalytic:
+                At, Bt = self.calc_bundled_B_cpp_analytic(
+                    x_trj, u_trj, log_barrier_weight)
+            else:
+                raise NotImplementedError
+
+        elif (parallel_mode == ParallelizationMode.kCppBundledAB or
+              parallel_mode == ParallelizationMode.kCppBundledABDirect):
+            '''
+            The CPP API only supports scalar standard deviation and
+            computing bundled B from averaging gradients, Zero-order
+            methods such as least-squared is not supported.
+            '''
+            if bundle_mode == BundleMode.kFirstRandomized:
+                is_direct = (parallel_mode
+                             == ParallelizationMode.kCppBundledABDirect)
                 At, Bt, = self.calc_bundled_AB_cpp(
                     x_trj, u_trj, std_u, n_samples,
                     is_direct=is_direct)
@@ -163,6 +184,7 @@ class QuasistaticDynamicsParallel:
                     x_trj, u_trj, log_barrier_weight)
             else:
                 raise NotImplementedError
+
 
         elif parallel_mode == ParallelizationMode.kCppDebug:
             '''
@@ -173,8 +195,7 @@ class QuasistaticDynamicsParallel:
             assert bundle_mode == BundleMode.kFirstRandomized
             du_samples = np.random.normal(0, std_u,
                                           [T, n_samples, self.dim_u])
-            At = np.zeros((T, self.dim_x, self.dim_x))
-            Bt = self.calc_bundled_B_cpp_debug(x_trj, u_trj, du_samples)
+            At, Bt = self.calc_bundled_AB_serial_debug(x_trj, u_trj, du_samples)
         else:
             raise NotImplementedError(
                 f"Parallel mode {parallel_mode} has not been implemented.")
@@ -186,11 +207,23 @@ class QuasistaticDynamicsParallel:
         # compute ct
         ct = np.zeros((T, self.dim_x))
         for t in range(T):
+            """
             x_next_nominal = self.q_dynamics.dynamics(
                 x_trj[t], u_trj[t],
                 forward_mode=self.q_sim_params.forward_mode,
                 gradient_mode=GradientMode.kNone)
+            """
+            x_next_nominal = self.dynamics_bundled(
+                x_trj[t], u_trj[t], n_samples, std_u)
+
             ct[t] = x_next_nominal - At[t].dot(x_trj[t]) - Bt[t].dot(u_trj[t])
+
+        #print(At[-1], Bt[-1], ct[-1])
+        #plt.matshow(At[-1])
+        #plt.show()
+
+
+        
 
         return At, Bt, ct
 
@@ -203,7 +236,7 @@ class QuasistaticDynamicsParallel:
         Bt[:, self.indices_u_into_x, :] = np.eye(self.dim_u)
         At[:] = np.eye(At.shape[1])
         At[:, :, self.indices_u_into_x] = 0.0
-        # At[:, :] = 0
+        #At[:, :] = 0
         return At, Bt
 
     def initialize_AB(self, T: int):
@@ -262,6 +295,26 @@ class QuasistaticDynamicsParallel:
 
         return At, Bt
 
+    def calc_bundled_B_cpp(self, x_trj: np.ndarray, u_trj: np.ndarray,
+                            std_u: np.ndarray, n_samples: int,
+                            is_direct: bool):
+        """
+        Dispatches to BatchQuasistaticSimulator::CalcBundledBTrj or
+            BatchQuasistaticSimulator::CalcBundledBTrjDirect, depending on
+            is_direct. Right now the "direct" variant, based on Drake's MC
+            simulation implementation, is the slowest.
+        """
+        T = len(u_trj)
+        At, Bt = self.initialize_AB(T)
+        if is_direct:
+            Bt[:] = self.q_sim_batch.calc_bundled_B_trj_direct(
+                x_trj, u_trj, std_u, self.q_sim_params, n_samples, None)
+        else:
+            Bt[:] = self.q_sim_batch.calc_bundled_B_trj(
+                x_trj, u_trj, std_u, self.q_sim_params, n_samples, None)
+
+        return At, Bt
+
     def calc_bundled_AB_cpp(self, x_trj: np.ndarray, u_trj: np.ndarray,
                             std_u: np.ndarray, n_samples: int,
                             is_direct: bool):
@@ -282,7 +335,8 @@ class QuasistaticDynamicsParallel:
 
         return At, Bt
 
-    def calc_bundled_AB_cpp_analytic(
+
+    def calc_bundled_B_cpp_analytic(
             self, x_trj: np.ndarray, u_trj: np.ndarray,
             log_barrier_weight: float):
         T = len(u_trj)
@@ -327,6 +381,73 @@ class QuasistaticDynamicsParallel:
             Bt[t] /= n_good_samples
 
         return Bt
+
+    def calc_bundled_AB_serial_debug(self, x_trj: np.ndarray, u_trj: np.ndarray,
+                                    du_samples: np.ndarray):
+        T = len(u_trj)
+        At = np.zeros((T, self.dim_x, self.dim_x))
+        Bt = np.zeros((T, self.dim_x, self.dim_u))
+        n_samples = du_samples.shape[1]
+
+        # Compute ABhat.
+        for t in range(T):
+            n_good_samples = 0
+            for i in range(n_samples):
+                try:
+                    self.q_dynamics.dynamics(
+                        x_trj[t],
+                        u_trj[t] + du_samples[t, i],
+                        gradient_mode=GradientMode.kAB)
+                    At[t] += self.q_dynamics.q_sim.get_Dq_nextDq()
+                    Bt[t] += self.q_dynamics.q_sim.get_Dq_nextDqa_cmd()
+                    n_good_samples += 1
+                except RuntimeError as err:
+                    logging.warning(err.__str__())
+
+            At[t] /= n_good_samples
+            Bt[t] /= n_good_samples
+
+        return At, Bt
+
+    """
+    def calc_bundled_AB_serial_debug(self, x_trj: np.ndarray, u_trj: np.ndarray,
+                                    du_samples: np.ndarray):
+        T = len(u_trj)
+        At = np.zeros((T, self.dim_x, self.dim_x))
+        Bt = np.zeros((T, self.dim_x, self.dim_u))
+        n_samples = du_samples.shape[1]
+
+        # Compute ABhat.
+        for t in range(T):
+            n_good_samples = 0
+            x_samples = np.random.normal(0, 0.01, (n_samples, self.dim_x))
+            qnext_batch = np.zeros((n_samples, self.dim_x))
+            for i in range(n_samples):
+                qnext_batch[i] = self.q_dynamics.dynamics(
+                    x_trj[t] + x_samples[i],
+                    u_trj[t] + du_samples[t, i],
+                    gradient_mode=GradientMode.kNone)
+
+            x_batch = x_trj[t] + x_samples
+            u_batch = u_trj[t] + du_samples[t,:]
+
+            zobg_AB = np.linalg.lstsq(
+                np.hstack((x_batch, u_batch)), qnext_batch)[0].transpose()
+
+            #plt.matshow(zobg_AB)
+            #plt.show()
+
+            At[t] = zobg_AB[:,:self.dim_x,]
+            Bt[t] = zobg_AB[:,self.dim_x:self.dim_x + self.dim_u]
+
+            #plt.matshow(At[t])
+            #plt.show()
+
+            #plt.matshow(Bt[t])
+            #plt.show()
+
+        return At, Bt
+        """
 
     def calc_bundled_B_cpp_debug(self, x_trj: np.ndarray, u_trj: np.ndarray,
                                  du_samples: np.ndarray):

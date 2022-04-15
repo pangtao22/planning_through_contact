@@ -25,6 +25,12 @@ class ParallelizationMode(enum.Enum):
     # calls BatchQuasistaticSimulator::CalcBundledBTrjDirect
     kCppBundledBDirect = enum.auto()
 
+    # calls BatchQuasistaticSimulator::CalcBundledABTrj
+    kCppBundledAB = enum.auto()
+
+    # calls BatchQuasistaticSimulator::CalcBundledABTrjDirect
+    kCppBundledABDirect = enum.auto()
+
     # sends sampled du to a single-threaded implementation of bundled
     # gradient computation, which is least likely to have mistakes...?
     kDebug = enum.auto()

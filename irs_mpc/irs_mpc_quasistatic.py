@@ -64,7 +64,7 @@ class IrsMpcQuasistatic:
         self.u_bounds_rel = params.u_bounds_rel
         self.indices_u_into_x = q_dynamics.get_q_a_indices_into_x()
 
-        self.publish_every_iteration = params.publish_every_iteration
+        self.publish_every_iteration = True
 
         # solver
         self.solver = get_solver(params.solver_name)
@@ -123,8 +123,8 @@ class IrsMpcQuasistatic:
         x_trj = np.zeros((T + 1, self.dim_x))
         x_trj[0, :] = x0
         for t in range(T):
-            x_trj[t + 1, :] = self.q_dynamics.dynamics(
-                x_trj[t, :], u_trj[t, :])
+            x_trj[t + 1, :] = self.q_dynamics_parallel.dynamics_bundled(
+                x_trj[t, :], u_trj[t, :], 100, self.irs_mpc_params.std_u_initial)
         return x_trj
 
     @staticmethod
@@ -264,8 +264,13 @@ class IrsMpcQuasistatic:
                 xinit=None,
                 uinit=None)
             u_trj_new[t, :] = u_star[0]
-            x_trj_new[t + 1, :] = self.q_dynamics.dynamics(
-                x_trj_new[t], u_trj_new[t])
+            std_u = self.irs_mpc_params.calc_std_u(
+                self.irs_mpc_params.std_u_initial, self.current_iter + 1) 
+            print(self.irs_mpc_params.num_samples)
+            x_trj_new[t + 1, :] = self.q_dynamics_parallel.dynamics_bundled(
+                x_trj_new[t], u_trj_new[t],
+                self.irs_mpc_params.num_samples,
+                std_u)               
 
         return x_trj_new, u_trj_new
 
@@ -306,12 +311,20 @@ class IrsMpcQuasistatic:
                 self.cost_best = cost
                 self.idx_best = self.current_iter
 
+            """
+            plt.figure()
+            plt.plot(self.u_trj[:,0], self.u_trj[:,1],'bo-')
+            plt.plot(u_trj_new[:,0], u_trj_new[:,1],'go-')
+            plt.show()
+            """
+
             # Go over to next iteration.
             self.cost = cost
             self.x_trj = x_trj_new
             self.u_trj = u_trj_new
             self.current_iter += 1
             self.print_iterate_info()
+
 
             if (self.current_iter > max_iterations
                     or cost_Qu_final < cost_Qu_f_threshold):
