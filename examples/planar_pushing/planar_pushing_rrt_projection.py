@@ -52,6 +52,7 @@ mpc_params.R_dict = {
 
 # IrsRrt params
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
+params.bundle_mode = BundleMode.kFirstRandomized
 params.root_node = IrsNode(x0)
 params.max_size = 500
 params.goal = np.copy(x0)
@@ -66,9 +67,13 @@ params.global_metric = q_dynamics.get_x_from_q_dict(mpc_params.Q_dict)
 params.distance_threshold = 50
 
 
-irs_rrt = IrsRrtProjection(params=params,
-                           contact_sampler=contact_sampler)
-irs_rrt.iterate()
+for i in range(5):
+    irs_rrt = IrsRrtProjection(params=params,
+                            contact_sampler=contact_sampler)
+    irs_rrt.iterate()
 
-#%%
-irs_rrt.save_tree(f"data/tree_{params.max_size}_planar_pushing.pkl")
+    #%%
+    irs_rrt.save_tree(os.path.join(
+        data_folder,
+        "randomized",
+        f"tree_{params.max_size}_{i}.pkl"))

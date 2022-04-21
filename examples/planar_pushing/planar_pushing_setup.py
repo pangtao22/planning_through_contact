@@ -23,3 +23,6 @@ decouple_AB = True
 # IrsMpc
 num_iters = 10
 num_samples = 100
+
+# data collection.
+data_folder = "ptc_data/planar_pushing"
