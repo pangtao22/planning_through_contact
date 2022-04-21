@@ -132,7 +132,8 @@ class IrsRrt(Rrt):
         if self.params.bundle_mode == BundleMode.kFirstExact:
             Bhat, chat = self.reachable_set.calc_exact_Bc(node.q, node.ubar)
         elif self.params.bundle_mode == BundleMode.kFirstRandomized:
-            Bhat, chat = self.reachable_set.calc_bundled_Bc(node.q, node.ubar)
+            Bhat, chat = self.reachable_set.calc_bundled_Bc_randomized(
+                node.q, node.ubar)
         elif self.params.bundle_mode == BundleMode.kFirstAnalytic:
             Bhat, chat = self.reachable_set.calc_bundled_Bc_analytic(
                 node.q, node.ubar)
