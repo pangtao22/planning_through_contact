@@ -59,4 +59,4 @@ class PlanarPushingContactSampler(ContactSampler):
         ])
 
         q_WB = X_WB.dot(contact)
-        return np.hstack([q_WB[0:2], q_u])
+        return np.hstack([q_u, q_WB[0:2]])

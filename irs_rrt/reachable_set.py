@@ -41,7 +41,7 @@ class ReachableSet:
         u = ubar[None, :]
         (x_next, B, is_valid
          ) = self.q_dynamics_p.q_sim_batch.calc_dynamics_parallel(
-            x, u, self.q_dynamics.h, GradientMode.kBOnly, None)
+            x, u, self.q_sim_params)
 
         c = np.array(x_next).squeeze(0)
         B = np.array(B).squeeze(0)
@@ -88,6 +88,7 @@ class ReachableSet:
         Bhat_u = Bhat[self.q_u_indices_into_x, :]
         cov_u = Bhat_u @ Bhat_u.T + self.params.regularization * np.eye(
             self.q_dynamics.dim_x - self.q_dynamics.dim_u)
+
         return cov_u, chat[self.q_u_indices_into_x]
 
     def calc_bundled_dynamics(self, Bhat, chat, du):

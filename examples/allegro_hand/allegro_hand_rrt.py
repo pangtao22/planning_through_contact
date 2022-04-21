@@ -68,6 +68,7 @@ for i in range(num_joints):
 
 #%% RRT testing
 params = IrsRrtParams3D(q_model_path, joint_limits)
+params.bundle_mode = BundleMode.kFirstAnalytic
 params.root_node = IrsNode(x0)
 params.max_size = 1000
 params.goal = np.copy(x0)
@@ -84,6 +85,9 @@ params.distance_metric = 'global_u'
 tree = IrsRrt3D(params)
 tree.iterate()
 # np.save("q_mat_large.npy", tree.q_matrix)
+
+d_batch = tree.calc_distance_batch(params.goal)
+print("minimum distance: ", d_batch.min())
 
 #%%
 tree.save_tree("examples/allegro_hand/data/{}/tree_{}_global_gravity.pkl".format(params.distance_metric,

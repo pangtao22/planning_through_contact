@@ -36,12 +36,13 @@ params.log_barrier_weight_for_bundling = 100
 params.root_node = IrsNode(x0)
 params.max_size = 2000
 params.goal = np.copy(x0)
-params.goal[6] = np.pi
-params.termination_tolerance = 0
+params.goal[2] = np.pi
+params.termination_tolerance = 0.0
 params.goal_as_subgoal_prob = 0.1
+params.regularization = 1e-4
 params.rewire = False
 params.grasp_prob = 0.2
-params.distance_threshold = 50
+params.distance_threshold = np.inf
 params.distance_metric = 'local_u'
 
 # params.distance_metric = 'global'  # If using global metric
