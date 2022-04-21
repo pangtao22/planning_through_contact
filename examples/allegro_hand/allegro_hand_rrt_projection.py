@@ -38,11 +38,8 @@ q_a0 = np.array([0.03501504, 0.75276565, 0.74146232, 0.83261002, 0.63256269,
 
 
 q_u0 = np.array([1, 0, 0, 0, -0.081, 0.001, 0.071])
+x0 = contact_sampler.sample_contact(q_u0)
 
-q0_dict = {idx_u: q_u0,
-           idx_a: q_a0}
-
-x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 num_joints = plant.num_joints() - 1 # The last joint is weldjoint (welded to the world)
 joint_limits = {
     # The first four elements correspond to quaternions. However, we are being
@@ -73,7 +70,7 @@ params.max_size = 2000
 params.goal = np.copy(x0)
 Q_WB_d = RollPitchYaw(0, 0, np.pi).ToQuaternion()
 params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
-params.termination_tolerance = 1  # used in irs_rrt.iterate() as cost threshold.
+params.termination_tolerance = 0.00  # used in irs_rrt.iterate() as cost threshold.
 params.goal_as_subgoal_prob = 0.3
 params.rewire = False
 params.regularization = 1e-6
@@ -87,8 +84,12 @@ params.stepsize = 0.3
 params.std_u = 0.1
 params.grasp_prob = 0.3
 
-irs_rrt = IrsRrtProjection3D(params, contact_sampler)
-irs_rrt.iterate()
+for i in range(5):
+    irs_rrt = IrsRrtProjection3D(params, contact_sampler)
+    irs_rrt.iterate()
 
-#%%
-irs_rrt.save_tree(f"tree_{params.max_size}_allegro_hand_projection.pkl")
+    #%%
+    irs_rrt.save_tree(os.path.join(
+        data_folder,
+        "randomized",
+        f"tree_{params.max_size}_{i}.pkl"))

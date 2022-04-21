@@ -33,11 +33,8 @@ q_a0 = np.array([0.0, 0.0, 0.1,
                  0.90415436])
 
 q_u0 = np.array([1, 0, 0, 0, 0.0, -0.35, 0.07])
+x0 = contact_sampler.sample_contact(q_u0)
 
-q0_dict = {idx_u: q_u0,
-           idx_a: q_a0}
-
-x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 num_joints = 19 # The last joint is weldjoint (welded to the world)
 joint_limits = {
     idx_u: np.array([
@@ -60,14 +57,15 @@ joint_limits[idx_a][2, :] = joint_limits[idx_u][6, :]
 #%% RRT testing
 # IrsRrt params
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
+params.bundle_mode = BundleMode.kFirstAnalytic
 params.root_node = IrsNode(x0)
-params.max_size = 500
+params.max_size = 1000
 params.goal = np.copy(x0)
 Q_WB_d = RollPitchYaw(np.pi/2, 0, 0).ToQuaternion()
 params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
 params.goal[q_dynamics.get_q_u_indices_into_x()[5]] = -0.3
 params.goal[q_dynamics.get_q_u_indices_into_x()[6]] = 0.3 
-params.termination_tolerance = 1  # used in irs_rrt.iterate() as cost threshold.
+params.termination_tolerance = 0  # used in irs_rrt.iterate() as cost threshold.
 params.goal_as_subgoal_prob = 0.3
 params.rewire = False
 params.regularization = 1e-4
@@ -84,8 +82,16 @@ params.std_u = std_u
 params.grasp_prob = 0.3
 
 
-irs_rrt = IrsRrtProjection3D(params, contact_sampler)
-irs_rrt.iterate()
-
 #%%
-irs_rrt.save_tree(f"tree_{params.max_size}_allegro_hand_random_grasp.pkl")
+for i in range(5):
+    irs_rrt = IrsRrtProjection3D(params, contact_sampler)
+    irs_rrt.iterate()
+
+    d_batch = irs_rrt.calc_distance_batch(params.goal)
+    print("minimum distance: ", d_batch.min())
+
+    # %%
+    irs_rrt.save_tree(os.path.join(
+        data_folder,
+        "analytic",
+        f"tree_{params.max_size}_{i}.pkl"))

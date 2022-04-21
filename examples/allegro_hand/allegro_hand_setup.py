@@ -22,3 +22,6 @@ decouple_AB = True
 # IrsLqr
 num_iters = 10
 num_samples = 100
+
+# data collection.
+data_folder = "ptc_data/allegro_hand"

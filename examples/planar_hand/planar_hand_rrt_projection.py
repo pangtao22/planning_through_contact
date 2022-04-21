@@ -48,14 +48,19 @@ params.distance_metric = 'local_u'
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 10.0, 10.0, 1.0])
 
-irs_rrt = IrsRrtProjection(params, contact_sampler)
-irs_rrt.iterate()
+for i in range(5):
+    irs_rrt = IrsRrtProjection(params, contact_sampler)
+    irs_rrt.iterate()
 
-d_batch = irs_rrt.calc_distance_batch(params.goal)
-print("minimum distance: ", d_batch.min())
+    d_batch = irs_rrt.calc_distance_batch(params.goal)
+    print("minimum distance: ", d_batch.min())
 
-# %%
-irs_rrt.save_tree(f"tree_{params.max_size}_planar_hand_random_grasp.pkl")
+    # %%
+    irs_rrt.save_tree(os.path.join(
+        data_folder,
+        "randomized",
+        f"tree_{params.max_size}_{i}.pkl"))
+
 
 # %%
 # cProfile.runctx('irs_rrt.iterate()',

@@ -21,3 +21,6 @@ decouple_AB = True
 
 # IrsLqr
 num_samples = 100
+
+# data collection.
+data_folder = "ptc_data/allegro_hand_door"
