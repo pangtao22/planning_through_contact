@@ -1,3 +1,4 @@
+import copy
 import logging
 from typing import Union
 
@@ -277,8 +278,12 @@ class QuasistaticDynamicsParallel:
             Bt[:] = self.q_sim_batch.calc_bundled_B_trj_direct(
                 x_trj, u_trj, std_u, self.q_sim_params, n_samples, None)
         else:
-            Bt[:] = self.q_sim_batch.calc_bundled_B_trj(
-                x_trj, u_trj, std_u, self.q_sim_params, n_samples, None)
+            sim_params = copy.deepcopy(self.q_sim_params)
+            sim_params.gradient_mode = GradientMode.kBOnly
+            (A_trj, B_trj, c_trj
+             ) = self.q_sim_batch.calc_bundled_ABc_trj(
+                x_trj, u_trj, std_u, sim_params, n_samples, None)
+            Bt[:] = B_trj
 
         return At, Bt
 
