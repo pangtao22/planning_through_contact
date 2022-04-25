@@ -12,7 +12,7 @@ from .irs_mpc_params import (IrsMpcQuasistaticParameters, SmoothingMode,
                              kSmoothingMode2ForwardDynamicsModeMap,
                              RandomizedSmoothingModes, AnalyticSmoothingModes)
 from .quasistatic_visualizer import QuasistaticVisualizer
-from .mpc import solve_mpc
+from irs_mpc.mpc import solve_mpc
 
 
 class IrsMpcQuasistatic:
@@ -49,6 +49,13 @@ class IrsMpcQuasistatic:
 
         # QuasistaticSimParameters
         self.sim_params = self.get_q_sim_params(self.irs_mpc_params)
+        # rollout
+        # Not used if self.irs_mpc_params.rollout_forward_dynamics_mode is None.
+        self.sim_params_rollout = copy.deepcopy(self.sim_params)
+        if self.irs_mpc_params.rollout_forward_dynamics_mode:
+            self.sim_params_rollout.forward_mode = (
+                self.irs_mpc_params.rollout_forward_dynamics_mode)
+        self.sim_params_rollout.gradient_mode = GradientMode.kNone
 
     def get_q_sim_params(self, p_mpc: IrsMpcQuasistaticParameters):
         p = copy.deepcopy(self.parser.q_sim_params)
@@ -93,7 +100,7 @@ class IrsMpcQuasistatic:
         # Initial trajectory and linearization
         self.x_trj_0 = self.rollout(x0, u_trj_0, ForwardDynamicsMode.kSocpMp)
         self.u_trj_0 = u_trj_0  # T x m
-        self.A_trj, self.B_trj, self.c_trj = self.calc_bundled_ABc(
+        self.A_trj, self.B_trj, self.c_trj, _ = self.calc_bundled_ABc(
             self.x_trj_0[:self.T], self.u_trj_0)
 
     def get_Q_mat_from_Q_dict(self,
@@ -216,7 +223,8 @@ class IrsMpcQuasistatic:
         if self.irs_mpc_params.smoothing_mode in RandomizedSmoothingModes:
             std_u = self.irs_mpc_params.calc_std_u(
                 self.irs_mpc_params.std_u_initial, self.current_iter + 1)
-            A_trj, B_trj, c_trj = self.q_sim_batch.calc_bundled_ABc_trj(
+            A_trj, B_trj, x_next_smooth_trj = \
+                self.q_sim_batch.calc_bundled_ABc_trj(
                 x_trj, u_trj, std_u, sim_p,
                 self.irs_mpc_params.n_samples_randomized, None)
         else:
@@ -226,7 +234,7 @@ class IrsMpcQuasistatic:
                         self.irs_mpc_params.log_barrier_weight_initial,
                         self.current_iter))
 
-            c_trj, A_trj, B_trj, is_valid = \
+            x_next_smooth_trj, A_trj, B_trj, is_valid = \
                 self.q_sim_batch.calc_dynamics_parallel(x_trj, u_trj, sim_p)
 
             if not all(is_valid):
@@ -241,8 +249,21 @@ class IrsMpcQuasistatic:
             A_trj[:, :, self.indices_u_into_x] = 0.0
 
         B_trj = np.array(B_trj)
-        c_trj = np.array(c_trj)
-        return A_trj, B_trj, c_trj
+
+        # compute ct
+        c_trj = np.zeros((T, self.dim_x))
+        for t in range(T):
+            if self.irs_mpc_params.rollout_forward_dynamics_mode:
+                x_next_nominal = self.q_sim.calc_dynamics(
+                    x_trj[t], u_trj[t], self.sim_params_rollout)
+            else:
+                x_next_nominal = x_next_smooth_trj[t]
+
+            c_trj[t] = (x_next_nominal
+                        - A_trj[t].dot(x_trj[t])
+                        - B_trj[t].dot(u_trj[t]))
+
+        return A_trj, B_trj, c_trj, x_next_nominal
 
     def local_descent(self, x_trj: np.ndarray):
         """
@@ -280,12 +301,6 @@ class IrsMpcQuasistatic:
             u_bounds_rel[0] = self.u_bounds_rel[0]
             u_bounds_rel[1] = self.u_bounds_rel[1]
 
-        sim_params_rollout = copy.deepcopy(self.sim_params)
-        if self.irs_mpc_params.rollout_forward_dynamics_mode:
-            sim_params_rollout.forward_mode = (
-                self.irs_mpc_params.rollout_forward_dynamics_mode)
-        sim_params_rollout.gradient_mode = GradientMode.kNone
-
         for t in range(self.T):
             x_star, u_star = solve_mpc(
                 At=self.A_trj[t:self.T],
@@ -309,18 +324,12 @@ class IrsMpcQuasistatic:
             u_trj_new[t] = u_star[0]
 
             # Rollout and compute bundled A, B and c.
-            At, Bt, ct = self.calc_bundled_ABc(
+            At, Bt, ct, x_trj_new[t + 1] = self.calc_bundled_ABc(
                 x_trj_new[t][None, :], u_trj_new[t][None, :])
 
             self.A_trj[t] = At.squeeze()
             self.B_trj[t] = Bt.squeeze()
             self.c_trj[t] = ct.squeeze()
-
-            if self.irs_mpc_params.rollout_forward_dynamics_mode:
-                x_trj_new[t + 1, :] = self.q_sim.calc_dynamics(
-                    x_trj_new[t], u_trj_new[t], sim_params_rollout)
-            else:
-                x_trj_new[t + 1] = ct.squeeze()
 
         return x_trj_new, u_trj_new
 
@@ -329,19 +338,18 @@ class IrsMpcQuasistatic:
         T = u_trj.shape[0]
         assert T == self.T
         x_trj = np.zeros((T + 1, self.dim_x))
-        x_trj[0, :] = x0
+        x_trj[0] = x0
 
         sim_p = copy.deepcopy(self.sim_params)
         sim_p.forward_mode = forward_mode
         sim_p.gradient_mode = GradientMode.kNone
 
         for t in range(T):
-            x_trj[t + 1, :] = self.q_sim.calc_dynamics(
-                x_trj[t, :], u_trj[t, :], sim_p)
+            x_trj[t + 1] = self.q_sim.calc_dynamics(
+                x_trj[t], u_trj[t], sim_p)
         return x_trj
 
-    def iterate(self, max_iterations: int,
-                cost_Qu_f_threshold: float = 0):
+    def iterate(self, max_iterations: int, cost_Qu_f_threshold: float = 0):
         """
         Terminates after the trajectory cost is less than cost_threshold or
          max_iterations is reached.
@@ -369,9 +377,9 @@ class IrsMpcQuasistatic:
                 self.cost_best = cost
                 self.idx_best = self.current_iter
 
-            print('Iter {:02d}, '.format(self.current_iter) +
-                  'cost: {:0.4f}, '.format(cost) +
-                  'time: {:0.2f}.'.format(time.time() - start_time))
+            print(f'Iter {self.current_iter:02d}, '
+                  f'cost: {cost:0.4f}, '
+                  f'time: {time.time() - start_time:0.2f}.')
 
             if (self.current_iter >= max_iterations
                     or cost_Qu_final < cost_Qu_f_threshold):

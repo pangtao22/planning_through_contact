@@ -72,7 +72,7 @@ params.log_barrier_weight_initial = 50
 params.log_barrier_weight_multiplier = (
     lambda kappa0, i: kappa0 * (1.2 ** i))
 
-params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
+# params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kQpMp
 
 prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
 
@@ -125,7 +125,7 @@ prob_mpc.vis.publish_trajectory(x_traj_to_publish, h)
 q_dict_final = q_sim.get_q_dict_from_vec(x_traj_to_publish[-1])
 q_u_final = q_dict_final[idx_u]
 p_WB_f = q_u_final[4:]
-Q_WB_f = Quaternion(q_u_final[:4])
+Q_WB_f = Quaternion(q_u_final[:4] / np.linalg.norm(q_u_final[:4]))
 print('position error:', p_WB_f - p_WB_d)
 print('orientation error:',
       AngleAxis(Q_WB_f.multiply(Q_WB_d.inverse())).angle())
