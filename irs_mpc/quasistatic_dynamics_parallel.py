@@ -296,7 +296,7 @@ class QuasistaticDynamicsParallel:
         q_sim_params.forward_mode = ForwardDynamicsMode.kLogPyramidMp
         q_sim_params.gradient_mode = GradientMode.kBOnly
         q_sim_params.log_barrier_weight = log_barrier_weight
-        (x_next_batch, B_batch, is_valid
+        (x_next_batch, A_Batch, B_batch, is_valid
          ) = self.q_sim_batch.calc_dynamics_parallel(
             x_trj[:T], u_trj, q_sim_params)
 
