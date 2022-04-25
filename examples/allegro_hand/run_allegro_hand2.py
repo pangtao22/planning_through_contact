@@ -26,6 +26,8 @@ duration = T * h
 
 # quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path)
+q_parser.set_sim_params(gravity=[0, 0, -10])
+
 q_sim = q_parser.make_simulator_cpp()
 plant = q_sim.get_plant()
 
@@ -60,19 +62,19 @@ params.R_dict = {idx_a: 10 * np.ones(dim_u)}
 params.u_bounds_abs = np.array([
     -np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
 
-params.use_A = True
 
-params.smoothing_mode = SmoothingMode.kFirstRandomizedPyramid
+params.smoothing_mode = SmoothingMode.kFirstAnalyticPyramid
 # sampling-based bundling
 params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
-params.std_u_initial = np.ones(dim_u) * 0.3
+params.std_u_initial = np.ones(dim_u) * 0.2
 params.num_samples = 100
 # analytic bundling
 params.log_barrier_weight_initial = 50
-params.log_barrier_weight_multiplier = (
+params.calc_log_barrier_weight = (
     lambda kappa0, i: kappa0 * (1.2 ** i))
 
-# params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kQpMp
+params.use_A = False
+params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
 
 prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
 
@@ -92,6 +94,10 @@ prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 #%%
 # irs_lqr_q.q_dynamics_parallel.q_sim_batch.set_num_max_parallel_executions(10)
 t0 = time.time()
+# import cProfile
+# cProfile.runctx('prob_mpc.iterate(max_iterations=10, cost_Qu_f_threshold=1)',
+#                 globals=globals(), locals=locals(),
+#                 filename='irs_mpc_use_A.stats')
 prob_mpc.iterate(max_iterations=10, cost_Qu_f_threshold=1)
 t1 = time.time()
 

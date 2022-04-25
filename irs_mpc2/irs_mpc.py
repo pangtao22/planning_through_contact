@@ -12,7 +12,7 @@ from .irs_mpc_params import (IrsMpcQuasistaticParameters, SmoothingMode,
                              kSmoothingMode2ForwardDynamicsModeMap,
                              RandomizedSmoothingModes, AnalyticSmoothingModes)
 from .quasistatic_visualizer import QuasistaticVisualizer
-from irs_mpc.mpc import solve_mpc
+from .mpc import solve_mpc
 
 
 class IrsMpcQuasistatic:

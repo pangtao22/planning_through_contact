@@ -53,8 +53,8 @@ def solve_mpc(At, Bt, ct, Q, Qd, R, x0, x_trj_d,
     # 1. Declare new variables corresponding to optimal state and input.
     xt = prog.NewContinuousVariables(T + 1, n_x, "state")
     ut = prog.NewContinuousVariables(T, n_u, "input")
-    dxt = prog.NewContinuousVariables(T, n_x, "delta_state")
-    dut = prog.NewContinuousVariables(T, n_u, "delta_input")
+    # dxt = prog.NewContinuousVariables(T, n_x, "delta_state")
+    # dut = prog.NewContinuousVariables(T, n_u, "delta_input")
 
     if xinit is not None:
         prog.SetInitialGuess(xt, xinit)
@@ -62,29 +62,37 @@ def solve_mpc(At, Bt, ct, Q, Qd, R, x0, x_trj_d,
         prog.SetInitialGuess(ut, uinit)
 
     # 2. Initial constraint.
-    prog.AddConstraint(eq(xt[0, :], x0))
+    prog.AddLinearEqualityConstraint(np.eye(n_x), x0, xt[0])
 
     # 3. Loop over to add dynamics constraints and costs.
+    R2 = np.zeros((2 * n_u, 2 * n_u))
+    R2[:n_u, :n_u] = R
+    R2[n_u:, n_u:] = R
+    R2[:n_u, n_u:] = -R
+    R2[n_u:, :n_u] = -R
     for t in range(T):
         # Add affine dynamics constraint.
         prog.AddLinearEqualityConstraint(
             np.hstack((At[t], Bt[t], -np.eye(n_x))), -ct[t],
-            np.hstack((xt[t, :], ut[t, :], xt[t + 1, :])))
+            np.hstack((xt[t], ut[t], xt[t + 1])))
 
-        # Compute differences. 
+        # Compute differences.
         if indices_u_into_x is not None:
             if t == 0:
                 du = ut[t] - xt[t, indices_u_into_x]
             else:
                 du = ut[t] - ut[t - 1]
-            dx = xt[t + 1] - xt[t]
 
-            prog.AddConstraint(eq(du, dut[t]))
-            prog.AddConstraint(eq(dx, dxt[t]))
             prog.AddQuadraticCost(du.dot(R).dot(du))
-
-        else:
-            prog.AddQuadraticCost(R, np.zeros(n_u), ut[t, :])
+        # if indices_u_into_x is not None:
+        #     if t == 0:
+        #         prog.AddQuadraticErrorCost(R, x0, ut[t])
+        #     else:
+        #         prog.AddQuadraticCost(R2, np.zeros(2 * n_u),
+        #                               np.hstack([ut[t], ut[t - 1]]), True)
+        #
+        # else:
+        #     prog.AddQuadraticCost(R, np.zeros(n_u), ut[t, :])
 
         # Add constraints.
         if x_bound_abs is not None:
@@ -94,21 +102,19 @@ def solve_mpc(At, Bt, ct, Q, Qd, R, x0, x_trj_d,
             prog.AddBoundingBoxConstraint(
                 u_bound_abs[0, t], u_bound_abs[1, t], ut[t, :])
         if x_bound_rel is not None:
-            prog.AddBoundingBoxConstraint(
-                x_bound_rel[0, t], x_bound_rel[1, t], dxt[t, :])
+            raise NotImplementedError
         if u_bound_rel is not None:
-            prog.AddBoundingBoxConstraint(
-                u_bound_rel[0, t], u_bound_rel[1, t], dut[t, :])
+            raise NotImplementedError
 
         # Add cost.
-        prog.AddQuadraticErrorCost(Q, x_trj_d[t, :], xt[t, :])
+        prog.AddQuadraticErrorCost(Q, x_trj_d[t], xt[t])
 
     # Add final constraint.
-    prog.AddQuadraticErrorCost(Qd, x_trj_d[T, :], xt[T, :])
+    prog.AddQuadraticErrorCost(Qd, x_trj_d[T], xt[T])
 
     if x_bound_abs is not None:
         prog.AddBoundingBoxConstraint(
-            x_bound_abs[0, T], x_bound_abs[1, T], xt[T, :])
+            x_bound_abs[0, T], x_bound_abs[1, T], xt[T])
 
     # 4. Solve the program.
     result = solver.Solve(prog)
