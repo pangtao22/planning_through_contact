@@ -65,11 +65,6 @@ def solve_mpc(At, Bt, ct, Q, Qd, R, x0, x_trj_d,
     prog.AddLinearEqualityConstraint(np.eye(n_x), x0, xt[0])
 
     # 3. Loop over to add dynamics constraints and costs.
-    R2 = np.zeros((2 * n_u, 2 * n_u))
-    R2[:n_u, :n_u] = R
-    R2[n_u:, n_u:] = R
-    R2[:n_u, n_u:] = -R
-    R2[n_u:, :n_u] = -R
     for t in range(T):
         # Add affine dynamics constraint.
         prog.AddLinearEqualityConstraint(
@@ -84,15 +79,6 @@ def solve_mpc(At, Bt, ct, Q, Qd, R, x0, x_trj_d,
                 du = ut[t] - ut[t - 1]
 
             prog.AddQuadraticCost(du.dot(R).dot(du))
-        # if indices_u_into_x is not None:
-        #     if t == 0:
-        #         prog.AddQuadraticErrorCost(R, x0, ut[t])
-        #     else:
-        #         prog.AddQuadraticCost(R2, np.zeros(2 * n_u),
-        #                               np.hstack([ut[t], ut[t - 1]]), True)
-        #
-        # else:
-        #     prog.AddQuadraticCost(R, np.zeros(n_u), ut[t, :])
 
         # Add constraints.
         if x_bound_abs is not None:
