@@ -1,5 +1,5 @@
 import numpy as np
-from pydrake.all import (MathematicalProgram, GurobiSolver, eq)
+from pydrake.all import (MathematicalProgram, GurobiSolver)
 
 
 def solve_mpc(At, Bt, ct, Q, Qd, R, x0, x_trj_d,
@@ -53,8 +53,6 @@ def solve_mpc(At, Bt, ct, Q, Qd, R, x0, x_trj_d,
     # 1. Declare new variables corresponding to optimal state and input.
     xt = prog.NewContinuousVariables(T + 1, n_x, "state")
     ut = prog.NewContinuousVariables(T, n_u, "input")
-    # dxt = prog.NewContinuousVariables(T, n_x, "delta_state")
-    # dut = prog.NewContinuousVariables(T, n_u, "delta_input")
 
     if xinit is not None:
         prog.SetInitialGuess(xt, xinit)
