@@ -100,7 +100,7 @@ class IrsMpcQuasistatic:
         # Initial trajectory and linearization
         self.x_trj_0 = self.rollout(x0, u_trj_0, ForwardDynamicsMode.kSocpMp)
         self.u_trj_0 = u_trj_0  # T x m
-        self.A_trj, self.B_trj, self.c_trj, _ = self.calc_bundled_ABc(
+        self.A_trj, self.B_trj, self.c_trj = self.calc_bundled_ABc_trj(
             self.x_trj_0[:self.T], self.u_trj_0)
 
     def get_Q_mat_from_Q_dict(self,
@@ -210,13 +210,13 @@ class IrsMpcQuasistatic:
                   "u_trj": np.array(self.u_trj_best)}
         return result
 
-    def calc_bundled_ABc(self, x_trj: np.ndarray, u_trj: np.ndarray):
+    def calc_bundled_ABc_trj(self, x_trj: np.ndarray, u_trj: np.ndarray):
         """
-        Calls the owned QuasistaticDynamicsParallel.calcBundledABc with
-            parameters defined in self.params.
+        Computes bundled linearized dynamics for the given x and u trajectories.
+        This function is only used in self.initialize_problem
         :param x_trj: (T, dim_x)
         :param u_trj: (T, dim_u)
-        :return:
+        :return: A_trj (T, n_x, n_x), B_trj(T, n_x, n_u), c_trj(T, n_x).
         """
         T = len(u_trj)
         sim_p = copy.deepcopy(self.sim_params)
@@ -227,28 +227,30 @@ class IrsMpcQuasistatic:
                 self.q_sim_batch.calc_bundled_ABc_trj(
                 x_trj, u_trj, std_u, sim_p,
                 self.irs_mpc_params.n_samples_randomized, None)
-        else:
-            if self.irs_mpc_params.smoothing_mode in AnalyticSmoothingModes:
-                sim_p.log_barrier_weight = (
-                    self.irs_mpc_params.calc_log_barrier_weight(
-                        self.irs_mpc_params.log_barrier_weight_initial,
-                        self.current_iter))
+        elif self.irs_mpc_params.smoothing_mode in AnalyticSmoothingModes:
+            sim_p.log_barrier_weight = (
+                self.irs_mpc_params.calc_log_barrier_weight(
+                    self.irs_mpc_params.log_barrier_weight_initial,
+                    self.current_iter))
 
             x_next_smooth_trj, A_trj, B_trj, is_valid = \
                 self.q_sim_batch.calc_dynamics_parallel(x_trj, u_trj, sim_p)
 
             if not all(is_valid):
                 raise RuntimeError("analytic smoothing failed.")
+        else:
+            raise NotImplementedError
 
         # Convert lists of 2D arrays to 3D arrays.
+        B_trj = np.array(B_trj)
+
         if self.irs_mpc_params.use_A:
             A_trj = np.array(A_trj)
         else:
             A_trj = np.zeros((T, self.dim_x, self.dim_x))
             A_trj[:] = np.eye(A_trj.shape[1])
             A_trj[:, :, self.indices_u_into_x] = 0.0
-
-        B_trj = np.array(B_trj)
+            B_trj[:, self.indices_u_into_x, :] = np.eye(self.dim_u)
 
         # compute ct
         c_trj = np.zeros((T, self.dim_x))
@@ -263,7 +265,67 @@ class IrsMpcQuasistatic:
                         - A_trj[t].dot(x_trj[t])
                         - B_trj[t].dot(u_trj[t]))
 
-        return A_trj, B_trj, c_trj, x_next_nominal
+        return A_trj, B_trj, c_trj
+
+    def calc_bundled_ABc(self, x_nominal: np.ndarray, u_nominal: np.ndarray):
+        """
+        Computes bundled linearized dynamics for the given x and u.
+        This function is used in self.local_descent at every iteration of
+         the iterative MPC.
+        :param x_nominal: (dim_x,)
+        :param u_nominal: (dim_u,)
+        :return: A(n_x, n_x), B(n_x, n_u), c(n_x,), x_next_nominal(n_x,).
+        """
+        sim_p = copy.deepcopy(self.sim_params)
+        if self.irs_mpc_params.smoothing_mode in RandomizedSmoothingModes:
+            std_u = self.irs_mpc_params.calc_std_u(
+                self.irs_mpc_params.std_u_initial, self.current_iter + 1)
+            n_samples = self.irs_mpc_params.n_samples_randomized
+            x_batch = np.zeros((n_samples, self.dim_x))
+            x_batch[:] = x_nominal
+            u_batch = np.random.multivariate_normal(
+                u_nominal, np.diag(std_u ** 2), n_samples)
+            x_next_batch, A_batch, B_batch, is_valid = \
+                self.q_sim_batch.calc_dynamics_parallel(x_batch, u_batch, sim_p)
+
+            if self.irs_mpc_params.use_A:
+                A_batch = np.array(A_batch)
+                A = A_batch[is_valid].mean(axis=0)
+
+            B_batch = np.array(B_batch)
+            B = B_batch[is_valid].mean(axis=0)
+            x_next_smooth = x_next_batch[is_valid].mean(axis=0)
+
+        elif self.irs_mpc_params.smoothing_mode in AnalyticSmoothingModes:
+            sim_p.log_barrier_weight = (
+                self.irs_mpc_params.calc_log_barrier_weight(
+                    self.irs_mpc_params.log_barrier_weight_initial,
+                    self.current_iter))
+
+            x_next_smooth = self.q_sim.calc_dynamics(x_nominal, u_nominal,
+                                                     sim_p)
+            if self.irs_mpc_params.use_A:
+                A = self.q_sim.get_Dq_nextDq()
+            B = self.q_sim.get_Dq_nextDqa_cmd()
+
+        else:
+            raise NotImplementedError
+
+        if not self.irs_mpc_params.use_A:
+            A = np.eye(self.dim_x)
+            A[:, self.indices_u_into_x] = 0.0
+            B[self.indices_u_into_x, :] = np.eye(self.dim_u)
+
+        # c
+        if self.irs_mpc_params.rollout_forward_dynamics_mode:
+            x_next_nominal = self.q_sim.calc_dynamics(
+                x_nominal, u_nominal, self.sim_params_rollout)
+        else:
+            x_next_nominal = x_next_smooth
+
+        c = x_next_nominal - A @ x_nominal - B @ u_nominal
+
+        return A, B, c, x_next_nominal
 
     def local_descent(self, x_trj: np.ndarray):
         """
@@ -325,7 +387,7 @@ class IrsMpcQuasistatic:
 
             # Rollout and compute bundled A, B and c.
             At, Bt, ct, x_trj_new[t + 1] = self.calc_bundled_ABc(
-                x_trj_new[t][None, :], u_trj_new[t][None, :])
+                x_trj_new[t], u_trj_new[t])
 
             self.A_trj[t] = At.squeeze()
             self.B_trj[t] = Bt.squeeze()

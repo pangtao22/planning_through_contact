@@ -21,12 +21,12 @@ from allegro_hand_setup import (
 
 #%% sim setup
 h = 0.1
-T = int(round(2 / h))  # num of time steps to simulate forward.
+T = 20  # num of time steps to simulate forward.
 duration = T * h
 
 # quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path)
-q_parser.set_sim_params(gravity=[0, 0, -10])
+# q_parser.set_sim_params(gravity=[0, 0, -10])
 
 q_sim = q_parser.make_simulator_cpp()
 plant = q_sim.get_plant()
@@ -59,8 +59,9 @@ for model in q_sim.get_unactuated_models():
 
 params.R_dict = {idx_a: 10 * np.ones(dim_u)}
 
+u_size = 1.0
 params.u_bounds_abs = np.array([
-    -np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
+    -np.ones(dim_u) * u_size * h, np.ones(dim_u) * u_size * h])
 
 
 params.smoothing_mode = SmoothingMode.kFirstAnalyticPyramid
@@ -69,9 +70,13 @@ params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.2
 params.num_samples = 100
 # analytic bundling
-params.log_barrier_weight_initial = 50
+params.log_barrier_weight_initial = 100
+log_barrier_weight_final = 10000
+base = np.log(
+    log_barrier_weight_final / params.log_barrier_weight_initial) / T
+base = np.exp(base)
 params.calc_log_barrier_weight = (
-    lambda kappa0, i: kappa0 * (1.2 ** i))
+    lambda kappa0, i: kappa0 * (base ** i))
 
 params.use_A = False
 params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
@@ -92,12 +97,7 @@ u_trj_0 = np.tile(u0, (T, 1))
 prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 
 #%%
-# irs_lqr_q.q_dynamics_parallel.q_sim_batch.set_num_max_parallel_executions(10)
 t0 = time.time()
-# import cProfile
-# cProfile.runctx('prob_mpc.iterate(max_iterations=10, cost_Qu_f_threshold=1)',
-#                 globals=globals(), locals=locals(),
-#                 filename='irs_mpc_use_A.stats')
 prob_mpc.iterate(max_iterations=10, cost_Qu_f_threshold=1)
 t1 = time.time()
 

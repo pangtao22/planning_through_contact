@@ -15,7 +15,7 @@ from .irs_mpc_params import (IrsMpcQuasistaticParameters,
 from .quasistatic_dynamics import QuasistaticDynamics, GradientMode
 from .quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
 from .mpc import get_solver
-from .mpc import solve_mpc
+from irs_mpc2.mpc import solve_mpc
 
 
 def update_q_start_and_goal(
