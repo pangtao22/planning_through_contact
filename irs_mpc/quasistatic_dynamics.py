@@ -15,7 +15,6 @@ from irs_mpc.irs_mpc_params import BundleMode
 class QuasistaticDynamics:
     def __init__(self, h: float, q_model_path: str,
                  internal_viz: bool):
-        super().__init__()
         self.q_model_path = q_model_path
         self.parser = QuasistaticParser(q_model_path)
         self.parser.set_sim_params(
