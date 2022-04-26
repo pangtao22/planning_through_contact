@@ -283,8 +283,8 @@ class IrsMpcQuasistatic:
             n_samples = self.irs_mpc_params.n_samples_randomized
             x_batch = np.zeros((n_samples, self.dim_x))
             x_batch[:] = x_nominal
-            u_batch = np.random.multivariate_normal(
-                u_nominal, np.diag(std_u ** 2), n_samples)
+            u_batch = np.random.normal(
+                u_nominal, std_u, (n_samples, self.dim_u))
             x_next_batch, A_batch, B_batch, is_valid = \
                 self.q_sim_batch.calc_dynamics_parallel(x_batch, u_batch, sim_p)
 
