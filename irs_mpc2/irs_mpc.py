@@ -389,7 +389,6 @@ class IrsMpcQuasistatic:
             At, Bt, ct, x_trj_new[t + 1] = self.calc_bundled_ABc(
                 x_trj_new[t], u_trj_new[t])
 
-            At = np.clip(At, -1, 1)
             max_A = np.max(np.abs(At))
             if max_A > 10:
                 print("FUCK!!!!!!!!!!!!!!!!!!", max_A)

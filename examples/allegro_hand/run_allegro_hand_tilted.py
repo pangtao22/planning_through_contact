@@ -96,7 +96,7 @@ prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 
 # %%
 t0 = time.time()
-prob_mpc.iterate(max_iterations=10, cost_Qu_f_threshold=1)
+prob_mpc.iterate(max_iterations=20, cost_Qu_f_threshold=1)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")
