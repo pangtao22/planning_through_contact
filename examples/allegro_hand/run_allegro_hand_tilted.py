@@ -77,7 +77,7 @@ base = np.exp(base)
 params.calc_log_barrier_weight = (
     lambda kappa0, i: kappa0 * (base ** i))
 
-params.use_A = False
+params.use_A = True
 params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
 
 prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
@@ -122,7 +122,8 @@ AddTriad(
 q_sim_py.viz.vis['goal'].set_transform(
     RigidTransform(Q_WB_d, p_WB_d).GetAsMatrix4())
 
-# %% Rollout trajectory according to the real physics.
+# %% results visualization.
+# Rollout trajectory according to the real physics.
 x_trj_to_publish = prob_mpc.rollout(
     x0=x0, u_trj=prob_mpc.u_trj_best, forward_mode=ForwardDynamicsMode.kSocpMp)
 
@@ -136,10 +137,22 @@ print('orientation error:',
       AngleAxis(Q_WB_f.multiply(Q_WB_d.inverse())).angle())
 print()
 
-# %% plot different components of the cost for all iterations.
+# plot different components of the cost for all iterations.
 prob_mpc.plot_costs()
 
 # %% save visualization.
 # res = q_dynamics.q_sim_py.viz.vis.static_html()
 # with open("allegro_hand_irs_lqr_60_degrees_rotation.html", "w") as f:
 #     f.write(res)
+
+#%%
+assert False
+q = np.array([-0.07439061,  0.60355771,  0.719262,  0.83094604,  0.48799869,
+     1.04966671,  0.62751413,  0.88485928, -0.1868239 ,  0.56199777,
+     0.6213565 ,  0.77378053, -0.05885874,  0.67842715,  0.85774352,
+     0.98863791,  0.98753373, -0.05247661,  0.13827894,  0.05387271,
+     -0.10219377,  0.01038058,  0.06025127])
+q_dict = q_sim.get_q_dict_from_vec(q)
+
+q_sim_py.update_mbp_positions_from_vector(q)
+q_sim_py.draw_current_configuration()
