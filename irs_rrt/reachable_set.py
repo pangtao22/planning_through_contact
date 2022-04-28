@@ -37,25 +37,27 @@ class ReachableSet:
         """
         Compute exact dynamics.
         """
+        self.q_sim_params.forward_mode = ForwardDynamicsMode.kQpMp        
+
         x = q[None, :]
         u = ubar[None, :]
-        (x_next, B, is_valid
+        (x_next, A, B, is_valid
          ) = self.q_dynamics_p.q_sim_batch.calc_dynamics_parallel(
             x, u, self.q_sim_params)
 
         c = np.array(x_next).squeeze(0)
         B = np.array(B).squeeze(0)
         return B, c
-
-    def calc_bundled_Bc(self, q, ubar):
-        """
-        Compute bundled dynamics on Bc. 
-        """
+    
+    def calc_bundled_Bc_randomized(self, q, ubar):
+        self.q_sim_params.gradient_mode = GradientMode.kBOnly
+        self.q_sim_params.forward_mode = ForwardDynamicsMode.kSocpMp
+        
         x_batch = np.tile(q[None, :], (self.n_samples, 1))
         u_batch = np.random.normal(ubar, self.std_u, (
             self.params.n_samples, self.q_dynamics.dim_u))
 
-        (x_next_batch, B_batch, is_valid_batch
+        (x_next_batch, A_batch, B_batch, is_valid_batch
          ) = self.q_dynamics_p.q_sim_batch.calc_dynamics_parallel(
             x_batch, u_batch, self.q_sim_params)
 
@@ -63,15 +65,49 @@ class ReachableSet:
             raise RuntimeError('Cannot compute B and c hat for reachable sets.')
 
         B_batch = np.array(B_batch)
+        x_next_batch = np.array(x_next_batch)
 
         chat = np.mean(x_next_batch[is_valid_batch], axis=0)
         Bhat = np.mean(B_batch[is_valid_batch], axis=0)
         return Bhat, chat
 
+    def calc_bundled_Bc_randomized_zero_numpy(self, q, ubar):
+        self.q_sim_params.gradient_mode = GradientMode.kNone
+        self.q_sim_params.forward_mode = ForwardDynamicsMode.kSocpMp
+
+        x_batch = np.tile(q[None, :], (self.n_samples, 1))
+        u_batch = np.random.normal(ubar, self.std_u, (
+            self.params.n_samples, self.q_dynamics.dim_u))
+
+
+        (x_next_batch, A_batch, B_batch, is_valid_batch
+         ) = self.q_dynamics_p.q_sim_batch.calc_dynamics_parallel(
+            x_batch, u_batch, self.q_sim_params)
+
+        if np.sum(is_valid_batch) == 0:
+            raise RuntimeError('Cannot compute B and c hat for reachable sets.')
+
+        chat = np.mean(x_next_batch[is_valid_batch], axis=0)
+        Bhat = np.linalg.lstsq(
+            u_batch[is_valid_batch] - ubar,
+            x_next_batch[is_valid_batch] - chat,
+            rcond=None)[0].transpose()
+
+        return Bhat, chat        
+
+    def calc_bundled_Bc_randomized_zero(self, q, ubar):
+        Bhat, chat = self.q_dynamics_p.q_sim_batch.calc_Bc_lstsq(
+            q, ubar, self.q_sim_params,
+            self.std_u, self.params.n_samples)
+        print(Bhat)
+        return Bhat, chat
+
     def calc_bundled_Bc_analytic(self, q, ubar):
         q_next = self.q_dynamics.dynamics(
-            x=q, u=ubar, forward_mode=ForwardDynamicsMode.kLogPyramidMp,
+            x=q, u=ubar,
+            forward_mode=ForwardDynamicsMode.kLogIcecream,
             gradient_mode=GradientMode.kBOnly)
+
         Bhat = self.q_dynamics.q_sim.get_Dq_nextDqa_cmd()
         return Bhat, q_next
 
