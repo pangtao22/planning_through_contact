@@ -98,7 +98,8 @@ class IrsMpcQuasistatic:
         self.current_iter = 0
 
         # Initial trajectory and linearization
-        self.x_trj_0 = self.rollout(x0, u_trj_0, ForwardDynamicsMode.kSocpMp)
+        self.x_trj_0 = self.rollout(x0, u_trj_0,
+            self.sim_params_rollout.forward_mode)
         self.u_trj_0 = u_trj_0  # T x m
         self.A_trj, self.B_trj, self.c_trj = self.calc_bundled_ABc_trj(
             self.x_trj_0[:self.T], self.u_trj_0)
@@ -407,8 +408,13 @@ class IrsMpcQuasistatic:
         sim_p.gradient_mode = GradientMode.kNone
 
         for t in range(T):
+            print(t)
+            print(x_trj[t])
+            print(u_trj[t])
+            print(sim_p.forward_mode)
             x_trj[t + 1] = self.q_sim.calc_dynamics(
                 x_trj[t], u_trj[t], sim_p)
+            
         return x_trj
 
     def iterate(self, max_iterations: int, cost_Qu_f_threshold: float = 0):
@@ -446,6 +452,8 @@ class IrsMpcQuasistatic:
             if (self.current_iter >= max_iterations
                     or cost_Qu_final < cost_Qu_f_threshold):
                 break
+
+
 
             x_trj, u_trj = self.local_descent(x_trj)
             self.current_iter += 1
