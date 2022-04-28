@@ -72,12 +72,12 @@ params.parallel_mode = parallel_mode
 
 # sampling-based bundling
 # params.bundle_mode = BundleMode.kFirst
-# params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
-# params.std_u_initial = np.ones(dim_u) * 0.3
-# params.num_samples = num_samples
+params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
+params.std_u_initial = np.ones(dim_u) * 0.3
+params.num_samples = num_samples
 
 # analytic bundling
-params.bundle_mode = BundleMode.kFirstAnalytic
+params.bundle_mode = BundleMode.kFirstRandomized
 params.log_barrier_weight_initial = 50
 params.log_barrier_weight_multiplier = 2
 
