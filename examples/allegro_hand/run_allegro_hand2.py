@@ -24,7 +24,7 @@ duration = T * h
 
 # quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path)
-q_parser.set_sim_params(gravity=[0, 0, -10])
+# q_parser.set_sim_params(gravity=[0, 0, -10])
 
 q_sim = q_parser.make_simulator_cpp()
 plant = q_sim.get_plant()
@@ -35,19 +35,19 @@ idx_a = plant.GetModelInstanceByName(robot_name)
 idx_u = plant.GetModelInstanceByName(object_name)
 
 # initial conditions.
-q_a0 = np.array([-0.03513728,  0.73406172,  0.64357553,  0.74325654,  0.58083794,
-                 0.96998129,  0.6349077 ,  0.8323073 , -0.1095671 ,  0.70771197,
-                 0.64165158,  0.71923356, -0.04130878,  0.80228386,  0.83890058,
-                 0.90658696])
-q_u0 = np.array([0.99605745,  0.02259868,  0.08572997, -0.00303672, -0.09897396,
-                 0.00716867,  0.04708814])
+q_a0 = np.array([0.03501504, 0.75276565, 0.74146232, 0.83261002, 0.63256269,
+                 1.02378254, 0.64089555, 0.82444782, -0.1438725, 0.74696812,
+                 0.61908827, 0.70064279, -0.06922541, 0.78533142, 0.82942863,
+                 0.90415436])
+q_u0 = np.array([1, 0, 0, 0, -0.081, 0.001, 0.071])
+
 q0_dict = {idx_a: q_a0, idx_u: q_u0}
 
 #%%
 params = IrsMpcQuasistaticParameters()
 params.h = h
 params.Q_dict = {
-    idx_u: np.array([10, 10, 10, 10, 10, 10, 10.]),
+    idx_u: np.array([10, 10, 10, 10, 1, 1, 1.]),
     idx_a: np.ones(dim_u) * 1e-3}
 
 params.Qd_dict = {}
@@ -63,21 +63,21 @@ params.u_bounds_abs = np.array([
     -np.ones(dim_u) * u_size * h, np.ones(dim_u) * u_size * h])
 
 
-params.smoothing_mode = SmoothingMode.kFirstRandomizedPyramid
+params.smoothing_mode = SmoothingMode.kFirstAnalyticPyramid
 # sampling-based bundling
 params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
-params.std_u_initial = np.ones(dim_u) * 0.2
+params.std_u_initial = np.ones(dim_u) * 0.3
 params.num_samples = 100
 # analytic bundling
 params.log_barrier_weight_initial = 100
-log_barrier_weight_final = 2000
+log_barrier_weight_final = 5000
 base = np.log(
     log_barrier_weight_final / params.log_barrier_weight_initial) / T
 base = np.exp(base)
 params.calc_log_barrier_weight = (
     lambda kappa0, i: kappa0 * (base ** i))
 
-params.use_A = True
+params.use_A = False
 params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
 
 prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
