@@ -1,5 +1,4 @@
 import time
-import time
 
 import numpy as np
 from irs_mpc2.irs_mpc import IrsMpcQuasistatic
@@ -7,6 +6,10 @@ from irs_mpc2.irs_mpc_params import (SmoothingMode, IrsMpcQuasistaticParameters)
 from planar_hand_setup import *
 from qsim.parser import QuasistaticParser
 from qsim_cpp import ForwardDynamicsMode
+
+from contact_sampler import PlanarHandContactSampler
+
+from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 
 """
 Modification of run_planar_hand that uses the new irs_mpc2 interface.
@@ -17,6 +20,13 @@ duration = T * h
 
 # %% sim setup
 q_parser = QuasistaticParser(q_model_path)
+
+q_dynamics = QuasistaticDynamics(h=h,
+                                 q_model_path=q_model_path,
+                                 internal_viz=False)
+contact_sampler = PlanarHandContactSampler(q_dynamics, pinch_prob=0.5)
+
+
 q_parser.set_sim_params(gravity=[0, 0, 0])
 q_sim = q_parser.make_simulator_cpp()
 plant = q_sim.get_plant()
@@ -35,15 +45,20 @@ nq_a = 2
 q_u0 = np.array([0.0, 0.35, 0])
 q_a_l0 = np.array([-np.pi / 4, -np.pi / 4])
 q_a_r0 = np.array([np.pi / 4, np.pi / 4])
-q0_dict = {idx_u: q_u0,
-           idx_a_l: q_a_l0,
-           idx_a_r: q_a_r0}
+
+
+q0_dict = contact_sampler.calc_enveloping_grasp(q_u0)
+
+#
+# q0_dict = {idx_u: q_u0,
+#            idx_a_l: q_a_l0,
+#            idx_a_r: q_a_r0}
 
 # %% Set up IrsMpcParameters
 params = IrsMpcQuasistaticParameters()
 params.h = h
 params.Q_dict = {
-    idx_u: np.array([1, 1, 10]),
+    idx_u: np.array([10, 10, 10]),
     idx_a_l: np.array([1e-3, 1e-3]),
     idx_a_r: np.array([1e-3, 1e-3])}
 params.Qd_dict = {model: Q_i * 100 for model, Q_i in params.Q_dict.items()}

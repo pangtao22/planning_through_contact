@@ -412,10 +412,6 @@ class IrsMpcQuasistatic:
         sim_p.gradient_mode = GradientMode.kNone
 
         for t in range(T):
-            print(t)
-            print(x_trj[t])
-            print(u_trj[t])
-            print(sim_p.forward_mode)
             x_trj[t + 1] = self.q_sim.calc_dynamics(
                 x_trj[t], u_trj[t], sim_p)
             
