@@ -77,7 +77,7 @@ base = np.exp(base)
 params.calc_log_barrier_weight = (
     lambda kappa0, i: kappa0 * (base ** i))
 
-params.use_A = True
+params.use_A = False
 params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
 
 prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
@@ -96,7 +96,7 @@ prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 
 # %%
 t0 = time.time()
-prob_mpc.iterate(max_iterations=20, cost_Qu_f_threshold=1)
+prob_mpc.iterate(max_iterations=10, cost_Qu_f_threshold=1)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")
@@ -146,13 +146,8 @@ prob_mpc.plot_costs()
 #     f.write(res)
 
 #%%
-assert False
-q = np.array([-0.07439061,  0.60355771,  0.719262,  0.83094604,  0.48799869,
-     1.04966671,  0.62751413,  0.88485928, -0.1868239 ,  0.56199777,
-     0.6213565 ,  0.77378053, -0.05885874,  0.67842715,  0.85774352,
-     0.98863791,  0.98753373, -0.05247661,  0.13827894,  0.05387271,
-     -0.10219377,  0.01038058,  0.06025127])
-q_dict = q_sim.get_q_dict_from_vec(q)
+q_viz = prob_mpc.vis
+q_viz.render_trajectory(
+    x_traj_knots=x_trj_to_publish, h=h,
+    folder_path="/home/amazon/PycharmProjects/video_images")
 
-q_sim_py.update_mbp_positions_from_vector(q)
-q_sim_py.draw_current_configuration()
