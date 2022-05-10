@@ -315,7 +315,7 @@ class IrsMpcQuasistatic:
         if not self.irs_mpc_params.use_A:
             A = np.eye(self.dim_x)
             A[:, self.indices_u_into_x] = 0.0
-            # B[self.indices_u_into_x, :] = np.eye(self.dim_u)
+            B[self.indices_u_into_x, :] = np.eye(self.dim_u)
 
         # c
         if self.irs_mpc_params.rollout_forward_dynamics_mode:
