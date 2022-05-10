@@ -21,6 +21,7 @@ from allegro_hand_setup import *
 h = 0.1
 T = 20  # num of time steps to simulate forward.
 duration = T * h
+max_iterations = 10
 
 # quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path)
@@ -63,7 +64,7 @@ params.u_bounds_abs = np.array([
     -np.ones(dim_u) * u_size * h, np.ones(dim_u) * u_size * h])
 
 
-params.smoothing_mode = SmoothingMode.kFirstAnalyticPyramid
+params.smoothing_mode = SmoothingMode.kFirstAnalyticIcecream
 # sampling-based bundling
 params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
@@ -72,7 +73,8 @@ params.num_samples = 100
 params.log_barrier_weight_initial = 100
 log_barrier_weight_final = 6000
 base = np.log(
-    log_barrier_weight_final / params.log_barrier_weight_initial) / T
+    log_barrier_weight_final / params.log_barrier_weight_initial) \
+       / max_iterations
 base = np.exp(base)
 params.calc_log_barrier_weight = (
     lambda kappa0, i: kappa0 * (base ** i))
@@ -97,7 +99,7 @@ prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 
 #%%
 t0 = time.time()
-prob_mpc.iterate(max_iterations=10, cost_Qu_f_threshold=1)
+prob_mpc.iterate(max_iterations=max_iterations, cost_Qu_f_threshold=1)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")

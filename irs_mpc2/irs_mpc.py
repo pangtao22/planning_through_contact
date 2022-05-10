@@ -233,7 +233,6 @@ class IrsMpcQuasistatic:
                 self.irs_mpc_params.calc_log_barrier_weight(
                     self.irs_mpc_params.log_barrier_weight_initial,
                     self.current_iter))
-
             x_next_smooth_trj, A_trj, B_trj, is_valid = \
                 self.q_sim_batch.calc_dynamics_parallel(x_trj, u_trj, sim_p)
 
