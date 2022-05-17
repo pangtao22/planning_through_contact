@@ -15,6 +15,7 @@ class SmoothingMode(enum.Enum):
     # use analytic gradient.
     kFirstAnalyticPyramid = enum.auto()
     kFirstAnalyticIcecream = enum.auto()
+    kZero = enum.auto()
     # TODO: consider supporting zero-order smoothing modes.
 
 
@@ -24,11 +25,15 @@ kSmoothingMode2ForwardDynamicsModeMap = {
     SmoothingMode.kFirstRandomizedPyramid: ForwardDynamicsMode.kQpMp,
     SmoothingMode.kFirstRandomizedIcecream: ForwardDynamicsMode.kSocpMp,
     SmoothingMode.kFirstAnalyticPyramid: ForwardDynamicsMode.kLogPyramidMy,
-    SmoothingMode.kFirstAnalyticIcecream: ForwardDynamicsMode.kLogIcecream}
+    SmoothingMode.kFirstAnalyticIcecream: ForwardDynamicsMode.kLogIcecream,
+    SmoothingMode.kZero: ForwardDynamicsMode.kSocpMp}
 
 RandomizedSmoothingModes = {
     SmoothingMode.kFirstRandomizedPyramid,
     SmoothingMode.kFirstRandomizedIcecream}
+
+RandomizedZeroSmoothingModes = {
+    SmoothingMode.kZero}
 
 AnalyticSmoothingModes = {
     SmoothingMode.kFirstAnalyticPyramid,

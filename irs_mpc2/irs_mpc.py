@@ -10,7 +10,8 @@ from qsim_cpp import QuasistaticSimulatorCpp, ForwardDynamicsMode, GradientMode
 
 from .irs_mpc_params import (IrsMpcQuasistaticParameters, SmoothingMode,
                              kSmoothingMode2ForwardDynamicsModeMap,
-                             RandomizedSmoothingModes, AnalyticSmoothingModes)
+                             RandomizedSmoothingModes, AnalyticSmoothingModes,
+                             RandomizedZeroSmoothingModes)
 from .quasistatic_visualizer import QuasistaticVisualizer
 from .mpc import solve_mpc
 
@@ -238,6 +239,12 @@ class IrsMpcQuasistatic:
 
             if not all(is_valid):
                 raise RuntimeError("analytic smoothing failed.")
+        elif self.irs_mpc_params.smoothing_mode in RandomizedZeroSmoothingModes:
+            A_trj = np.zeros((T, self.dim_x, self.dim_x))
+            B_trj = np.zeros((T, self.dim_x, self.dim_u))
+            for t in range(T):
+                A_trj[t], B_trj[t], _, _ = self.calc_bundled_ABc(
+                    x_trj[t], u_trj[t])
         else:
             raise NotImplementedError
 
@@ -307,6 +314,27 @@ class IrsMpcQuasistatic:
             if self.irs_mpc_params.use_A:
                 A = self.q_sim.get_Dq_nextDq()
             B = self.q_sim.get_Dq_nextDqa_cmd()
+
+
+        elif self.irs_mpc_params.smoothing_mode in RandomizedZeroSmoothingModes:
+            std_u = self.irs_mpc_params.calc_std_u(
+                self.irs_mpc_params.std_u_initial, self.current_iter + 1)
+            std_x = 0.01
+            n_samples = self.irs_mpc_params.n_samples_randomized
+            x_batch = np.random.normal(
+                x_nominal, std_x, (n_samples, self.dim_x))
+            u_batch = np.random.normal(
+                u_nominal, std_u, (n_samples, self.dim_u))
+            x_next_batch, _, _, is_valid = \
+                self.q_sim_batch.calc_dynamics_parallel(x_batch, u_batch, sim_p)
+            x_next_smooth = x_next_batch[is_valid].mean(axis=0)
+
+            xu_lstsq = np.hstack((x_batch - x_nominal, u_batch - u_nominal))
+            xnext_lstsq = x_next_batch - x_next_smooth
+
+            AB = np.linalg.lstsq(xu_lstsq, xnext_lstsq)[0].transpose()
+            A = AB[:,:self.dim_x]
+            B = AB[:,self.dim_x:]
 
         else:
             raise NotImplementedError
