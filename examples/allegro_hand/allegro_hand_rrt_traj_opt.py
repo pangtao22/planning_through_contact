@@ -42,8 +42,8 @@ num_joints = plant.num_joints() - 1 # The last joint is weldjoint (welded to the
 joint_limits = {
     # idx_u: np.array([[0, 0],[0, 0], [0, 0], [0, 0], [-0.16, -0.02], [-0.06, 0.06], [0.05, 0.09]]),
     idx_u: np.array([
-        [0, 0],[0, 0], [0, 0], [0, 0],
-        [-0.081, -0.081], [0.001, 0.001], [0.071, 0.071]]),
+        [-0.1, 0.1],[-0.1, 0.1], [-0.1, np.pi + 0.1], [0, 0],
+        [-0.086, -0.075], [-0.005, 0.005], [0.068, 0.075]]),
     idx_a: np.zeros([num_joints, 2])
 }
 
@@ -72,7 +72,7 @@ mpc_params.std_u_initial = np.ones(dim_u) * 0.3
 
 mpc_params.decouple_AB = True
 mpc_params.num_samples = 100
-mpc_params.bundle_mode = BundleMode.kFirst
+mpc_params.bundle_mode = BundleMode.kFirstRandomized
 mpc_params.parallel_mode = ParallelizationMode.kCppBundledB
 
 # IrsRrt params

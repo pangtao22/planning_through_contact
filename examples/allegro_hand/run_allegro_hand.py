@@ -57,22 +57,29 @@ for model in q_dynamics.models_unactuated:
 params.R_dict = {idx_a: 10 * np.ones(dim_u)}
 params.T = T
 
+u_size = 1.0
 params.u_bounds_abs = np.array([
-    -np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
-
-params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
-params.std_u_initial = np.ones(dim_u) * 0.5
+    -np.ones(dim_u) * u_size * h, np.ones(dim_u) * u_size * h])
 
 params.decouple_AB = decouple_AB
-params.num_samples = num_samples
-params.bundle_mode = bundle_mode
 params.parallel_mode = parallel_mode
+
+# sampling-based bundling
+# params.bundle_mode = BundleMode.kFirstRandomized
+params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
+params.std_u_initial = np.ones(dim_u) * 0.3
+params.num_samples = num_samples
+
+# analytic bundling
+params.bundle_mode = BundleMode.kFirstAnalytic
+params.log_barrier_weight_initial = 100
+params.log_barrier_weight_multiplier = 1.5
 
 irs_mpc = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
 
 
 #%%
-Q_WB_d = RollPitchYaw(0, 0, np.pi / 8).ToQuaternion()
+Q_WB_d = RollPitchYaw(0, 0, np.pi / 4).ToQuaternion()
 p_WB_d = q_u0[4:] + np.array([0, 0, 0], dtype=float)
 q_d_dict = {idx_u: np.hstack([Q_WB_d.wxyz(), p_WB_d]),
             idx_a: q_a0}

@@ -15,10 +15,13 @@ object_name = 'sphere'
 h = 0.1
 
 # gradient computation
-bundle_mode = BundleMode.kFirst
+bundle_mode = BundleMode.kFirstRandomized
 parallel_mode = ParallelizationMode.kCppBundledB
 decouple_AB = True
 
 # IrsLqr
 num_iters = 10
 num_samples = 100
+
+# data collection.
+data_folder = "ptc_data/allegro_hand"

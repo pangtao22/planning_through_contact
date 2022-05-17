@@ -12,9 +12,10 @@ from zmq_parallel_cmp.array_io import *
 
 from .irs_mpc_params import (IrsMpcQuasistaticParameters,
                              ParallelizationMode)
-from .quasistatic_dynamics import QuasistaticDynamics
+from .quasistatic_dynamics import QuasistaticDynamics, GradientMode
 from .quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
-from .mpc import solve_mpc, get_solver
+from .mpc import get_solver
+from irs_mpc2.mpc import solve_mpc
 
 
 def update_q_start_and_goal(
@@ -44,11 +45,12 @@ class IrsMpcQuasistatic:
         sampling receives sampling(initial_std, iter) and returns the 
         current std.
         """
+        self.check_irs_mpc_params(params)
+        self.irs_mpc_params = params
+
         self.q_dynamics = q_dynamics
         self.dim_x = q_dynamics.dim_x
         self.dim_u = q_dynamics.dim_u
-
-        self.params = params
 
         self.T = params.T
         self.Q_dict = params.Q_dict
@@ -68,19 +70,21 @@ class IrsMpcQuasistatic:
         # solver
         self.solver = get_solver(params.solver_name)
 
-        # logger
-        self.logger = spdlog.ConsoleLogger("IrsMpc")
-
         # parallelization.
         use_zmq_workers = (
-                self.params.parallel_mode ==
+                self.irs_mpc_params.parallel_mode ==
                 ParallelizationMode.kZmq or
-                self.params.parallel_mode ==
+                self.irs_mpc_params.parallel_mode ==
                 ParallelizationMode.kZmqDebug)
 
         self.q_dynamics_parallel = QuasistaticDynamicsParallel(
             q_dynamics=q_dynamics,
             use_zmq_workers=use_zmq_workers)
+
+    @staticmethod
+    def check_irs_mpc_params(irs_mpc_params: IrsMpcQuasistaticParameters):
+        if irs_mpc_params.bundle_mode == BundleMode.kFirstAnalytic:
+            assert irs_mpc_params.log_barrier_weight_multiplier >= 1
 
     def initialize_problem(self, x0, x_trj_d, u_trj_0):
         # initial trajectory.
@@ -112,8 +116,7 @@ class IrsMpcQuasistatic:
         self.cost_Qa_final_list = [cost_Qa_final]
         self.cost_R_list = [cost_R]
 
-        self.current_iter = 1
-        self.start_time = time.time()
+        self.current_iter = 0
 
     def rollout(self, x0: np.ndarray, u_trj: np.ndarray):
         T = u_trj.shape[0]
@@ -121,7 +124,8 @@ class IrsMpcQuasistatic:
         x_trj = np.zeros((T + 1, self.dim_x))
         x_trj[0, :] = x0
         for t in range(T):
-            x_trj[t + 1, :] = self.q_dynamics.dynamics(x_trj[t, :], u_trj[t, :])
+            x_trj[t + 1, :] = self.q_dynamics.dynamics(
+                x_trj[t, :], u_trj[t, :])
         return x_trj
 
     @staticmethod
@@ -186,15 +190,22 @@ class IrsMpcQuasistatic:
         :param u_trj:
         :return:
         """
-        std_u = self.params.calc_std_u(
-            self.params.std_u_initial, self.current_iter)
+        if self.irs_mpc_params.bundle_mode == BundleMode.kFirstRandomized:
+            std_u = self.irs_mpc_params.calc_std_u(
+                self.irs_mpc_params.std_u_initial, self.current_iter + 1)
+            log_barrier_weight = None
+        elif self.irs_mpc_params.bundle_mode == BundleMode.kFirstAnalytic:
+            std_u = None
+            beta = self.irs_mpc_params.log_barrier_weight_multiplier
+            log_barrier_weight = (self.irs_mpc_params.log_barrier_weight_initial
+                                  * (beta ** self.current_iter))
+        else:
+            raise NotImplementedError
+
         return self.q_dynamics_parallel.calc_bundled_ABc(
             x_trj=x_trj, u_trj=u_trj,
-            n_samples=self.params.num_samples,
-            std_u=std_u,
-            decouple_AB=self.params.decouple_AB,
-            bundle_mode=self.params.bundle_mode,
-            parallel_mode=self.params.parallel_mode)
+            irs_mpc_params=self.irs_mpc_params,
+            std_u=std_u, log_barrier_weight=log_barrier_weight)
 
     def local_descent(self, x_trj: np.ndarray, u_trj: np.ndarray):
         """
@@ -219,8 +230,10 @@ class IrsMpcQuasistatic:
             # u_bounds_abs are used to establish a trust region around a current
             # trajectory.
             u_bounds_abs = np.zeros((2, self.T, self.dim_u))
-            u_bounds_abs[0] = x_trj[:-1, self.indices_u_into_x] + self.u_bounds_abs[0]
-            u_bounds_abs[1] = x_trj[:-1, self.indices_u_into_x] + self.u_bounds_abs[1]
+            u_bounds_abs[0] = (x_trj[:-1, self.indices_u_into_x]
+                               + self.u_bounds_abs[0])
+            u_bounds_abs[1] = (x_trj[:-1, self.indices_u_into_x]
+                               + self.u_bounds_abs[1])
         if self.x_bounds_rel is not None:
             # this should be rarely used.
             x_bounds_rel = np.zeros((2, self.T, self.dim_x))
@@ -257,18 +270,21 @@ class IrsMpcQuasistatic:
 
         return x_trj_new, u_trj_new
 
+    def print_iterate_info(self):
+        print('Iter {:02d}, '.format(self.current_iter) +
+              'cost: {:0.4f}, '.format(self.cost) +
+              'time: {:0.2f}.'.format(time.time() - self.start_time))
+
     def iterate(self, max_iterations: int,
                 cost_Qu_f_threshold: float = 0):
         """
         Terminates after the trajectory cost is less than cost_threshold or
          max_iterations is reached.
         """
-        while True:
-            self.logger.info(
-                'Iter {:02d}, '.format(self.current_iter) +
-                'cost: {:0.4f}, '.format(self.cost) +
-                'time: {:0.2f}.'.format(time.time() - self.start_time))
+        self.start_time = time.time()
+        self.print_iterate_info()
 
+        while True:
             x_trj_new, u_trj_new = self.local_descent(self.x_trj, self.u_trj)
             (cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final,
              cost_R) = self.calc_cost(x_trj_new, u_trj_new)
@@ -291,15 +307,16 @@ class IrsMpcQuasistatic:
                 self.cost_best = cost
                 self.idx_best = self.current_iter
 
-            if (self.current_iter > max_iterations
-                    or cost_Qu_final < cost_Qu_f_threshold):
-                break
-
             # Go over to next iteration.
             self.cost = cost
             self.x_trj = x_trj_new
             self.u_trj = u_trj_new
             self.current_iter += 1
+            self.print_iterate_info()
+
+            if (self.current_iter > max_iterations
+                    or cost_Qu_final < cost_Qu_f_threshold):
+                break
 
         return self.x_trj, self.u_trj, self.cost
 

@@ -12,12 +12,12 @@ from dash_vis.dash_common import (add_goal_meshcat, hover_template_y_z_theta,
                                   create_pca_plots, calc_X_WG, make_large_point_3d)
 from irs_mpc.irs_mpc_quasistatic import (IrsMpcQuasistatic)
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from irs_mpc.quasistatic_dynamics import QuasistaticDynamics, BundleMode
 from irs_rrt.reachable_set import ReachableSet
 from irs_rrt.rrt_params import IrsRrtParams
 
 from planar_hand_setup import (h, q_model_path,
-                               decouple_AB, bundle_mode, num_samples,
+                               decouple_AB, num_samples,
                                robot_l_name, robot_r_name, object_name)
 
 from contact_sampler import PlanarHandContactSampler, sample_on_sphere
@@ -50,12 +50,19 @@ params.R_dict = {
     model_a_l: 5 * np.array([1, 1]),
     model_a_r: 5 * np.array([1, 1])}
 
+params.decouple_AB = decouple_AB
+
+# sampling-based bundling
+# params.bundle_mode = BundleMode.kFirst
 params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
-
-params.decouple_AB = decouple_AB
-params.bundle_mode = bundle_mode
 params.num_samples = num_samples
+
+# analytic bundling
+params.bundle_mode = BundleMode.kFirstAnalytic
+params.log_barrier_weight_initial = 10
+params.log_barrier_weight_multiplier = 2
+
 params.u_bounds_abs = np.array(
     [-np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
 params.publish_every_iteration = False
@@ -137,10 +144,12 @@ app.layout = dbc.Container([
             width={'size': 3, 'offset': 0, 'order': 0},
         ),
         dbc.Col([
-            html.H3('3. 1-step Reachable set'),
+            html.H3('3. 1-step Reachable Points'),
             html.Button('Compute and Draw', id='btn-1-step-reachability',
                         n_clicks=0),
             html.H3('4. Calc Trajectory'),
+            dcc.Dropdown(['Randomized Smoothing', 'Analytic Smoothing'],
+                         'Analytic Smoothing', id='smoothing-scheme'),
             html.Button('Calc', id='btn-calc-trj', n_clicks=0),
             html.Pre(id='calc-trj-update', style=styles['pre']),
         ],
@@ -351,15 +360,25 @@ def click_callback(click_data, figure):
     Output('calc-trj-update', 'children'),
     Input('btn-calc-trj', 'n_clicks'),
     [State('selected-goal', 'data'), State('q_u0', 'data'),
-     State('q_a0', 'data')])
-def calc_trajectory(n_clicks, q_u_goal_json, q_u0_json, q_a0_json):
+     State('q_a0', 'data'), State('smoothing-scheme', 'value')])
+def calc_trajectory(n_clicks, q_u_goal_json, q_u0_json, q_a0_json,
+                    smoothing_scheme):
     if q_u_goal_json is None:
         return ''
     q_u_goal_dict = json.loads(q_u_goal_json)
     if q_u_goal_dict is None:
         return ''
+    if smoothing_scheme is None:
+        return ''
 
     # Traj Opt------------------------------------------------------------
+    smoothing_scheme_dict = {
+        'Randomized Smoothing': BundleMode.kFirstRandomized,
+        'Analytic Smoothing': BundleMode.kFirstAnalytic}
+    irs_mpc.irs_mpc_params.bundle_mode = (
+        smoothing_scheme_dict[smoothing_scheme])
+    print(irs_mpc.irs_mpc_params.bundle_mode)
+
     q_u_goal = np.array([q_u_goal_dict['y'], q_u_goal_dict['z'],
                          q_u_goal_dict['theta']])
     x0, u0, q_u0 = get_x0_and_u0_from_json(q_u0_json, q_a0_json)
@@ -370,7 +389,7 @@ def calc_trajectory(n_clicks, q_u_goal_json, q_u0_json, q_a0_json):
         x_trj_d=np.tile(x_goal, (T + 1, 1)),
         u_trj_0=np.tile(u0, (T, 1)))
 
-    irs_mpc.iterate(max_iterations=10)
+    irs_mpc.iterate(max_iterations=10, cost_Qu_f_threshold=1)
     result = irs_mpc.package_solution()
     q_dynamics.publish_trajectory(result['x_trj'])
     # --------------------------------------------------------------------

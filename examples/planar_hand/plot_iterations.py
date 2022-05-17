@@ -27,11 +27,7 @@ from irs_mpc.irs_mpc_quasistatic import (
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from irs_rrt.irs_rrt import IrsRrt, IrsNode
-from irs_rrt.rrt_params import IrsRrtParams
-from irs_rrt.irs_rrt_random_grasp import IrsRrtRandomGrasp
 
-from planar_hand_setup import *
-from contact_sampler_2d import PlanarHandContactSampler2D
 
 from tqdm import tqdm
 
@@ -41,10 +37,10 @@ def get_cost_array(irs_rrt, global_metric):
     costs = np.zeros(n_nodes)
 
     irs_rrt.params.global_metric = global_metric
-    for n in range(1,n_nodes):
+    for n in range(1, n_nodes):
         costs[n] = np.min(
-                irs_rrt.calc_distance_batch_global(
-                    irs_rrt.goal, n, is_q_u_only=True))
+            irs_rrt.calc_distance_batch_global(
+                irs_rrt.goal, n, is_q_u_only=True))
 
     return costs[1:]
 
@@ -53,7 +49,7 @@ def get_packing_ratio_array(irs_rrt, sampling_function, n_samples, threshold):
     n_nodes = len(irs_rrt.graph.nodes)
     costs = np.zeros(n_nodes)
 
-    for n in tqdm(range(1,n_nodes)):
+    for n in tqdm(range(1, n_nodes)):
         samples = sampling_function(n_samples)
         pairwise_distance = irs_rrt.calc_pairwise_distance_batch_local(
             samples, n, is_q_u_only=True)
@@ -75,17 +71,19 @@ def compute_statistics(filename):
     threshold = 3
 
     def sampling_function(n_samples):
-        samples = np.random.rand(n_samples,7)
-        samples[:,4] = 0.2 * samples[:,4] - 0.1
-        samples[:,5] = 0.2 * samples[:,5] + 0.3
-        samples[:,6] = (np.pi + 0.01) * samples[:,6] - 0.01
+        samples = np.random.rand(n_samples, 7)
+        samples[:, 4] = 0.2 * samples[:, 4] - 0.1
+        samples[:, 5] = 0.2 * samples[:, 5] + 0.3
+        samples[:, 6] = (np.pi + 0.01) * samples[:, 6] - 0.01
         return samples
 
     cost_array = get_cost_array(irs_rrt, global_metric)
     packing_ratio_array = get_packing_ratio_array(irs_rrt,
-        sampling_function, n_samples, threshold)
+                                                  sampling_function, n_samples,
+                                                  threshold)
 
     return cost_array, packing_ratio_array
+
 
 def plot_filename_array(filename_array, color, label):
     cost_array_lst = []
@@ -96,31 +94,34 @@ def plot_filename_array(filename_array, color, label):
         cost_array_lst.append(cost_array)
         packing_ratio_lst.append(packing_ratio_array)
 
-    plt.subplot(1,2,1)
+    plt.subplot(1, 2, 1)
     cost_array_lst = np.array(cost_array_lst)
     mean_cost = np.mean(cost_array_lst, axis=0)
-    std_cost  = np.std(cost_array_lst, axis=0)
+    std_cost = np.std(cost_array_lst, axis=0)
 
     plt.plot(range(len(mean_cost)), mean_cost, '-', color=color,
-        label=label)
+             label=label)
     plt.fill_between(range(len(mean_cost)),
-        mean_cost - std_cost, mean_cost + std_cost, color=color, alpha=0.1)
+                     mean_cost - std_cost, mean_cost + std_cost, color=color,
+                     alpha=0.1)
     plt.xlabel('Iterations')
     plt.ylabel('Closest Distance to Goal')
 
-    plt.subplot(1,2,2)
+    plt.subplot(1, 2, 2)
     packing_ratio_lst = np.array(packing_ratio_lst)
     mean_cost = np.mean(packing_ratio_lst, axis=0)
     std_cost = np.std(packing_ratio_lst, axis=0)
 
     plt.plot(range(len(mean_cost)), mean_cost, '-', color=color,
-        label=label)
+             label=label)
     plt.fill_between(range(len(mean_cost)),
-        mean_cost - std_cost, mean_cost + std_cost, color=color, alpha=0.1)
+                     mean_cost - std_cost, mean_cost + std_cost, color=color,
+                     alpha=0.1)
     plt.xlabel('Iterations')
     plt.ylabel('Packing Ratio')
 
-fig = plt.figure(figsize=(16,4))
+
+fig = plt.figure(figsize=(16, 4))
 plt.rcParams['font.size'] = '16'
 filename_array = [
     "data/planar_hand/projection/ours/tree_2000_planar_hand_rg_1.pkl",
@@ -149,9 +150,9 @@ filename_array = [
 ]
 plot_filename_array(filename_array, 'royalblue', 'No Contact')
 
-plt.subplot(1,2,1)
+plt.subplot(1, 2, 1)
 plt.legend()
-plt.subplot(1,2,2)
+plt.subplot(1, 2, 2)
 plt.legend()
 
 fig.set_figheight(6)

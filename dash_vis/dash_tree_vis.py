@@ -27,7 +27,8 @@ from matplotlib import cm
 from irs_rrt.irs_rrt import IrsRrt
 
 parser = argparse.ArgumentParser()
-parser.add_argument("tree_file_path")
+parser.add_argument("tree_file_path", type=str)
+parser.add_argument('--two_d', default=False, action='store_true')
 args = parser.parse_args()
 
 # %% Construct computational tools.
@@ -38,7 +39,8 @@ irs_rrt_obj = IrsRrt.make_from_pickled_tree(tree)
 q_dynamics = irs_rrt_obj.q_dynamics
 q_sim_py = q_dynamics.q_sim_py
 vis = q_dynamics.q_sim_py.viz.vis
-set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
+if args.two_d:
+    set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
 add_goal_meshcat(vis)
 
 # %%
@@ -48,16 +50,17 @@ This visualizer works only for 2D systems with 3 DOFs, which are
 """
 n_nodes = len(tree.nodes)
 n_q_u = q_dynamics.dim_x - q_dynamics.dim_u
-assert n_q_u == 3
+assert n_q_u == 3 or n_q_u == 2
 q_nodes = np.zeros((n_nodes, q_dynamics.dim_x))
 
 # node coordinates.
 for i in range(n_nodes):
-
     node = tree.nodes[i]["node"]
     q_nodes[i] = node.q
 
 q_u_nodes = q_nodes[:, q_dynamics.get_q_u_indices_into_x()]
+if n_q_u == 2:
+    q_u_nodes = np.hstack([q_u_nodes, np.zeros((len(q_u_nodes), 1))])
 
 # Edges. Assuming that the GRAPH IS A TREE.
 y_edges = []
@@ -99,19 +102,11 @@ def create_tree_plot_up_to_node(num_nodes: int):
 
     root_plot = make_large_point_3d(q_u_nodes[0], name='root')
 
-    return [nodes_plot, edges_plot, root_plot, path_plot]
+    q_goal = tree.graph['irs_rrt_params'].goal
+    q_u_goal = q_goal[q_dynamics.get_q_u_indices_into_x()]
+    goal_plot = make_large_point_3d(q_u_goal, name='goal', color='green')
 
-
-# Draw ellipsoids.
-ellipsoid_mesh_points = []
-ellipsoid_volumes = []
-for i in range(n_nodes):
-    node = tree.nodes[i]["node"]
-    cov_inv_u = node.covinv_u
-    p_center = node.q[-3:]
-    e_points, volume = make_ellipsoid_plotly(cov_inv_u, p_center, 0.1, 10)
-    ellipsoid_mesh_points.append(e_points)
-    ellipsoid_volumes.append(volume)
+    return [nodes_plot, edges_plot, root_plot, goal_plot, path_plot]
 
 
 def scalar_to_rgb255(v: float):
@@ -121,6 +116,18 @@ def scalar_to_rgb255(v: float):
     r, g, b = cm.jet(v)[:3]
     return int(r * 255), int(g * 255), int(b * 255)
 
+
+# Draw ellipsoids.
+ellipsoid_mesh_points = []
+ellipsoid_volumes = []
+idx_q_u_into_x = q_dynamics.get_q_u_indices_into_x()
+for i in range(n_nodes):
+    node = tree.nodes[i]["node"]
+    cov_inv_u = node.covinv_u
+    p_center = node.q[idx_q_u_into_x]
+    e_points, volume = make_ellipsoid_plotly(cov_inv_u, p_center, 0.08, 10)
+    ellipsoid_mesh_points.append(e_points)
+    ellipsoid_volumes.append(volume)
 
 # compute color
 ellipsoid_volumes = np.array(ellipsoid_volumes)
@@ -250,7 +257,7 @@ def plot_best_nodes(q_g_u: np.ndarray, distances: np.ndarray, best_n: int):
         best_n_plots.append(
             go.Scatter3d(x=[q_u[0], q_g_u[0]],
                          y=[q_u[1], q_g_u[1]],
-                         z=[q_u[2], q_g_u[2]],
+                         z=[q_u[2], q_g_u[2]] if len(q_u) == 3 else [0, 0],
                          name=f'best{i}',
                          mode='lines',
                          line=dict(color=f"rgb({r}, {g}, {b})", width=width,
@@ -369,7 +376,8 @@ def slider_callback(num_nodes, metric_to_plot, relayout_data):
         p=q_u, name='new leaf', color='red', symbol='diamond'))
 
     # show subgoal in meshcat
-    X_WG = calc_X_WG(y=q_g_u[0], z=q_g_u[1], theta=q_g_u[2])
+    X_WG = calc_X_WG(y=q_g_u[0], z=q_g_u[1],
+                     theta=q_g_u[2] if len(q_g_u) == 3 else 0)
     vis['goal'].set_transform(X_WG)
 
     # Subgoal to parent in red dashed line.
@@ -377,7 +385,7 @@ def slider_callback(num_nodes, metric_to_plot, relayout_data):
     edge_to_parent = go.Scatter3d(
         x=[q_p_u[0], q_g_u[0]],
         y=[q_p_u[1], q_g_u[1]],
-        z=[q_p_u[2], q_g_u[2]],
+        z=[q_p_u[2], q_g_u[2]] if len(q_g_u) == 3 else [0, 0],
         name=f'attempt {distance_metric}',
         mode='lines',
         line=dict(color='red', width=5),
@@ -442,4 +450,4 @@ def slider_callback(num_nodes, metric_to_plot, relayout_data):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=False)

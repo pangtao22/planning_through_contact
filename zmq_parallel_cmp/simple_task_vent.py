@@ -32,7 +32,7 @@ n_tasks = 10
 for task_nbr in range(n_tasks):
     A = np.ones(random.randint(1, 10000))
     send_x_and_u(sender, A, t=task_nbr, n_samples=100, std=[0.1],
-                 bundle_mode=BundleMode.kFirst)
+                 bundle_mode=BundleMode.kFirstRandomized)
 
     print(task_nbr, A.sum())
 
