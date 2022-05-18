@@ -43,8 +43,7 @@ def plot_planar_hand_from_vector(x, fig,
         R = np.array([
             [np.cos(theta), -np.sin(theta), 0],
             [np.sin(theta), np.cos(theta), 0],
-            [0, 0, 1]
-        ])
+            [0, 0, 1]])
         return R
 
     polygon1 = np.array([
@@ -59,14 +58,14 @@ def plot_planar_hand_from_vector(x, fig,
         np.array([1, 1, 1, 1, 1])
     ])
 
-    y_ball = x[4]
-    z_ball = x[5]
-    theta_ball = x[6]
-    q1_l = x[0] + np.pi
-    q2_l = x[1]
+    y_ball = x[0]
+    z_ball = x[1]
+    theta_ball = x[2]
+    q1_l = x[3] + np.pi
+    q2_l = x[4]
 
-    q1_r = x[2]
-    q2_r = x[3]
+    q1_r = x[5]
+    q2_r = x[6]
 
     circle_l0 = np.array([-0.1, 0.0])
     circle_l1 = circle_l0 + make_R(q1_l)[:2, :2].dot(np.array([0.3, 0.0]))
