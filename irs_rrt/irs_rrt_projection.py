@@ -66,6 +66,7 @@ class IrsRrtProjection(IrsRrt):
 
             # 6. Check for termination.
             if self.is_close_to_goal():
+                self.goal_node_idx = child_node.id
                 print("FOUND A PATH TO GOAL!!!!!")
                 break
 

@@ -85,18 +85,19 @@ class IrsRrt(Rrt):
     def make_from_pickled_tree(tree: networkx.DiGraph):
         # Factory method for making an IrsRrt object from a pickled tree.
         irs_rrt_param = tree.graph['irs_rrt_params']
-        irs_rrt = IrsRrt(irs_rrt_param)
-        irs_rrt.graph = tree
+        prob_rrt = IrsRrt(irs_rrt_param)
+        prob_rrt.graph = tree
+        prob_rrt.size = tree.number_of_nodes()
 
         for i_node in tree.nodes:
             node = tree.nodes[i_node]["node"]
-            irs_rrt.Bhat_tensor[i_node] = node.Bhat
-            irs_rrt.covinv_tensor[i_node] = node.covinv
-            irs_rrt.chat_matrix[i_node] = node.chat
-            irs_rrt.covinv_u_tensor[i_node] = node.covinv_u
-            irs_rrt.q_matrix[i_node] = node.q
+            prob_rrt.Bhat_tensor[i_node] = node.Bhat
+            prob_rrt.covinv_tensor[i_node] = node.covinv
+            prob_rrt.chat_matrix[i_node] = node.chat
+            prob_rrt.covinv_u_tensor[i_node] = node.covinv_u
+            prob_rrt.q_matrix[i_node] = node.q
 
-        return irs_rrt
+        return prob_rrt
 
     def load_params(self, params: IrsRrtParams):
         for key in params.joint_limits.keys():
@@ -337,5 +338,6 @@ class IrsRrt(Rrt):
             setattr(picklable_params, key, value)
 
         self.graph.graph['irs_rrt_params'] = picklable_params
+        self.graph.graph['goal_node_id'] = self.goal_node_idx
         with open(filename, 'wb') as f:
             pickle.dump(self.graph, f)

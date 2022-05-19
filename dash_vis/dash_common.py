@@ -159,16 +159,10 @@ def edges_have_trj(tree: networkx.DiGraph):
     return not (tree.edges[edge]['edge'].trj is None)
 
 
-def trace_path_to_root_from_node(i_node: int, q_u_nodes: np.ndarray,
-                                 q_nodes: np.ndarray,
-                                 tree: networkx.DiGraph,
-                                 q_dynamics: QuasistaticDynamics):
-    q_u_path = []
+def trace_nodes_to_root_from(i_node: int, tree: networkx.DiGraph):
     node_idx_path = []
-
     # trace back to root to get path.
     while True:
-        q_u_path.append(q_u_nodes[i_node])
         node_idx_path.append(i_node)
 
         i_parents = list(tree.predecessors(i_node))
@@ -178,8 +172,18 @@ def trace_path_to_root_from_node(i_node: int, q_u_nodes: np.ndarray,
 
         i_node = i_parents[0]
 
-    # Trajectory.
     node_idx_path.reverse()
+    return node_idx_path
+
+
+def trace_path_to_root_from_node(i_node: int, q_u_nodes: np.ndarray,
+                                 q_nodes: np.ndarray,
+                                 tree: networkx.DiGraph,
+                                 q_dynamics: QuasistaticDynamics):
+    node_idx_path = trace_nodes_to_root_from(i_node, tree)
+    q_u_path = q_u_nodes[node_idx_path]
+
+    # Trajectory.
     if edges_have_trj(tree):
         n_edges = len(node_idx_path) - 1
         x_trj_list = []
@@ -199,4 +203,4 @@ def trace_path_to_root_from_node(i_node: int, q_u_nodes: np.ndarray,
     else:
         x_trj = q_nodes[node_idx_path]
 
-    return np.array(q_u_path), x_trj
+    return q_u_path, x_trj

@@ -24,8 +24,9 @@ class IrsMpcQuasistatic:
         self.parser = parser
         self.q_sim = q_sim
         self.q_sim_batch = parser.make_batch_simulator()
-        self.vis = QuasistaticVisualizer(q_parser=self.parser,
-                                         q_sim=self.q_sim)
+        self.vis = QuasistaticVisualizer(
+            q_sim=q_sim,
+            q_sim_py=parser.make_simulator_py(internal_vis=True))
         self.plant = self.q_sim.get_plant()
         self.solver = GurobiSolver()
 

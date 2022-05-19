@@ -35,10 +35,6 @@ class Edge:
 
 
 class Rrt:
-    """
-    Base tress class.
-    """
-
     def __init__(self, params: RrtParams):
         self.graph = nx.DiGraph()
         self.size = 0  # variable to keep track of nodes.
@@ -65,6 +61,8 @@ class Rrt:
 
         # Add root node to the graph to finish initialization.
         self.add_node(self.root_node)
+
+        self.goal_node_idx = None
 
     def get_node_from_id(self, id: int):
         """ Return node from the graph given id. """
@@ -222,6 +220,7 @@ class Rrt:
 
             # 6. Check for termination.
             if self.is_close_to_goal():
+                self.goal_node_idx = child_node
                 break
 
         pbar.close()
