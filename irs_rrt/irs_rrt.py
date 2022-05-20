@@ -3,6 +3,9 @@ import pickle
 
 import networkx
 import numpy as np
+
+from qsim_cpp import ForwardDynamicsMode
+
 from irs_mpc.irs_mpc_params import BundleMode
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.reachable_set import ReachableSet
@@ -55,7 +58,8 @@ class IrsRrt(Rrt):
             q_model_path=params.q_model_path,
             internal_viz=True)
         self.q_dynamics.update_default_sim_params(
-            log_barrier_weight=params.log_barrier_weight_for_bundling)
+            log_barrier_weight=params.log_barrier_weight_for_bundling,
+            forward_mode=ForwardDynamicsMode.kSocpMp)
         self.params = self.load_params(params)
         self.reachable_set = ReachableSet(self.q_dynamics, params)
         self.max_size = params.max_size
