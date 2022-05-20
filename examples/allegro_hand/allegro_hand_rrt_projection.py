@@ -69,7 +69,8 @@ params.max_size = 2000
 params.goal = np.copy(x0)
 Q_WB_d = RollPitchYaw(0, 0, np.pi).ToQuaternion()
 params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
-params.termination_tolerance = 0.00  # used in irs_rrt.iterate() as cost threshold.
+params.termination_tolerance = 0.01  # used in irs_rrt.iterate() as cost
+# threshold.
 params.goal_as_subgoal_prob = 0.3
 params.rewire = False
 params.regularization = 1e-6
@@ -87,6 +88,10 @@ params.h = 0.1
 for i in range(5):
     prob_rrt = IrsRrtProjection3D(params, contact_sampler)
     prob_rrt.iterate()
+
+    d_batch = prob_rrt.calc_distance_batch(prob_rrt.params.goal)
+    node_id_closest = np.argmin(d_batch)
+    print("closest distance to goal", d_batch[node_id_closest])
 
     #%%
     prob_rrt.save_tree(os.path.join(
