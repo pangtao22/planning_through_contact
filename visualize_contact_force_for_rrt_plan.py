@@ -3,7 +3,7 @@ import os
 import pickle
 
 import numpy as np
-
+import matplotlib.pyplot as plt
 from pydrake.all import ContactResults, RigidTransform, Quaternion
 
 from qsim_cpp import ForwardDynamicsMode
@@ -22,7 +22,7 @@ from pydrake.systems.meshcat_visualizer import AddTriad
 
 pickled_tree_path = os.path.join(
     os.path.dirname(irs_rrt.__file__), '..',
-    'examples', 'allegro_hand', "tree_2000_0.pkl")
+    'examples', 'allegro_hand', "tree_2000_4.pkl")
 
 with open(pickled_tree_path, 'rb') as f:
     tree = pickle.load(f)
@@ -119,6 +119,8 @@ for t in range(T):
             q_knots_trimmed[t], u_t)
         contact_results_list.append(q_dynamics.q_sim.get_contact_results_copy())
 
+print("q_knots_norm_diff trimmed vs computed",
+      np.linalg.norm(q_knots_trimmed - q_knots_computed))
 assert np.allclose(q_knots_trimmed, q_knots_computed, atol=1e-6)
 q_vis.publish_trajectory(q_knots_computed, prob_rrt.params.h)
 
@@ -143,13 +145,26 @@ AddTriad(
 q_dynamics.q_sim_py.viz.vis['goal'].set_transform(
     RigidTransform(Q_WB_d, p_WB_d).GetAsMatrix4())
 
-
+#%%
+cf_knots_map = q_vis.calc_contact_forces_knots_map(
+    contact_results_list)
+f_W_knot_norms = []
+for cf_knots in cf_knots_map.values():
+    f_W_knot_norms.extend(np.linalg.norm(cf_knots, axis=1))
+f_W_knot_norms = np.array(f_W_knot_norms)
+plt.hist(f_W_knot_norms[f_W_knot_norms > 0], bins=50)
+plt.show()
 
 # %% video rendering
-folder_path = "/Users/pangtao/PycharmProjects/contact_video_allegro"
+folder_path = "/Users/pangtao/PycharmProjects/contact_videos/allegro_rgba_0"
 q_vis.render_trajectory(x_traj_knots=q_knots_computed,
                         h=prob_rrt.params.h,
                         folder_path=folder_path,
                         fps=120,
-                        contact_result_list=contact_results_list)
+                        contact_results_list=contact_results_list)
 
+#%%
+x = np.linspace(0, 500, 100)
+y = 1 - np.exp(-x / (np.percentile(f_W_knot_norms, 95) / 2.3))
+plt.plot(x, y)
+plt.show()

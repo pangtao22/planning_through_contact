@@ -168,7 +168,7 @@ class QuasistaticVisualizer:
 
     def render_trajectory(self, x_traj_knots: np.ndarray, h: float,
                           folder_path: str, fps: int = 60,
-                          contact_result_list: List[ContactResults] = None):
+                          contact_results_list: List[ContactResults] = None):
         """
         Saves rendered frames to folder_path.
         """
@@ -177,14 +177,17 @@ class QuasistaticVisualizer:
         x_traj = PiecewisePolynomial.FirstOrderHold(t_knots, x_traj_knots.T)
 
         cf_traj_map = None
-        if contact_result_list:
-            assert len(contact_result_list) == len(x_traj_knots)
+        if contact_results_list:
+            assert len(contact_results_list) == len(x_traj_knots)
             cf_knots_map = self.calc_contact_forces_knots_map(
-                contact_result_list)
+                contact_results_list)
             cf_traj_map = self.calc_contact_forces_traj_map(
                 cf_knots_map, t_knots)
             cf_upper_bound = self.calc_contact_force_norm_upper_bound(
                 cf_knots_map, 95)
+
+            def calc_cm_value(f_norm: float):
+                return 1 - np.exp(- f_norm / (cf_upper_bound / 2.3))
 
         dt = 1 / fps
         n_frames = int(t_knots[-1] / dt)
@@ -204,7 +207,7 @@ class QuasistaticVisualizer:
                           for key, cf_traj in cf_traj_map.items()}
                 for body_id, f_W in cf_map.items():
                     f_W_norm = np.linalg.norm(f_W)
-                    color = cm.plasma(f_W_norm / cf_upper_bound)
+                    color = cm.plasma(calc_cm_value(f_W_norm))
                     meshcat_name = self.body_id_meshcat_name_map[body_id]
                     self.meshcat_vis[meshcat_name].set_property(
                         "color", color)
