@@ -61,7 +61,6 @@ for i in range(num_joints):
     joint_limits[idx_a][i, :] = [low[0], upp[0]]
 
 #%% RRT testing
-
 # IrsRrt params
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
 params.bundle_mode = BundleMode.kFirstAnalytic
@@ -83,13 +82,14 @@ params.distance_threshold = np.inf
 params.stepsize = 0.3
 params.std_u = 0.1
 params.grasp_prob = 0.3
+params.h = 0.1
 
 for i in range(5):
-    irs_rrt = IrsRrtProjection3D(params, contact_sampler)
-    irs_rrt.iterate()
+    prob_rrt = IrsRrtProjection3D(params, contact_sampler)
+    prob_rrt.iterate()
 
     #%%
-    irs_rrt.save_tree(os.path.join(
+    prob_rrt.save_tree(os.path.join(
         data_folder,
         "randomized",
         f"tree_{params.max_size}_{i}.pkl"))
