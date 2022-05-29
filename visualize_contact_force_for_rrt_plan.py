@@ -1,6 +1,7 @@
 from typing import List
 import os
 import pickle
+import time
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -156,12 +157,25 @@ plt.hist(f_W_knot_norms[f_W_knot_norms > 0], bins=50)
 plt.show()
 
 # %% video rendering
-folder_path = "/Users/pangtao/PycharmProjects/contact_videos/allegro_rgba_0"
+time.sleep(5.0)
+frames_path_prefix = "/Users/pangtao/PycharmProjects/contact_videos"
+
+folder_path_normal_color = os.path.join(frames_path_prefix,
+                                        "allegro_rgba_0_normal_color")
+q_vis.render_trajectory(x_traj_knots=q_knots_computed,
+                        h=prob_rrt.params.h,
+                        folder_path=folder_path_normal_color,
+                        fps=120)
+
+
+folder_path = os.path.join(frames_path_prefix, "allegro_rgba_0")
 q_vis.render_trajectory(x_traj_knots=q_knots_computed,
                         h=prob_rrt.params.h,
                         folder_path=folder_path,
                         fps=120,
                         contact_results_list=contact_results_list)
+
+
 
 #%%
 x = np.linspace(0, 500, 100)
