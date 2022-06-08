@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import copy
 import time
 import matplotlib.pyplot as plt
 import numpy as np
@@ -147,3 +148,46 @@ prob_mpc.plot_costs()
 # res = q_dynamics.q_sim_py.viz.vis.static_html()
 # with open("allegro_hand_irs_lqr_60_degrees_rotation.html", "w") as f:
 #     f.write(res)
+
+
+#%%
+u_trj_best = prob_mpc.u_trj_best
+q_trj_best = prob_mpc.x_trj_best
+
+q_trj_computed = np.zeros_like(q_trj_best)
+q_trj_computed[0] = q_trj_best[0]
+
+for t in range(T):
+    q_trj_computed[t + 1] = prob_mpc.q_sim.calc_dynamics(
+        q_trj_computed[t], u_trj_best[t], prob_mpc.sim_params_rollout)
+
+
+print(q_trj_computed - q_trj_best)
+
+#%% reduce hydro-planing with smaller time steps.
+from pydrake.all import PiecewisePolynomial
+t_trj = np.arange(T) * h
+u_trj_poly = PiecewisePolynomial.ZeroOrderHold(t_trj, u_trj_best.T)
+
+h_small = 0.01
+N = int(h / h_small)
+
+q_trj_small = np.zeros((T * N + 1, prob_mpc.dim_x))
+q_trj_small[0] = q_trj_best[0]
+
+sim_params_small = copy.deepcopy(prob_mpc.sim_params_rollout)
+sim_params_small.h = h_small
+sim_params_small.unactuated_mass_scale = np.nan
+
+for t in range(N * T):
+    q_trj_small[t + 1] = prob_mpc.q_sim.calc_dynamics(
+        q_trj_small[t], u_trj_poly.value(h_small * t).squeeze(),
+        sim_params_small)
+
+
+#%%
+prob_mpc.vis.publish_trajectory(q_trj_small[::N], h)
+
+#%%
+np.linalg.norm(q_trj_small[:N] - q_trj_small[N], axis=1)
+

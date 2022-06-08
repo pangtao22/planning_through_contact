@@ -98,7 +98,8 @@ class IrsRrtProjection(IrsRrt):
             du = du / np.linalg.norm(du)
             ustar = parent_node.ubar + self.params.stepsize * du
 
-            xnext = self.q_dynamics.dynamics(parent_node.q, ustar)
+            xnext = self.q_dynamics.dynamics_multi_step(parent_node.q, ustar,
+                                                        n_steps=10)
 
         cost = 0.0
 

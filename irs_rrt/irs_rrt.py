@@ -213,7 +213,8 @@ class IrsRrt(Rrt):
         # Normalize least-squares solution.
         du = du / np.linalg.norm(du)
         ustar = parent_node.ubar + self.params.stepsize * du
-        xnext = self.q_dynamics.dynamics(parent_node.q, ustar)
+        xnext = self.q_dynamics.dynamics_multi_step(parent_node.q, ustar,
+                                                    n_steps=5)
         cost = self.reachable_set.calc_node_metric(
             parent_node.covinv, parent_node.mu, xnext)
 
