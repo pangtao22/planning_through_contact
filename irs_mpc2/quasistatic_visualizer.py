@@ -168,7 +168,8 @@ class QuasistaticVisualizer:
 
     def render_trajectory(self, x_traj_knots: np.ndarray, h: float,
                           folder_path: str, fps: int = 60,
-                          contact_results_list: List[ContactResults] = None):
+                          contact_results_list: List[ContactResults] = None,
+                          t_knots_contact_results: List[float] = None):
         """
         Saves rendered frames to folder_path.
         """
@@ -178,11 +179,10 @@ class QuasistaticVisualizer:
 
         cf_traj_map = None
         if contact_results_list:
-            assert len(contact_results_list) == len(x_traj_knots)
             cf_knots_map = self.calc_contact_forces_knots_map(
                 contact_results_list)
             cf_traj_map = self.calc_contact_forces_traj_map(
-                cf_knots_map, t_knots)
+                cf_knots_map, t_knots_contact_results)
             cf_upper_bound = self.calc_contact_force_norm_upper_bound(
                 cf_knots_map, 95)
 

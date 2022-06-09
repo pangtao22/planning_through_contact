@@ -13,6 +13,7 @@ from irs_rrt.contact_sampler_allegro import AllegroHandContactSampler
 
 from pydrake.multibody.tree import JointIndex
 from pydrake.math import RollPitchYaw
+from pydrake.systems.meshcat_visualizer import AddTriad
 
 #%% quasistatic dynamical system
 q_dynamics = QuasistaticDynamics(h=h,
@@ -20,7 +21,7 @@ q_dynamics = QuasistaticDynamics(h=h,
                                  internal_viz=True)
 q_dynamics.update_default_sim_params(
     forward_mode=ForwardDynamicsMode.kSocpMp,
-    log_barrier_weight=100)
+    log_barrier_weight=200)
 
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
@@ -60,10 +61,12 @@ for i in range(num_joints):
     upp = joint.position_upper_limits()
     joint_limits[idx_a][i, :] = [low[0], upp[0]]
 
+
+
 #%% RRT testing
 # IrsRrt params
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
-params.bundle_mode = BundleMode.kFirstAnalytic
+params.bundle_mode = BundleMode.kFirstRandomized
 params.root_node = IrsNode(x0)
 params.max_size = 2000
 params.goal = np.copy(x0)
@@ -85,8 +88,17 @@ params.std_u = 0.1
 params.grasp_prob = 0.3
 params.h = 0.1
 
+#%% draw the goals
 for i in range(5):
     prob_rrt = IrsRrtProjection3D(params, contact_sampler)
+    AddTriad(
+        vis=q_dynamics.q_sim_py.viz.vis,
+        name='frame',
+        prefix='drake/plant/sphere/sphere',
+        length=0.1,
+        radius=0.001,
+        opacity=1)
+
     prob_rrt.iterate()
 
     d_batch = prob_rrt.calc_distance_batch(prob_rrt.params.goal)

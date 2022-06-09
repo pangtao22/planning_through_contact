@@ -95,8 +95,10 @@ class IrsRrtProjection(IrsRrt):
                 rcond=None)[0]
 
             # Normalize least-squares solution.
-            du = du / np.linalg.norm(du)
-            ustar = parent_node.ubar + self.params.stepsize * du
+            du_norm = np.linalg.norm(du)
+            step_size = min(du_norm, self.params.stepsize)
+            du = du / du_norm
+            ustar = parent_node.ubar + step_size * du
 
             xnext = self.q_dynamics.dynamics_multi_step(parent_node.q, ustar,
                                                         n_steps=10)

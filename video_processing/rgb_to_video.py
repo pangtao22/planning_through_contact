@@ -32,10 +32,9 @@ for example in examples:
                 "-r", "30",
                 "-i", os.path.join(trial, "%04d.png"),
                 "-vcodec", "libx264",
-                #"-vcodec", "mpeg4",
                 "-q:v", "1",
                 "-preset", "slow",
                 "-pix_fmt", "yuv420p",
                 "-crf", "18", 
-                video_trial + ".mp4" ])
+                video_trial + ".mp4"])
 

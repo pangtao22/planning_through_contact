@@ -234,7 +234,7 @@ class QuasistaticDynamics:
         sim_params = copy.deepcopy(self.q_sim_params_default)
         sim_params.h /= n_steps
         sim_params.gradient_mode = GradientMode.kNone
-        sim_params.unactuated_mass_scale = np.nan
+        sim_params.unactuated_mass_scale = 5
 
         for t in range(n_steps):
             x = self.q_sim.calc_dynamics(x, u, sim_params)

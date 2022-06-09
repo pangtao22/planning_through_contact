@@ -1,3 +1,4 @@
+import copy
 from typing import List
 import os
 import pickle
@@ -7,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pydrake.all import ContactResults, RigidTransform, Quaternion
 
-from qsim_cpp import ForwardDynamicsMode
+from qsim_cpp import ForwardDynamicsMode, GradientMode
 
 import irs_rrt
 from irs_rrt.irs_rrt import IrsRrt
@@ -23,7 +24,11 @@ from pydrake.systems.meshcat_visualizer import AddTriad
 
 pickled_tree_path = os.path.join(
     os.path.dirname(irs_rrt.__file__), '..',
-    'examples', 'allegro_hand', "tree_2000_4.pkl")
+    'examples', 'allegro_hand', "tree_2000_analytic_3.pkl")
+
+# pickled_tree_path = os.path.join(
+#     os.path.dirname(irs_rrt.__file__), '..',
+#     'examples', 'allegro_hand', "tree_2000_randomized_0.pkl")
 
 with open(pickled_tree_path, 'rb') as f:
     tree = pickle.load(f)
@@ -105,25 +110,45 @@ q_knots_trimmed = prob_rrt.q_matrix[node_idx_path_trimmed]
 u_knots_trimmed = u_knots[node_idx_path_to_keep[1:]]
 
 # Compute q_knots again to get ContactResults, which are not saved in the tree.
+h = q_dynamics.q_sim_params_default.h
 q_knots_computed = np.zeros_like(q_knots_trimmed)
 q_knots_computed[0] = q_knots_trimmed[0]
 contact_results_list = [ContactResults()]
+t_knots_contact_results = [0]
 T = len(u_knots_trimmed)
+
+# TODO: this is hard coded, bad!
+n_steps = 10
+h_small = h / n_steps
+sim_params = copy.deepcopy(q_dynamics.q_sim_params_default)
+sim_params.h /= n_steps
+sim_params.gradient_mode = GradientMode.kNone
+sim_params.unactuated_mass_scale = 5
 
 for t in range(T):
     u_t = u_knots_trimmed[t]
+
     if any(np.isnan(u_t)):
         q_knots_computed[t + 1] = q_knots_trimmed[t + 1]
-        contact_results_list.append(ContactResults())
+        for i in range(n_steps):
+            contact_results_list.append(ContactResults())
+            t_knots_contact_results.append(
+                t_knots_contact_results[-1] + h_small)
     else:
-        q_knots_computed[t + 1] = q_dynamics.dynamics(
-            q_knots_trimmed[t], u_t)
-        contact_results_list.append(q_dynamics.q_sim.get_contact_results_copy())
+        q = q_knots_trimmed[t]
+        for i in range(n_steps):
+            q = q_dynamics.q_sim.calc_dynamics(q, u_t, sim_params)
+            contact_results_list.append(
+                q_dynamics.q_sim.get_contact_results_copy())
+            t_knots_contact_results.append(
+                t_knots_contact_results[-1] + h_small)
+        q_knots_computed[t + 1] = q
+
 
 print("q_knots_norm_diff trimmed vs computed",
       np.linalg.norm(q_knots_trimmed - q_knots_computed))
-assert np.allclose(q_knots_trimmed, q_knots_computed, atol=1e-6)
-q_vis.publish_trajectory(q_knots_computed, prob_rrt.params.h)
+assert np.allclose(q_knots_trimmed, q_knots_computed, atol=1e-4)
+q_vis.publish_trajectory(q_knots_trimmed, prob_rrt.params.h)
 
 #%% Allegro-specific
 # visualize goal.
@@ -157,15 +182,17 @@ plt.hist(f_W_knot_norms[f_W_knot_norms > 0], bins=50)
 plt.show()
 
 # %% video rendering
+# assert False
 time.sleep(5.0)
-frames_path_prefix = "/Users/pangtao/PycharmProjects/contact_videos"
+# frames_path_prefix = "/Users/pangtao/PycharmProjects/contact_videos"
+frames_path_prefix = "/home/amazon/PycharmProjects/contact_videos"
 
-folder_path_normal_color = os.path.join(frames_path_prefix,
-                                        "allegro_rgba_0_normal_color")
-q_vis.render_trajectory(x_traj_knots=q_knots_computed,
-                        h=prob_rrt.params.h,
-                        folder_path=folder_path_normal_color,
-                        fps=120)
+# folder_path_normal_color = os.path.join(frames_path_prefix,
+#                                         "allegro_rgba_0_normal_color")
+# q_vis.render_trajectory(x_traj_knots=q_knots_computed,
+#                         h=prob_rrt.params.h,
+#                         folder_path=folder_path_normal_color,
+#                         fps=120)
 
 
 folder_path = os.path.join(frames_path_prefix, "allegro_rgba_0")
@@ -173,7 +200,8 @@ q_vis.render_trajectory(x_traj_knots=q_knots_computed,
                         h=prob_rrt.params.h,
                         folder_path=folder_path,
                         fps=120,
-                        contact_results_list=contact_results_list)
+                        contact_results_list=contact_results_list,
+                        t_knots_contact_results=t_knots_contact_results)
 
 
 
