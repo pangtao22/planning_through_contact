@@ -66,9 +66,9 @@ for i in range(num_joints):
 #%% RRT testing
 # IrsRrt params
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
-params.bundle_mode = BundleMode.kFirstRandomized
+params.bundle_mode = BundleMode.kFirstAnalytic
 params.root_node = IrsNode(x0)
-params.max_size = 2000
+params.max_size = 1000
 params.goal = np.copy(x0)
 Q_WB_d = RollPitchYaw(0, 0, np.pi).ToQuaternion()
 params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
@@ -83,7 +83,7 @@ params.global_metric = np.ones(x0.shape) * 0.1
 params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
 params.quat_metric = 5
 params.distance_threshold = np.inf
-params.stepsize = 0.3
+params.stepsize = 0.2
 params.std_u = 0.1
 params.grasp_prob = 0.3
 params.h = 0.1

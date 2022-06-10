@@ -1,3 +1,4 @@
+import copy
 import os
 from typing import Dict, Set, List
 
@@ -166,10 +167,33 @@ class QuasistaticVisualizer:
 
         return np.percentile(f_W_knot_norms, percentile)
 
+    def concatenate_contact_forces(self,
+                                   cf_knots_map: Dict[BodyIndex, np.ndarray],
+                                   stride: int):
+        """
+        The length of each value in cf_knots_map is (T * stride + 1),
+         and the first force is always 0 and therefore can be ignored.
+        """
+        cf_knots_map_reduced = {}
+        for key, cf in cf_knots_map.items():
+            n_forces = cf.shape[0]
+            assert (n_forces - 1) % stride == 0
+            T = (n_forces - 1) // stride
+
+            cf_reduced = np.zeros((T + 1, 3))
+            for t in range(T):
+                i_start = 1 + t * stride
+                cf_reduced[t + 1] = np.mean(
+                    cf[i_start: i_start + stride], axis=0)
+
+            cf_knots_map_reduced[key] = cf_reduced
+
+        return cf_knots_map_reduced
+
     def render_trajectory(self, x_traj_knots: np.ndarray, h: float,
                           folder_path: str, fps: int = 60,
                           contact_results_list: List[ContactResults] = None,
-                          t_knots_contact_results: List[float] = None):
+                          stride: int = None):
         """
         Saves rendered frames to folder_path.
         """
@@ -181,10 +205,14 @@ class QuasistaticVisualizer:
         if contact_results_list:
             cf_knots_map = self.calc_contact_forces_knots_map(
                 contact_results_list)
+            cf_knots_map_reduced = self.concatenate_contact_forces(
+                cf_knots_map, stride)
             cf_traj_map = self.calc_contact_forces_traj_map(
-                cf_knots_map, t_knots_contact_results)
+                cf_knots_map_reduced, t_knots)
             cf_upper_bound = self.calc_contact_force_norm_upper_bound(
-                cf_knots_map, 95)
+                cf_knots_map_reduced, 95)
+
+            cf_upper_bound = 5
 
             def calc_cm_value(f_norm: float):
                 return 1 - np.exp(- f_norm / (cf_upper_bound / 2.3))

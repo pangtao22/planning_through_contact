@@ -24,7 +24,7 @@ from pydrake.systems.meshcat_visualizer import AddTriad
 
 pickled_tree_path = os.path.join(
     os.path.dirname(irs_rrt.__file__), '..',
-    'examples', 'allegro_hand', "tree_2000_analytic_3.pkl")
+    'examples', 'allegro_hand', "tree_1000_analytic_1.pkl")
 
 # pickled_tree_path = os.path.join(
 #     os.path.dirname(irs_rrt.__file__), '..',
@@ -181,11 +181,17 @@ f_W_knot_norms = np.array(f_W_knot_norms)
 plt.hist(f_W_knot_norms[f_W_knot_norms > 0], bins=50)
 plt.show()
 
+#%%
+x = np.linspace(0, 500, 100)
+y = 1 - np.exp(-x / (np.percentile(f_W_knot_norms, 95) / 2.3))
+plt.plot(x, y)
+plt.show()
+
 # %% video rendering
 # assert False
-time.sleep(5.0)
-# frames_path_prefix = "/Users/pangtao/PycharmProjects/contact_videos"
-frames_path_prefix = "/home/amazon/PycharmProjects/contact_videos"
+time.sleep(1 + T * h)
+frames_path_prefix = "/Users/pangtao/PycharmProjects/contact_videos"
+# frames_path_prefix = "/home/amazon/PycharmProjects/contact_videos"
 
 # folder_path_normal_color = os.path.join(frames_path_prefix,
 #                                         "allegro_rgba_0_normal_color")
@@ -195,18 +201,14 @@ frames_path_prefix = "/home/amazon/PycharmProjects/contact_videos"
 #                         fps=120)
 
 
-folder_path = os.path.join(frames_path_prefix, "allegro_rgba_0")
+folder_path = os.path.join(frames_path_prefix, "allegro_rgba_6")
 q_vis.render_trajectory(x_traj_knots=q_knots_computed,
                         h=prob_rrt.params.h,
                         folder_path=folder_path,
                         fps=120,
                         contact_results_list=contact_results_list,
-                        t_knots_contact_results=t_knots_contact_results)
+                        stride=n_steps)
 
 
 
-#%%
-x = np.linspace(0, 500, 100)
-y = 1 - np.exp(-x / (np.percentile(f_W_knot_norms, 95) / 2.3))
-plt.plot(x, y)
-plt.show()
+
