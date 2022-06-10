@@ -85,7 +85,7 @@ params.quat_metric = 5
 params.distance_threshold = np.inf
 params.stepsize = 0.2
 params.std_u = 0.1
-params.grasp_prob = 0.3
+params.grasp_prob = 0.2
 params.h = 0.1
 
 #%% draw the goals
