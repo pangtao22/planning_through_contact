@@ -212,3 +212,10 @@ q_vis.render_trajectory(x_traj_knots=q_knots_computed,
 
 
 
+#%%
+idx_u_not_nan = np.invert(np.isnan(u_knots_trimmed[:, 0]))
+idx_q = np.hstack((idx_u_not_nan, [False]))
+print(np.linalg.norm(
+    q_knots_trimmed[idx_q][:, q_dynamics.get_q_a_indices_into_x()]
+    - u_knots_trimmed[idx_u_not_nan]) / T)
+
