@@ -424,20 +424,28 @@ class IrsMpcQuasistatic:
                               q_sim: QuasistaticSimulatorCpp,
                               sim_params: QuasistaticSimParameters):
         T = len(u_trj)
-        t_trj = np.arange(T) * h_small * n_steps_per_h
-        u_trj_poly = PiecewisePolynomial.ZeroOrderHold(t_trj, u_trj.T)
-
         sim_params.h = h_small
 
         q_trj_small = np.zeros((T * n_steps_per_h + 1, len(x0)))
         q_trj_small[0] = x0
-        u_trj_small = []
+        u_trj_small = IrsMpcQuasistatic.calc_u_trj_small(
+            u_trj, h_small, n_steps_per_h)
         for t in range(n_steps_per_h * T):
-            u_trj_small.append(u_trj_poly.value(h_small * t).squeeze())
             q_trj_small[t + 1] = q_sim.calc_dynamics(
-                q_trj_small[t], u_trj_small[-1], sim_params)
+                q_trj_small[t], u_trj_small[t], sim_params)
 
         return q_trj_small, np.array(u_trj_small)
+
+    @staticmethod
+    def calc_u_trj_small(u_trj: np.ndarray, h_small: float,
+                         n_steps_per_h: int):
+        T = len(u_trj)
+        t_trj = np.arange(T) * h_small * n_steps_per_h
+        u_trj_poly = PiecewisePolynomial.ZeroOrderHold(t_trj, u_trj.T)
+
+        return np.array(
+            [u_trj_poly.value(h_small * t).squeeze()
+             for t in range(n_steps_per_h * T)])
 
     def iterate(self, max_iterations: int, cost_Qu_f_threshold: float = 0):
         """

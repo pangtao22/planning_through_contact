@@ -77,20 +77,32 @@ q_vis.publish_trajectory(
 # see the segments.
 indices_q_u_into_x = q_dynamics.get_q_u_indices_into_x()
 
-for t_start, t_end in segments:
-    # q_vis.publish_trajectory(
-    #     q_knots_trimmed[t_start: t_end + 1], prob_rrt.params.h)
 
+def calc_q_u_diff(q_u_0, q_u_1):
+    """
+    q_u_0 and q_u_1 are 7-vectors. The first 4 elements represent a
+     quaternion and the last three a position.
+    Returns (angle_diff_in_radians, position_diff_norm)
+    """
+    Q_U0 = Quaternion(q_u_0[:4])
+    Q_U1 = Quaternion(q_u_1[:4])
+    aa = AngleAxis(Q_U0.multiply(Q_U1.inverse()))
+
+    return aa.angle(), np.linalg.norm(q_u_start[4:] - q_u_end[4:])
+
+
+for t_start, t_end in segments:
     q_u_start = q_knots_trimmed[t_start][indices_q_u_into_x]
     q_u_end = q_knots_trimmed[t_end][indices_q_u_into_x]
 
-    Q_WU_start = Quaternion(q_u_start[:4])
-    Q_WU_end = Quaternion(q_u_end[:4])
+    angle_diff, position_diff = calc_q_u_diff(q_u_start, q_u_end)
 
-    aa = AngleAxis(Q_WU_start.multiply(Q_WU_end.inverse()))
+    print("angle diff", angle_diff,
+          "position diff", position_diff)
 
-    print("angle diff", aa.angle(),
-          "position diff", np.linalg.norm(q_u_start[4:] - q_u_end[4:]))
+    q_vis.publish_trajectory(
+        q_knots_trimmed[t_start: t_end + 1], prob_rrt.params.h)
+    input()
 
 #%% determining h_small and n_steps_per_h from simulating a segment.
 h_small = 0.01
@@ -171,26 +183,37 @@ prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params,
 
 #%% traj-opt for segment
 # q0
+n_steps_per_h = 1
 q0_dict = q_sim.get_q_dict_from_vec(q_trj[0])
 q_u0 = q0_dict[idx_u]
 q_a0 = q0_dict[idx_a]
 
 # q_goal (end of segment)
 q_u_d = q_trj[-1, q_sim.get_q_u_indices_into_q()]
-Q_WB_d = Quaternion(q_u_d[:4])
-p_WB_d = q_u_d[4:]
-q_d_dict = {idx_u: np.hstack([Q_WB_d.wxyz(), p_WB_d]),
-            idx_a: q_a0}
+q_d_dict = {idx_u: q_u_d, idx_a: q_a0}
 x0 = q_sim.get_q_vec_from_dict(q0_dict)
 u0 = q_sim.get_q_a_cmd_vec_from_dict(q0_dict)
 xd = q_sim.get_q_vec_from_dict(q_d_dict)
 T = len(u_trj) * n_steps_per_h
 x_trj_d = np.tile(xd, (T + 1, 1))
 
+u_trj_small = IrsMpcQuasistatic.calc_u_trj_small(u_trj, h_small, n_steps_per_h)
 prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_small)
 
-prob_mpc.iterate(max_iterations=max_iterations, cost_Qu_f_threshold=1)
+prob_mpc.iterate(max_iterations=max_iterations, cost_Qu_f_threshold=0)
 prob_mpc.plot_costs()
+
+q_u_final = prob_mpc.x_trj_best[-1][indices_q_u_into_x]
+angle_diff, position_diff = calc_q_u_diff(q_u_final, q_u_d)
+print("angle diff", angle_diff,
+      "position diff", position_diff)
 
 #%%
 prob_mpc.q_vis.publish_trajectory(prob_mpc.x_trj_best, h_small)
+
+#%%
+angle_diffs = np.zeros(T + 1)
+pos_diffs = np.zeros_like(angle_diffs)
+for t, q in enumerate(prob_mpc.x_trj_best):
+    angle_diffs[t], pos_diffs[t] = calc_q_u_diff(q[indices_q_u_into_x], q_u_d)
+
