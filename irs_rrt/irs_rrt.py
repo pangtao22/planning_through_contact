@@ -1,3 +1,4 @@
+from typing import List
 import copy
 import pickle
 
@@ -213,8 +214,7 @@ class IrsRrt(Rrt):
         # Normalize least-squares solution.
         du = du / np.linalg.norm(du)
         ustar = parent_node.ubar + self.params.stepsize * du
-        xnext = self.q_dynamics.dynamics_multi_step(parent_node.q, ustar,
-                                                    n_steps=5)
+        xnext = self.q_dynamics.dynamics(parent_node.q, ustar)
         cost = self.reachable_set.calc_node_metric(
             parent_node.covinv, parent_node.mu, xnext)
 
@@ -346,3 +346,47 @@ class IrsRrt(Rrt):
         self.graph.graph['goal_node_id'] = self.goal_node_idx
         with open(filename, 'wb') as f:
             pickle.dump(self.graph, f)
+
+    def get_u_knots_from_node_idx_path(self, node_idx_path: List[int]):
+        n = len(node_idx_path)
+        u_knots = np.zeros((n - 1, self.q_dynamics.dim_u))
+        for i in range(n - 1):
+            id_node0 = node_idx_path[i]
+            id_node1 = node_idx_path[i + 1]
+            u_knots[i] = self.graph.edges[id_node0, id_node1]['edge'].u
+
+        return u_knots
+
+    @staticmethod
+    def trim_regrasps(u_knots: np.ndarray):
+        """
+        @param u_knots: (T, dim_u).
+        A regrasp in RRT has an associated action u consisitng of nans. When
+         there are more than one consecutive nans in u_knots, we trim u_knots so
+         that
+         1. If there are more than one consecutive nans, only keep the last one.
+         2. Remove all trailing nans.
+        @return bool array of shape (T + 1,), entry t indicates whether the t-th
+         entry in the original state path is kept. Note that there is 1 more
+         entry in the state trajectory than in the action trajectory.
+        """
+        T = len(u_knots)
+        node_idx_path_to_keep = np.ones(T + 1, dtype=bool)
+        node_idx_path_to_keep[0] = True  # keep root
+        for t in range(T):
+            is_t_nan = any(np.isnan(u_knots[t]))
+            if t == T - 1:
+                is_t1_nan = True
+            else:
+                is_t1_nan = any(np.isnan(u_knots[t + 1]))
+
+            if is_t_nan:
+                if is_t1_nan:
+                    node_idx_path_to_keep[t + 1] = False
+                else:
+                    node_idx_path_to_keep[t + 1] = True
+            else:
+                node_idx_path_to_keep[t + 1] = True
+
+        return node_idx_path_to_keep
+

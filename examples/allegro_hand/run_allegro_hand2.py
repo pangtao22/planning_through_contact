@@ -19,8 +19,8 @@ from irs_mpc2.irs_mpc_params import (SmoothingMode, IrsMpcQuasistaticParameters)
 from allegro_hand_setup import *
 
 #%% sim setup
-h = 0.1
-T = 20  # num of time steps to simulate forward.
+h = 0.01
+T = 40  # num of time steps to simulate forward.
 duration = T * h
 max_iterations = 10
 
@@ -60,7 +60,7 @@ for model in q_sim.get_unactuated_models():
 
 params.R_dict = {idx_a: 10 * np.ones(dim_u)}
 
-u_size = 1.0
+u_size = 10.0
 params.u_bounds_abs = np.array([
     -np.ones(dim_u) * u_size * h, np.ones(dim_u) * u_size * h])
 
@@ -87,7 +87,7 @@ prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
 
 
 #%%
-Q_WB_d = RollPitchYaw(0, 0, np.pi / 4).ToQuaternion()
+Q_WB_d = RollPitchYaw(0, 0, np.pi / 6).ToQuaternion()
 p_WB_d = q_u0[4:] + np.array([0, 0, 0], dtype=float)
 q_d_dict = {idx_u: np.hstack([Q_WB_d.wxyz(), p_WB_d]),
             idx_a: q_a0}
@@ -143,13 +143,14 @@ print()
 
 #%% plot different components of the cost for all iterations.
 prob_mpc.plot_costs()
-
+prob_mpc.vis.publish_trajectory(prob_mpc.x_trj_best, h)
 #%% save visualization.
 # res = q_dynamics.q_sim_py.viz.vis.static_html()
 # with open("allegro_hand_irs_lqr_60_degrees_rotation.html", "w") as f:
 #     f.write(res)
 
 
+assert False
 #%%
 u_trj_best = prob_mpc.u_trj_best
 q_trj_best = prob_mpc.x_trj_best

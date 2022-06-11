@@ -12,7 +12,6 @@ from qsim_cpp import ForwardDynamicsMode, GradientMode
 
 import irs_rrt
 from irs_rrt.irs_rrt import IrsRrt
-from dash_vis.dash_common import trace_nodes_to_root_from
 from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 
 from pydrake.systems.meshcat_visualizer import AddTriad
@@ -24,7 +23,7 @@ from pydrake.systems.meshcat_visualizer import AddTriad
 
 pickled_tree_path = os.path.join(
     os.path.dirname(irs_rrt.__file__), '..',
-    'examples', 'allegro_hand', "tree_1000_analytic_1.pkl")
+    'examples', 'allegro_hand', "tree_1000_analytic_0.pkl")
 
 # pickled_tree_path = os.path.join(
 #     os.path.dirname(irs_rrt.__file__), '..',
@@ -47,64 +46,40 @@ p_WB_d = qu_goal[4:]
 dim_q = prob_rrt.dim_q
 dim_u = dim_q - prob_rrt.dim_q_u
 
+#%% Allegro-specific
+# visualize goal.
+AddTriad(
+    vis=q_dynamics.q_sim_py.viz.vis,
+    name='frame',
+    prefix='drake/plant/sphere/sphere',
+    length=0.1,
+    radius=0.001,
+    opacity=1)
 
-def get_u_knots_from_node_idx_path(node_idx_path: List[int]):
-    n = len(node_idx_path)
-    u_knots = np.zeros((n - 1, dim_u))
-    for i in range(n - 1):
-        id_node0 = node_idx_path[i]
-        id_node1 = node_idx_path[i + 1]
-        u_knots[i] = tree.edges[id_node0, id_node1]['edge'].u
+AddTriad(
+    vis=q_dynamics.q_sim_py.viz.vis,
+    name='frame',
+    prefix='goal',
+    length=0.1,
+    radius=0.005,
+    opacity=0.7)
 
-    return u_knots
-
-
-def trim_regrasps(u_knots: np.ndarray):
-    """
-    @param u_knots: (T, dim_u).
-    A regrasp in RRT has an associated action u consisitng of nans. When
-     there are more than one consecutive nans in u_knots, we trim u_knots so
-     that
-     1. If there are more than one consecutive nans, only keep the last one.
-     2. Remove all trailing nans.
-    @return bool array of shape (T + 1,), entry t indicates whether the t-th
-     entry in the original state path is kept. Note that there is 1 more
-     entry in the state trajectory than in the action trajectory.
-    """
-    T = len(u_knots)
-    node_idx_path_to_keep = np.ones(T + 1, dtype=bool)
-    node_idx_path_to_keep[0] = True  # keep root
-    for t in range(T):
-        is_t_nan = any(np.isnan(u_knots[t]))
-        if t == T - 1:
-            is_t1_nan = True
-        else:
-            is_t1_nan = any(np.isnan(u_knots[t + 1]))
-
-        if is_t_nan:
-            if is_t1_nan:
-                node_idx_path_to_keep[t + 1] = False
-            else:
-                node_idx_path_to_keep[t + 1] = True
-        else:
-            node_idx_path_to_keep[t + 1] = True
-
-    return node_idx_path_to_keep
+q_dynamics.q_sim_py.viz.vis['goal'].set_transform(
+    RigidTransform(Q_WB_d, p_WB_d).GetAsMatrix4())
 
 
 # %%
 # find closet point to goal.
 d_batch = prob_rrt.calc_distance_batch(prob_rrt.params.goal)
-node_id_closest = np.argmin(d_batch)
-print("closest distance to goal", d_batch[node_id_closest])
+node_id_closest = prob_rrt.find_node_closest_to_goal().id
 
-node_idx_path = trace_nodes_to_root_from(node_id_closest, tree)
+node_idx_path = prob_rrt.trace_nodes_to_root_from(node_id_closest)
 node_idx_path = np.array(node_idx_path)
 
 q_knots = prob_rrt.q_matrix[node_idx_path]
-u_knots = get_u_knots_from_node_idx_path(node_idx_path)
+u_knots = prob_rrt.get_u_knots_from_node_idx_path(node_idx_path)
 
-node_idx_path_to_keep = trim_regrasps(u_knots)
+node_idx_path_to_keep = prob_rrt.trim_regrasps(u_knots)
 node_idx_path_trimmed = node_idx_path[node_idx_path_to_keep]
 q_knots_trimmed = prob_rrt.q_matrix[node_idx_path_trimmed]
 u_knots_trimmed = u_knots[node_idx_path_to_keep[1:]]
@@ -118,7 +93,7 @@ t_knots_contact_results = [0]
 T = len(u_knots_trimmed)
 
 # TODO: this is hard coded, bad!
-n_steps = 10
+n_steps = 1
 h_small = h / n_steps
 sim_params = copy.deepcopy(q_dynamics.q_sim_params_default)
 sim_params.h /= n_steps
@@ -150,26 +125,7 @@ print("q_knots_norm_diff trimmed vs computed",
 assert np.allclose(q_knots_trimmed, q_knots_computed, atol=1e-4)
 q_vis.publish_trajectory(q_knots_trimmed, prob_rrt.params.h)
 
-#%% Allegro-specific
-# visualize goal.
-AddTriad(
-    vis=q_dynamics.q_sim_py.viz.vis,
-    name='frame',
-    prefix='drake/plant/sphere/sphere',
-    length=0.1,
-    radius=0.001,
-    opacity=1)
 
-AddTriad(
-    vis=q_dynamics.q_sim_py.viz.vis,
-    name='frame',
-    prefix='goal',
-    length=0.1,
-    radius=0.005,
-    opacity=0.7)
-
-q_dynamics.q_sim_py.viz.vis['goal'].set_transform(
-    RigidTransform(Q_WB_d, p_WB_d).GetAsMatrix4())
 
 #%%
 cf_knots_map = q_vis.calc_contact_forces_knots_map(

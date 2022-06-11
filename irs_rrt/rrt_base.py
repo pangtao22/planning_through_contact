@@ -134,13 +134,35 @@ class Rrt:
         """ Provide a method to sample the a subgoal. """
         raise NotImplementedError("This method is virtual.")
 
-    def select_closest_node(self, subgoal: np.array):
+    def select_closest_node(self, subgoal: np.array,
+                            print_distance: bool = False):
         """
         Given a subgoal, and find the node that is closest from the subgoal.
         """
         d_batch = self.calc_distance_batch(subgoal)
         selected_node = self.get_node_from_id(np.argmin(d_batch))
+        if print_distance:
+            print("closest distance to subgoal", d_batch[selected_node.id])
         return selected_node
+
+    def find_node_closest_to_goal(self):
+        return self.select_closest_node(self.params.goal, print_distance=True)
+
+    def trace_nodes_to_root_from(self, i_node: int):
+        node_idx_path = []
+        # trace back to root to get path.
+        while True:
+            node_idx_path.append(i_node)
+
+            i_parents = list(self.graph.predecessors(i_node))
+            assert len(i_parents) <= 1
+            if len(i_parents) == 0:
+                break
+
+            i_node = i_parents[0]
+
+        node_idx_path.reverse()
+        return node_idx_path
 
     def extend_towards_q(self, parent_node: Node, q: np.array):
         """ Extend current node towards a specified configuration q. """
