@@ -70,7 +70,6 @@ q_dynamics.q_sim_py.viz.vis['goal'].set_transform(
 
 # %%
 # find closet point to goal.
-d_batch = prob_rrt.calc_distance_batch(prob_rrt.params.goal)
 node_id_closest = prob_rrt.find_node_closest_to_goal().id
 
 node_idx_path = prob_rrt.trace_nodes_to_root_from(node_id_closest)

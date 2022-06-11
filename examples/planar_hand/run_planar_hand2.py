@@ -117,6 +117,6 @@ prob_mpc.plot_costs()
 
 # %%
 x_traj_to_publish = prob_mpc.x_trj_best
-prob_mpc.vis.publish_trajectory(x_traj_to_publish, h=h)
+prob_mpc.q_vis.publish_trajectory(x_traj_to_publish, h=h)
 print('x_goal:', xd)
 print('x_final:', x_traj_to_publish[-1])

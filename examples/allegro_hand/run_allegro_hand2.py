@@ -22,7 +22,7 @@ from allegro_hand_setup import *
 h = 0.01
 T = 40  # num of time steps to simulate forward.
 duration = T * h
-max_iterations = 10
+max_iterations = 15
 
 # quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path)
@@ -87,7 +87,7 @@ prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
 
 
 #%%
-Q_WB_d = RollPitchYaw(0, 0, np.pi / 6).ToQuaternion()
+Q_WB_d = RollPitchYaw(0, 0, np.pi / 3).ToQuaternion()
 p_WB_d = q_u0[4:] + np.array([0, 0, 0], dtype=float)
 q_d_dict = {idx_u: np.hstack([Q_WB_d.wxyz(), p_WB_d]),
             idx_a: q_a0}
@@ -131,7 +131,7 @@ q_sim_py.viz.vis['goal'].set_transform(
 x_trj_to_publish = prob_mpc.rollout(
     x0=x0, u_trj=prob_mpc.u_trj_best, forward_mode=ForwardDynamicsMode.kSocpMp)
 
-prob_mpc.vis.publish_trajectory(x_trj_to_publish, h)
+prob_mpc.q_vis.publish_trajectory(x_trj_to_publish, h)
 q_dict_final = q_sim.get_q_dict_from_vec(x_trj_to_publish[-1])
 q_u_final = q_dict_final[idx_u]
 p_WB_f = q_u_final[4:]
@@ -143,7 +143,7 @@ print()
 
 #%% plot different components of the cost for all iterations.
 prob_mpc.plot_costs()
-prob_mpc.vis.publish_trajectory(prob_mpc.x_trj_best, h)
+prob_mpc.q_vis.publish_trajectory(prob_mpc.x_trj_best, h)
 #%% save visualization.
 # res = q_dynamics.q_sim_py.viz.vis.static_html()
 # with open("allegro_hand_irs_lqr_60_degrees_rotation.html", "w") as f:
@@ -187,7 +187,7 @@ for t in range(N * T):
 
 
 #%%
-prob_mpc.vis.publish_trajectory(q_trj_small[::N], h)
+prob_mpc.q_vis.publish_trajectory(q_trj_small[::N], h)
 
 #%%
 np.linalg.norm(q_trj_small[:N] - q_trj_small[N], axis=1)
