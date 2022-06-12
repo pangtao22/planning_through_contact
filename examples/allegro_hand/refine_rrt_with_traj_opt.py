@@ -27,6 +27,8 @@ pickled_tree_path = os.path.join(
     os.path.dirname(irs_rrt.__file__), '..',
     'examples', 'allegro_hand', "tree_1000_analytic_0.pkl")
 
+pickled_tree_path = "ptc_data/allegro_hand/analytic/tree_1000_0.pkl"
+
 with open(pickled_tree_path, 'rb') as f:
     tree = pickle.load(f)
 
@@ -70,13 +72,15 @@ q_knots_trimmed, u_knots_trimmed = prob_rrt.get_trimmed_q_and_u_knots_to_goal()
 # split trajectory into segments according to re-grasps.
 segments = prob_rrt.get_regrasp_segments(u_knots_trimmed)
 
+if segments[0][0] == 0 and segments[0][1] == 0:
+    segments.pop(0)
+
 q_vis.publish_trajectory(
     q_knots_trimmed, q_dynamics.q_sim_params_default.h)
 
 #%%
 # see the segments.
 indices_q_u_into_x = q_dynamics.get_q_u_indices_into_x()
-
 
 def calc_q_u_diff(q_u_0, q_u_1):
     """
@@ -102,32 +106,10 @@ for t_start, t_end in segments:
 
     q_vis.publish_trajectory(
         q_knots_trimmed[t_start: t_end + 1], prob_rrt.params.h)
-    input()
 
 #%% determining h_small and n_steps_per_h from simulating a segment.
 h_small = 0.01
 n_steps_per_h = 1
-#
-# t_start = segments[0][0]
-# t_end = segments[0][1]
-# u_trj = u_knots_trimmed[t_start: t_end]
-# q_trj = q_knots_trimmed[t_start: t_end + 1]
-#
-# sim_params_small = copy.deepcopy(q_dynamics.q_sim_params_default)
-# sim_params_small.h = h_small
-#
-# q_trj_small, u_trj_small = IrsMpcQuasistatic.rollout_smaller_steps(
-#     x0=q_trj[0], u_trj=u_trj, h_small=h_small, n_steps_per_h=n_steps_per_h,
-#     q_sim=q_dynamics.q_sim, sim_params=sim_params_small)
-#
-# q_vis.publish_trajectory(
-#     q_trj_small[::n_steps_per_h], q_dynamics.q_sim_params_default.h)
-#
-# # A staircase pattern in this plot is a good indication that n_steps_per_h is
-# # large enough.
-# plt.plot(q_trj_small[:, 0])
-# plt.show()
-
 
 #%% IrsMpc
 q_parser = q_dynamics.parser
@@ -141,7 +123,7 @@ idx_u = plant.GetModelInstanceByName(object_name)
 params = IrsMpcQuasistaticParameters()
 params.h = h_small
 params.Q_dict = {
-    idx_u: np.array([10, 10, 10, 10, 1, 1, 1.]),
+    idx_u: np.array([10, 10, 10, 10, 10, 10, 10.]),
     idx_a: np.ones(dim_u) * 1e-3}
 
 params.Qd_dict = {}
@@ -152,11 +134,11 @@ for model in q_sim.get_unactuated_models():
 
 params.R_dict = {idx_a: 10 * np.ones(dim_u)}
 
-u_size = 5.0
+u_size = 4.0
 params.u_bounds_abs = np.array([
     -np.ones(dim_u) * u_size * params.h, np.ones(dim_u) * u_size * params.h])
 
-params.smoothing_mode = SmoothingMode.kFirstAnalyticIcecream
+params.smoothing_mode = SmoothingMode.kFirstRandomizedIcecream
 # sampling-based bundling
 params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
@@ -164,7 +146,7 @@ params.num_samples = 100
 # analytic bundling
 params.log_barrier_weight_initial = 100
 log_barrier_weight_final = 6000
-max_iterations = 15
+max_iterations = 10
 
 base = np.log(
     log_barrier_weight_final / params.log_barrier_weight_initial) \
@@ -183,13 +165,13 @@ prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params,
 
 #%% traj-opt for segment
 def run_traj_opt_on_rrt_segment(n_steps_per_h: int,
-                                q_trj: np.ndarray,
+                                q0: np.ndarray,
+                                q_final: np.ndarray,
                                 u_trj: np.ndarray):
-    q0 = q_trj[0]
     q_a0 = q0[q_sim.get_q_a_indices_into_q()]
 
     # q_goal (end of segment)
-    q_u_d = q_trj[-1, q_sim.get_q_u_indices_into_q()]
+    q_u_d = q_final[q_sim.get_q_u_indices_into_q()]
     q_d_dict = {idx_u: q_u_d, idx_a: q_a0}
     q_d = q_sim.get_q_vec_from_dict(q_d_dict)
 
@@ -208,20 +190,41 @@ def run_traj_opt_on_rrt_segment(n_steps_per_h: int,
 q_trj_optimized_list = []
 u_trj_optimized_list = []
 
-for segment in segments:
-    t_start = segment[0]
-    t_end = segment[1]
+for i_s, (t_start, t_end) in enumerate(segments):
     u_trj = u_knots_trimmed[t_start: t_end]
     q_trj = q_knots_trimmed[t_start: t_end + 1]
+    prob_mpc.q_vis.publish_trajectory(q_trj, prob_rrt.params.h)
+    input()
+
+    q0 = np.array(q_trj[0])
+    if len(q_trj_optimized_list) > 0:
+        q0[indices_q_u_into_x] = q_trj_optimized_list[-1][-1, indices_q_u_into_x]
+
+    q_final = q_trj[-1]
+    if i_s == len(segments) - 1:
+        q_final[indices_q_u_into_x] = qu_goal
 
     q_trj_optimized, u_trj_optimized = run_traj_opt_on_rrt_segment(
-        n_steps_per_h=1, q_trj=q_trj, u_trj=u_trj)
+        n_steps_per_h=1, q0=q0, q_final=q_final, u_trj=u_trj)
 
     q_trj_optimized_list.append(q_trj_optimized)
     u_trj_optimized_list.append(u_trj_optimized)
 
     prob_mpc.plot_costs()
+    prob_mpc.q_vis.publish_trajectory(q_trj_optimized, h_small)
+    input()
 
+#%%
+q_trj_sizes = np.array([len(q_trj_optimized) for q_trj_optimized in q_trj_optimized_list])
+
+q_trj_optimized_all = np.zeros((q_trj_sizes.sum(), dim_q))
+
+t_start = 0
+for q_trj_size, q_trj_optimized in zip(q_trj_sizes, q_trj_optimized_list):
+    q_trj_optimized_all[t_start: t_start + q_trj_size] = q_trj_optimized
+    t_start += q_trj_size
+
+prob_mpc.q_vis.publish_trajectory(q_trj_optimized_all, 0.1)
 
 
 #%%
@@ -236,9 +239,7 @@ for t, q_trj_optimized in enumerate(q_trj_optimized_list):
           "position diff", position_diff)
     input()
 
-#%%
-angle_diffs = np.zeros(T + 1)
-pos_diffs = np.zeros_like(angle_diffs)
-for t, q in enumerate(prob_mpc.x_trj_best):
-    angle_diffs[t], pos_diffs[t] = calc_q_u_diff(q[indices_q_u_into_x], q_u_d)
+
+
+
 
