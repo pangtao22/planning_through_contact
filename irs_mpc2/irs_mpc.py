@@ -489,7 +489,3 @@ class IrsMpcQuasistatic:
             x_trj, u_trj = self.local_descent(x_trj)
             self.current_iter += 1
 
-
-
-
-

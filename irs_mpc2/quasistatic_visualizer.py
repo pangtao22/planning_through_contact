@@ -64,6 +64,10 @@ class QuasistaticVisualizer:
             idx_b = velocity_indices_b[model]
             assert idx_a == idx_b
 
+    def draw_configuration(self, q: np.ndarray):
+        self.q_sim_py.update_mbp_positions_from_vector(q)
+        self.q_sim_py.draw_current_configuration()
+
     def publish_trajectory(self, x_knots: np.ndarray, h: float):
         q_dict_knots = [self.q_sim.get_q_dict_from_vec(x) for x in x_knots]
         self.q_sim_py.animate_system_trajectory(h, q_dict_traj=q_dict_knots)
