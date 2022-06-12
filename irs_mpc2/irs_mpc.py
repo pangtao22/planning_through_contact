@@ -440,11 +440,14 @@ class IrsMpcQuasistatic:
     def calc_u_trj_small(u_trj: np.ndarray, h_small: float,
                          n_steps_per_h: int):
         T = len(u_trj)
-        t_trj = np.arange(T) * h_small * n_steps_per_h
-        u_trj_poly = PiecewisePolynomial.ZeroOrderHold(t_trj, u_trj.T)
+        # Note! PiecewisePolynomial.ZeroOrderHold ignores the last knot point.
+        # So we need to append a useless row.
+        t_trj = np.arange(T + 1) * h_small * n_steps_per_h
+        u_trj_poly = PiecewisePolynomial.ZeroOrderHold(
+            t_trj, np.vstack([u_trj, np.zeros(u_trj.shape[1])]).T)
 
         return np.array(
-            [u_trj_poly.value(h_small * t).squeeze()
+            [u_trj_poly.value(h_small * (t + 0.01)).squeeze()
              for t in range(n_steps_per_h * T)])
 
     def iterate(self, max_iterations: int, cost_Qu_f_threshold: float = 0):
