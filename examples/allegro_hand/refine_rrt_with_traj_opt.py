@@ -40,9 +40,9 @@ q_vis = QuasistaticVisualizer(q_sim=q_dynamics.q_sim,
                               q_sim_py=q_dynamics.q_sim_py)
 
 # get goal and some problem data from RRT parameters.
-qu_goal = prob_rrt.params.goal[q_dynamics.get_q_u_indices_into_x()]
-Q_WB_d = Quaternion(qu_goal[:4])
-p_WB_d = qu_goal[4:]
+q_u_goal = prob_rrt.params.goal[q_dynamics.get_q_u_indices_into_x()]
+Q_WB_d = Quaternion(q_u_goal[:4])
+p_WB_d = q_u_goal[4:]
 dim_q = prob_rrt.dim_q
 dim_u = dim_q - prob_rrt.dim_q_u
 
@@ -105,8 +105,6 @@ for t_start, t_end in segments:
     print("angle diff", angle_diff,
           "position diff", position_diff)
 
-    q_vis.publish_trajectory(
-        q_knots_trimmed[t_start: t_end + 1], prob_rrt.params.h)
 
 #%% determining h_small and n_steps_per_h from simulating a segment.
 h_small = 0.01
@@ -201,9 +199,9 @@ for i_s, (t_start, t_end) in enumerate(segments):
     if len(q_trj_optimized_list) > 0:
         q0[indices_q_u_into_x] = q_trj_optimized_list[-1][-1, indices_q_u_into_x]
 
-    q_final = q_trj[-1]
+    q_final = np.array(q_trj[-1])
     if i_s == len(segments) - 1:
-        q_final[indices_q_u_into_x] = qu_goal
+        q_final[indices_q_u_into_x] = q_u_goal
 
     q_trj_optimized, u_trj_optimized = run_traj_opt_on_rrt_segment(
         n_steps_per_h=1, q0=q0, q_final=q_final, u_trj=u_trj)
