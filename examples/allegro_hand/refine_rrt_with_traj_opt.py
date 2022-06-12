@@ -27,7 +27,7 @@ pickled_tree_path = os.path.join(
     os.path.dirname(irs_rrt.__file__), '..',
     'examples', 'allegro_hand', "tree_1000_analytic_0.pkl")
 
-pickled_tree_path = "ptc_data/allegro_hand/analytic/tree_1000_0.pkl"
+# pickled_tree_path = "ptc_data/allegro_hand/analytic/tree_1000_0.pkl"
 
 with open(pickled_tree_path, 'rb') as f:
     tree = pickle.load(f)
@@ -82,6 +82,7 @@ q_vis.publish_trajectory(
 # see the segments.
 indices_q_u_into_x = q_dynamics.get_q_u_indices_into_x()
 
+
 def calc_q_u_diff(q_u_0, q_u_1):
     """
     q_u_0 and q_u_1 are 7-vectors. The first 4 elements represent a
@@ -92,7 +93,7 @@ def calc_q_u_diff(q_u_0, q_u_1):
     Q_U1 = Quaternion(q_u_1[:4])
     aa = AngleAxis(Q_U0.multiply(Q_U1.inverse()))
 
-    return aa.angle(), np.linalg.norm(q_u_start[4:] - q_u_end[4:])
+    return aa.angle(), np.linalg.norm(q_u_0[4:] - q_u_1[4:])
 
 
 for t_start, t_end in segments:
@@ -194,7 +195,7 @@ for i_s, (t_start, t_end) in enumerate(segments):
     u_trj = u_knots_trimmed[t_start: t_end]
     q_trj = q_knots_trimmed[t_start: t_end + 1]
     prob_mpc.q_vis.publish_trajectory(q_trj, prob_rrt.params.h)
-    input()
+    input("Original trajectory segment shown. Press any key to optimize...")
 
     q0 = np.array(q_trj[0])
     if len(q_trj_optimized_list) > 0:
@@ -212,24 +213,31 @@ for i_s, (t_start, t_end) in enumerate(segments):
 
     prob_mpc.plot_costs()
     prob_mpc.q_vis.publish_trajectory(q_trj_optimized, h_small)
-    input()
+    input("Optimized trajectory shown. Press any key to go to the next segment")
 
 #%%
-q_trj_sizes = np.array([len(q_trj_optimized) for q_trj_optimized in q_trj_optimized_list])
+def concatenate_traj_list(q_trj_list: List[np.ndarray]):
+    """
+    Concatenates a list of trajectories into a single trajectory.
+    """
+    q_trj_sizes = np.array([len(q_trj) for q_trj in q_trj_list])
 
-q_trj_optimized_all = np.zeros((q_trj_sizes.sum(), dim_q))
+    q_trj_all = np.zeros((q_trj_sizes.sum(), dim_q))
 
-t_start = 0
-for q_trj_size, q_trj_optimized in zip(q_trj_sizes, q_trj_optimized_list):
-    q_trj_optimized_all[t_start: t_start + q_trj_size] = q_trj_optimized
-    t_start += q_trj_size
+    t_start = 0
+    for q_trj_size, q_trj in zip(q_trj_sizes, q_trj_list):
+        q_trj_all[t_start: t_start + q_trj_size] = q_trj
+        t_start += q_trj_size
 
+    return q_trj_all
+
+q_trj_optimized_all = concatenate_traj_list(q_trj_optimized_list)
 prob_mpc.q_vis.publish_trajectory(q_trj_optimized_all, 0.1)
 
 
-#%%
+#%% see differences between RRT and optimized trajectories.
 for t, q_trj_optimized in enumerate(q_trj_optimized_list):
-    prob_mpc.q_vis.publish_trajectory(q_trj_optimized, h_small)
+    # prob_mpc.q_vis.publish_trajectory(q_trj_optimized, h_small)
 
     t_end = segments[t][1]
     q_u_d = q_knots_trimmed[t_end, q_sim.get_q_u_indices_into_q()]
@@ -237,9 +245,29 @@ for t, q_trj_optimized in enumerate(q_trj_optimized_list):
     angle_diff, position_diff = calc_q_u_diff(q_u_final, q_u_d)
     print("angle diff", angle_diff,
           "position diff", position_diff)
-    input()
 
 
+#%%
+def trim_trajectory(q_trj: np.ndarray, angle_threshold: float = 1e-3,
+                    pos_threshold: float = 1e-3):
+    q_u_final = q_trj[-1, indices_q_u_into_x]
+    for t, q in enumerate(q_trj):
+        q_u = q[indices_q_u_into_x]
+        angle_diff, pos_diff = calc_q_u_diff(q_u, q_u_final)
+        if angle_diff < angle_threshold and pos_diff < pos_threshold:
+            break
+
+    return t
 
 
+print("Trimming optimized trajectory segments")
+q_trj_optimized_trimmed_list = []
+for q_trj in q_trj_optimized_list:
+    t = trim_trajectory(q_trj)
+    print(f"{t} / {len(q_trj)}")
+    q_trj_optimized_trimmed_list.append(q_trj[:t+1])
 
+
+q_trj_optimized_trimmed_all = concatenate_traj_list(
+    q_trj_optimized_trimmed_list)
+prob_mpc.q_vis.publish_trajectory(q_trj_optimized_trimmed_all, 0.1)
