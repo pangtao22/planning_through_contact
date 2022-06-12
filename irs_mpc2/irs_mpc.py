@@ -434,7 +434,7 @@ class IrsMpcQuasistatic:
             q_trj_small[t + 1] = q_sim.calc_dynamics(
                 q_trj_small[t], u_trj_small[t], sim_params)
 
-        return q_trj_small, np.array(u_trj_small)
+        return q_trj_small, u_trj_small
 
     @staticmethod
     def calc_u_trj_small(u_trj: np.ndarray, h_small: float,
@@ -488,6 +488,8 @@ class IrsMpcQuasistatic:
 
             x_trj, u_trj = self.local_descent(x_trj)
             self.current_iter += 1
+
+
 
 
 

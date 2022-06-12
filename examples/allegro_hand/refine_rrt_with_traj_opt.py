@@ -106,27 +106,27 @@ for t_start, t_end in segments:
 
 #%% determining h_small and n_steps_per_h from simulating a segment.
 h_small = 0.01
-n_steps_per_h = 5
-
-t_start = segments[0][0]
-t_end = segments[0][1]
-u_trj = u_knots_trimmed[t_start: t_end]
-q_trj = q_knots_trimmed[t_start: t_end + 1]
-
-sim_params_small = copy.deepcopy(q_dynamics.q_sim_params_default)
-sim_params_small.h = h_small
-
-q_trj_small, u_trj_small = IrsMpcQuasistatic.rollout_smaller_steps(
-    x0=q_trj[0], u_trj=u_trj, h_small=h_small, n_steps_per_h=n_steps_per_h,
-    q_sim=q_dynamics.q_sim, sim_params=sim_params_small)
-
-q_vis.publish_trajectory(
-    q_trj_small[::n_steps_per_h], q_dynamics.q_sim_params_default.h)
-
-# A staircase pattern in this plot is a good indication that n_steps_per_h is
-# large enough.
-plt.plot(q_trj_small[:, 0])
-plt.show()
+n_steps_per_h = 1
+#
+# t_start = segments[0][0]
+# t_end = segments[0][1]
+# u_trj = u_knots_trimmed[t_start: t_end]
+# q_trj = q_knots_trimmed[t_start: t_end + 1]
+#
+# sim_params_small = copy.deepcopy(q_dynamics.q_sim_params_default)
+# sim_params_small.h = h_small
+#
+# q_trj_small, u_trj_small = IrsMpcQuasistatic.rollout_smaller_steps(
+#     x0=q_trj[0], u_trj=u_trj, h_small=h_small, n_steps_per_h=n_steps_per_h,
+#     q_sim=q_dynamics.q_sim, sim_params=sim_params_small)
+#
+# q_vis.publish_trajectory(
+#     q_trj_small[::n_steps_per_h], q_dynamics.q_sim_params_default.h)
+#
+# # A staircase pattern in this plot is a good indication that n_steps_per_h is
+# # large enough.
+# plt.plot(q_trj_small[:, 0])
+# plt.show()
 
 
 #%% IrsMpc
@@ -182,34 +182,59 @@ prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params,
 
 
 #%% traj-opt for segment
-# q0
-n_steps_per_h = 1
-q0_dict = q_sim.get_q_dict_from_vec(q_trj[0])
-q_u0 = q0_dict[idx_u]
-q_a0 = q0_dict[idx_a]
+def run_traj_opt_on_rrt_segment(n_steps_per_h: int,
+                                q_trj: np.ndarray,
+                                u_trj: np.ndarray):
+    q0 = q_trj[0]
+    q_a0 = q0[q_sim.get_q_a_indices_into_q()]
 
-# q_goal (end of segment)
-q_u_d = q_trj[-1, q_sim.get_q_u_indices_into_q()]
-q_d_dict = {idx_u: q_u_d, idx_a: q_a0}
-x0 = q_sim.get_q_vec_from_dict(q0_dict)
-u0 = q_sim.get_q_a_cmd_vec_from_dict(q0_dict)
-xd = q_sim.get_q_vec_from_dict(q_d_dict)
-T = len(u_trj) * n_steps_per_h
-x_trj_d = np.tile(xd, (T + 1, 1))
+    # q_goal (end of segment)
+    q_u_d = q_trj[-1, q_sim.get_q_u_indices_into_q()]
+    q_d_dict = {idx_u: q_u_d, idx_a: q_a0}
+    q_d = q_sim.get_q_vec_from_dict(q_d_dict)
 
-u_trj_small = IrsMpcQuasistatic.calc_u_trj_small(u_trj, h_small, n_steps_per_h)
-prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_small)
+    T = len(u_trj) * n_steps_per_h
+    q_trj_d = np.tile(q_d, (T + 1, 1))
 
-prob_mpc.iterate(max_iterations=max_iterations, cost_Qu_f_threshold=0)
-prob_mpc.plot_costs()
+    u_trj_small = IrsMpcQuasistatic.calc_u_trj_small(
+        u_trj, h_small, n_steps_per_h)
 
-q_u_final = prob_mpc.x_trj_best[-1][indices_q_u_into_x]
-angle_diff, position_diff = calc_q_u_diff(q_u_final, q_u_d)
-print("angle diff", angle_diff,
-      "position diff", position_diff)
+    prob_mpc.initialize_problem(x0=q0, x_trj_d=q_trj_d, u_trj_0=u_trj_small)
+    prob_mpc.iterate(max_iterations=max_iterations, cost_Qu_f_threshold=0)
+
+    return np.array(prob_mpc.x_trj_best), np.array(prob_mpc.u_trj_best)
+
+
+q_trj_optimized_list = []
+u_trj_optimized_list = []
+
+for segment in segments:
+    t_start = segment[0]
+    t_end = segment[1]
+    u_trj = u_knots_trimmed[t_start: t_end]
+    q_trj = q_knots_trimmed[t_start: t_end + 1]
+
+    q_trj_optimized, u_trj_optimized = run_traj_opt_on_rrt_segment(
+        n_steps_per_h=1, q_trj=q_trj, u_trj=u_trj)
+
+    q_trj_optimized_list.append(q_trj_optimized)
+    u_trj_optimized_list.append(u_trj_optimized)
+
+    prob_mpc.plot_costs()
+
+
 
 #%%
-prob_mpc.q_vis.publish_trajectory(prob_mpc.x_trj_best, h_small)
+for t, q_trj_optimized in enumerate(q_trj_optimized_list):
+    prob_mpc.q_vis.publish_trajectory(q_trj_optimized, h_small)
+
+    t_end = segments[t][1]
+    q_u_d = q_knots_trimmed[t_end, q_sim.get_q_u_indices_into_q()]
+    q_u_final = q_trj_optimized[-1][indices_q_u_into_x]
+    angle_diff, position_diff = calc_q_u_diff(q_u_final, q_u_d)
+    print("angle diff", angle_diff,
+          "position diff", position_diff)
+    input()
 
 #%%
 angle_diffs = np.zeros(T + 1)
