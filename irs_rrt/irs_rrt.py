@@ -402,6 +402,17 @@ class IrsRrt(Rrt):
 
         return node_idx_path_to_keep
 
+    def get_q_and_u_knots_to_goal(self):
+        node_id_closest = self.find_node_closest_to_goal().id
+
+        node_idx_path = self.trace_nodes_to_root_from(node_id_closest)
+        node_idx_path = np.array(node_idx_path)
+
+        q_knots = self.q_matrix[node_idx_path]
+        u_knots = self.get_u_knots_from_node_idx_path(node_idx_path)
+
+        return q_knots, u_knots
+
     def get_trimmed_q_and_u_knots_to_goal(self):
         """
         This function does three things:
@@ -413,17 +424,10 @@ class IrsRrt(Rrt):
         The returned q_knots_trimmed has shape (T + 1, dim_x),
          and u_knots_trimmed (T, dim_u).
         """
-        node_id_closest = self.find_node_closest_to_goal().id
-
-        node_idx_path = self.trace_nodes_to_root_from(node_id_closest)
-        node_idx_path = np.array(node_idx_path)
-
-        q_knots = self.q_matrix[node_idx_path]
-        u_knots = self.get_u_knots_from_node_idx_path(node_idx_path)
+        q_knots, u_knots = self.get_q_and_u_knots_to_goal()
 
         node_idx_path_to_keep = self.trim_regrasps(u_knots)
-        node_idx_path_trimmed = node_idx_path[node_idx_path_to_keep]
-        q_knots_trimmed = self.q_matrix[node_idx_path_trimmed]
+        q_knots_trimmed = q_knots[node_idx_path_to_keep]
         u_knots_trimmed = u_knots[node_idx_path_to_keep[1:]]
 
         return q_knots_trimmed, u_knots_trimmed

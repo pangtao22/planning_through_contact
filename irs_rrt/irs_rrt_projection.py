@@ -10,7 +10,8 @@ class IrsRrtProjection(IrsRrt):
         super().__init__(params)
 
     def select_closest_node(self, subgoal: np.array,
-                            d_threshold: float = np.inf):
+                            d_threshold: float = np.inf,
+                            print_distance: bool = False):
         """
         Given a subgoal, this function finds the node that is closest from the
          subgoal.
@@ -21,8 +22,11 @@ class IrsRrtProjection(IrsRrt):
         i_min = np.argmin(d_batch)
         if d_batch[i_min] < d_threshold:
             selected_node = self.get_node_from_id(i_min)
+            if print_distance:
+                print("closest distance to subgoal", d_batch[selected_node.id])
         else:
             selected_node = None
+
         return selected_node
 
     def iterate(self):

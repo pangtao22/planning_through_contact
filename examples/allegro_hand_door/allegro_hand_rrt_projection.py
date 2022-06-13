@@ -58,7 +58,7 @@ joint_limits = {
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
 params.bundle_mode = BundleMode.kFirstAnalytic
 params.root_node = IrsNode(x0)
-params.max_size = 2000
+params.max_size = 1000
 params.goal = np.copy(x0)
 params.goal[q_dynamics.get_q_u_indices_into_x()] = [door_angle_goal, np.pi / 2]
 params.termination_tolerance = 0
@@ -72,14 +72,14 @@ params.std_u = std_u
 params.stepsize = 0.2
 params.rewire = False
 params.distance_metric = 'local_u'
-params.grasp_prob = 0.2
+params.grasp_prob = 0.1
 
 
 for i in range(5):
-    irs_rrt = IrsRrtProjection(params, contact_sampler)
-    irs_rrt.iterate()
+    prob_rrt = IrsRrtProjection(params, contact_sampler)
+    prob_rrt.iterate()
 
-    irs_rrt.save_tree(os.path.join(
+    prob_rrt.save_tree(os.path.join(
             data_folder,
             "analytic",
             f"tree_{params.max_size}_{i}.pkl"))
