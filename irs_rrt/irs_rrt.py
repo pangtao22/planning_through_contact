@@ -1,8 +1,12 @@
+from typing import List
 import copy
 import pickle
 
 import networkx
 import numpy as np
+
+from qsim_cpp import ForwardDynamicsMode
+
 from irs_mpc.irs_mpc_params import BundleMode
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.reachable_set import ReachableSet
@@ -55,7 +59,8 @@ class IrsRrt(Rrt):
             q_model_path=params.q_model_path,
             internal_viz=True)
         self.q_dynamics.update_default_sim_params(
-            log_barrier_weight=params.log_barrier_weight_for_bundling)
+            log_barrier_weight=params.log_barrier_weight_for_bundling,
+            forward_mode=ForwardDynamicsMode.kSocpMp)
         self.params = self.load_params(params)
         self.reachable_set = ReachableSet(self.q_dynamics, params)
         self.max_size = params.max_size
@@ -85,18 +90,22 @@ class IrsRrt(Rrt):
     def make_from_pickled_tree(tree: networkx.DiGraph):
         # Factory method for making an IrsRrt object from a pickled tree.
         irs_rrt_param = tree.graph['irs_rrt_params']
-        irs_rrt = IrsRrt(irs_rrt_param)
-        irs_rrt.graph = tree
+        prob_rrt = IrsRrt(irs_rrt_param)
+        prob_rrt.graph = tree
+        prob_rrt.size = tree.number_of_nodes()
+
+        prob_rrt.q_dynamics.update_default_sim_params(
+            **tree.graph['q_sim_params'])
 
         for i_node in tree.nodes:
             node = tree.nodes[i_node]["node"]
-            irs_rrt.Bhat_tensor[i_node] = node.Bhat
-            irs_rrt.covinv_tensor[i_node] = node.covinv
-            irs_rrt.chat_matrix[i_node] = node.chat
-            irs_rrt.covinv_u_tensor[i_node] = node.covinv_u
-            irs_rrt.q_matrix[i_node] = node.q
+            prob_rrt.Bhat_tensor[i_node] = node.Bhat
+            prob_rrt.covinv_tensor[i_node] = node.covinv
+            prob_rrt.chat_matrix[i_node] = node.chat
+            prob_rrt.covinv_u_tensor[i_node] = node.covinv_u
+            prob_rrt.q_matrix[i_node] = node.q
 
-        return irs_rrt
+        return prob_rrt
 
     def load_params(self, params: IrsRrtParams):
         for key in params.joint_limits.keys():
@@ -326,16 +335,122 @@ class IrsRrt(Rrt):
         picklable_params_dict = {key: copy.deepcopy(value)
                                  for key, value in self.params.__dict__.items()
                                  if key != "joint_limits"}
-        hashable_joint_limits = {
+        model_name_to_joint_limits_map = {
             self.q_dynamics.plant.GetModelInstanceName(model):
                 copy.deepcopy(value)
             for model, value in self.params.joint_limits.items()}
-        picklable_params_dict['joint_limits'] = hashable_joint_limits
+        picklable_params_dict['joint_limits'] = model_name_to_joint_limits_map
 
         picklable_params = IrsRrtParams(None, None)
         for key, value in picklable_params_dict.items():
             setattr(picklable_params, key, value)
 
+        # QuasistaticSimParams
+        pickable_q_sim_params = {}
+        q_sim_params = self.q_dynamics.q_sim_params_default
+        for name in q_sim_params.__dir__():
+            if name.startswith('_'):
+                continue
+            pickable_q_sim_params[name] = getattr(q_sim_params, name)
+
         self.graph.graph['irs_rrt_params'] = picklable_params
+        self.graph.graph['goal_node_id'] = self.goal_node_idx
+        self.graph.graph['q_sim_params'] = pickable_q_sim_params
         with open(filename, 'wb') as f:
             pickle.dump(self.graph, f)
+
+    def get_u_knots_from_node_idx_path(self, node_idx_path: List[int]):
+        n = len(node_idx_path)
+        u_knots = np.zeros((n - 1, self.q_dynamics.dim_u))
+        for i in range(n - 1):
+            id_node0 = node_idx_path[i]
+            id_node1 = node_idx_path[i + 1]
+            u_knots[i] = self.graph.edges[id_node0, id_node1]['edge'].u
+
+        return u_knots
+
+    @staticmethod
+    def trim_regrasps(u_knots: np.ndarray):
+        """
+        @param u_knots: (T, dim_u).
+        A regrasp in RRT has an associated action u consisitng of nans. When
+         there are more than one consecutive nans in u_knots, we trim u_knots so
+         that
+         1. If there are more than one consecutive nans, only keep the last one.
+         2. Remove all trailing nans.
+        @return bool array of shape (T + 1,), entry t indicates whether the t-th
+         entry in the original state path is kept. Note that there is 1 more
+         entry in the state trajectory than in the action trajectory.
+        """
+        T = len(u_knots)
+        node_idx_path_to_keep = np.ones(T + 1, dtype=bool)
+        node_idx_path_to_keep[0] = True  # keep root
+        for t in range(T):
+            is_t_nan = any(np.isnan(u_knots[t]))
+            if t == T - 1:
+                is_t1_nan = True
+            else:
+                is_t1_nan = any(np.isnan(u_knots[t + 1]))
+
+            if is_t_nan:
+                if is_t1_nan:
+                    node_idx_path_to_keep[t + 1] = False
+                else:
+                    node_idx_path_to_keep[t + 1] = True
+            else:
+                node_idx_path_to_keep[t + 1] = True
+
+        return node_idx_path_to_keep
+
+    def get_q_and_u_knots_to_goal(self):
+        node_id_closest = self.find_node_closest_to_goal().id
+
+        node_idx_path = self.trace_nodes_to_root_from(node_id_closest)
+        node_idx_path = np.array(node_idx_path)
+
+        q_knots = self.q_matrix[node_idx_path]
+        u_knots = self.get_u_knots_from_node_idx_path(node_idx_path)
+
+        return q_knots, u_knots
+
+    def get_trimmed_q_and_u_knots_to_goal(self):
+        """
+        This function does three things:
+            1. Finds the node closest to the goal according to the local
+                distance metric,
+            2. Traces a path from the node to the root of the tree.
+            3. Trims the path of consecutive re-grasps.
+
+        The returned q_knots_trimmed has shape (T + 1, dim_x),
+         and u_knots_trimmed (T, dim_u).
+        """
+        q_knots, u_knots = self.get_q_and_u_knots_to_goal()
+
+        node_idx_path_to_keep = self.trim_regrasps(u_knots)
+        q_knots_trimmed = q_knots[node_idx_path_to_keep]
+        u_knots_trimmed = u_knots[node_idx_path_to_keep[1:]]
+
+        return q_knots_trimmed, u_knots_trimmed
+
+    @staticmethod
+    def get_regrasp_segments(u_knots_trimmed: np.ndarray):
+        """
+        @param u_knots_trimmed: (T, dim_u) is a 2D array punctuated by rows
+         of nans, which indicate regrasps.
+        Returns a list of 2-tuples. Both integers in a tuple are indices into
+         q_knots_trimmed. The first and second integer in each tuple are the
+         indices of the first and last element in a segment of q.
+        """
+        T = len(u_knots_trimmed)
+        segments = []
+        t_start = 0
+        for t in range(T):
+            if np.isnan(u_knots_trimmed[t, 0]):
+                segments.append((t_start, t))
+                t_start = t + 1
+
+            if t == T - 1:
+                segments.append((t_start, t + 1))
+
+        return segments
+

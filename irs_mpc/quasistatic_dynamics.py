@@ -1,3 +1,4 @@
+import copy
 from typing import Dict, Set, Union
 import os
 
@@ -218,7 +219,7 @@ class QuasistaticDynamics:
             x_trj[t + 1, :] = self.dynamics(x_trj[t, :], u_trj[t, :])
         return x_trj
 
-    def dynamics_more_steps(self, x: np.ndarray, u: np.ndarray,
+    def dynamics_multi_step(self, x: np.ndarray, u: np.ndarray,
                             n_steps: int):
         """
         Instead of commanding u in one step self.h, this function
@@ -229,30 +230,16 @@ class QuasistaticDynamics:
         :param u: commanded positions of models in
             self.q_sim.models_actuated, concatenated into one vector.
         """
-        q_dict = self.get_q_dict_from_x(x)
-        self.q_sim.update_mbp_positions(q_dict)
 
-        u0 = self.get_u_from_q_cmd_dict(q_dict)
-        u_traj = PiecewisePolynomial.FirstOrderHold(
-            [0, self.h / 2, self.h], np.vstack([u0, u, u]).T)
-        h_small = self.h / n_steps
+        sim_params = copy.deepcopy(self.q_sim_params_default)
+        sim_params.h /= n_steps
+        sim_params.gradient_mode = GradientMode.kNone
+        sim_params.unactuated_mass_scale = 5
 
-        sp = self.q_sim.get_sim_params()
+        for t in range(n_steps):
+            x = self.q_sim.calc_dynamics(x, u, sim_params)
 
-        for i in range(1, n_steps + 1):
-            t = i / n_steps * self.h
-            u_t = u_traj.value(t).ravel()
-            qa_dict = self.get_q_a_cmd_dict_from_u(u_t)
-            tau_ext_dict = self.q_sim.calc_tau_ext([])
-
-            self.q_sim.step(
-                qa_dict, tau_ext_dict, h_small,
-                self.q_sim_py.sim_params.contact_detection_tolerance,
-                requires_grad=False,
-                unactuated_mass_scale=sp.unactuated_mass_scale)
-
-        q_next_dict = self.q_sim.get_mbp_positions()
-        return self.get_x_from_q_dict(q_next_dict)
+        return x
 
     def jacobian_xu(self, x, u):
         AB = np.zeros((self.dim_x, self.dim_x + self.dim_u))

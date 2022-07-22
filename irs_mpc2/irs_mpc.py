@@ -3,10 +3,11 @@ from typing import Dict, List
 
 import numpy as np
 import matplotlib.pyplot as plt
-from pydrake.all import ModelInstanceIndex, GurobiSolver
+from pydrake.all import ModelInstanceIndex, GurobiSolver, PiecewisePolynomial
 
 from qsim.parser import QuasistaticParser
-from qsim_cpp import QuasistaticSimulatorCpp, ForwardDynamicsMode, GradientMode
+from qsim_cpp import (QuasistaticSimulatorCpp, ForwardDynamicsMode,
+                      GradientMode, QuasistaticSimParameters)
 
 from .irs_mpc_params import (IrsMpcQuasistaticParameters, SmoothingMode,
                              kSmoothingMode2ForwardDynamicsModeMap,
@@ -19,13 +20,18 @@ class IrsMpcQuasistatic:
     def __init__(self,
                  q_sim: QuasistaticSimulatorCpp,
                  parser: QuasistaticParser,
-                 params: IrsMpcQuasistaticParameters):
+                 params: IrsMpcQuasistaticParameters,
+                 q_vis: QuasistaticVisualizer = None):
         self.irs_mpc_params = params
         self.parser = parser
         self.q_sim = q_sim
         self.q_sim_batch = parser.make_batch_simulator()
-        self.vis = QuasistaticVisualizer(q_parser=self.parser,
-                                         q_sim=self.q_sim)
+        if q_vis:
+            self.q_vis = q_vis
+        else:
+            self.q_vis = QuasistaticVisualizer(
+                q_sim=q_sim,
+                q_sim_py=parser.make_simulator_py(internal_vis=True))
         self.plant = self.q_sim.get_plant()
         self.solver = GurobiSolver()
 
@@ -412,6 +418,38 @@ class IrsMpcQuasistatic:
             
         return x_trj
 
+    @staticmethod
+    def rollout_smaller_steps(x0: np.ndarray, u_trj: np.ndarray,
+                              h_small: float, n_steps_per_h: int,
+                              q_sim: QuasistaticSimulatorCpp,
+                              sim_params: QuasistaticSimParameters):
+        T = len(u_trj)
+        sim_params.h = h_small
+
+        q_trj_small = np.zeros((T * n_steps_per_h + 1, len(x0)))
+        q_trj_small[0] = x0
+        u_trj_small = IrsMpcQuasistatic.calc_u_trj_small(
+            u_trj, h_small, n_steps_per_h)
+        for t in range(n_steps_per_h * T):
+            q_trj_small[t + 1] = q_sim.calc_dynamics(
+                q_trj_small[t], u_trj_small[t], sim_params)
+
+        return q_trj_small, u_trj_small
+
+    @staticmethod
+    def calc_u_trj_small(u_trj: np.ndarray, h_small: float,
+                         n_steps_per_h: int):
+        T = len(u_trj)
+        # Note! PiecewisePolynomial.ZeroOrderHold ignores the last knot point.
+        # So we need to append a useless row.
+        t_trj = np.arange(T + 1) * h_small * n_steps_per_h
+        u_trj_poly = PiecewisePolynomial.ZeroOrderHold(
+            t_trj, np.vstack([u_trj, np.zeros(u_trj.shape[1])]).T)
+
+        return np.array(
+            [u_trj_poly.value(h_small * (t + 0.01)).squeeze()
+             for t in range(n_steps_per_h * T)])
+
     def iterate(self, max_iterations: int, cost_Qu_f_threshold: float = 0):
         """
         Terminates after the trajectory cost is less than cost_threshold or
@@ -447,8 +485,6 @@ class IrsMpcQuasistatic:
             if (self.current_iter >= max_iterations
                     or cost_Qu_final < cost_Qu_f_threshold):
                 break
-
-
 
             x_trj, u_trj = self.local_descent(x_trj)
             self.current_iter += 1

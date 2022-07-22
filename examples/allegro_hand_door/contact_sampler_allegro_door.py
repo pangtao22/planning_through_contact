@@ -70,7 +70,7 @@ class AllegroHandPlateContactSampler(ContactSampler):
             tau_ext_dict = self.q_sim.calc_tau_ext([])
 
             sim_params = self.q_sim.get_sim_params()
-            sim_params.unactuated_mass_scale = 0
+            sim_params.unactuated_mass_scale = 1e-4
             sim_params.gradient_mode = GradientMode.kNone
 
             self.q_sim.step(

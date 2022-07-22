@@ -102,7 +102,7 @@ t1 = time.time()
 print(f"iterate took {t1 - t0} seconds.")
 
 # %% visualize goal.
-q_sim_py = prob_mpc.vis.q_sim_py
+q_sim_py = prob_mpc.q_vis.q_sim_py
 AddTriad(
     vis=q_sim_py.viz.vis,
     name='frame',
@@ -127,7 +127,7 @@ q_sim_py.viz.vis['goal'].set_transform(
 x_trj_to_publish = prob_mpc.rollout(
     x0=x0, u_trj=prob_mpc.u_trj_best, forward_mode=ForwardDynamicsMode.kSocpMp)
 
-prob_mpc.vis.publish_trajectory(x_trj_to_publish, h)
+prob_mpc.q_vis.publish_trajectory(x_trj_to_publish, h)
 q_dict_final = q_sim.get_q_dict_from_vec(x_trj_to_publish[-1])
 q_u_final = q_dict_final[idx_u]
 p_WB_f = q_u_final[4:]
@@ -146,7 +146,7 @@ prob_mpc.plot_costs()
 #     f.write(res)
 
 #%%
-q_viz = prob_mpc.vis
+q_viz = prob_mpc.q_vis
 q_viz.render_trajectory(
     x_traj_knots=x_trj_to_publish, h=h,
     folder_path="/home/amazon/PycharmProjects/video_images")

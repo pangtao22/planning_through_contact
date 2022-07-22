@@ -19,7 +19,8 @@ from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 from allegro_hand_setup import *
 
 #%% sim setup
-T = int(round(2 / h))  # num of time steps to simulate forward.
+h = 0.02
+T = int(round(1 / h))  # num of time steps to simulate forward.
 duration = T * h
 
 # quasistatic dynamical system
@@ -57,7 +58,7 @@ for model in q_dynamics.models_unactuated:
 params.R_dict = {idx_a: 10 * np.ones(dim_u)}
 params.T = T
 
-u_size = 1.0
+u_size = 5.0
 params.u_bounds_abs = np.array([
     -np.ones(dim_u) * u_size * h, np.ones(dim_u) * u_size * h])
 
@@ -79,7 +80,7 @@ irs_mpc = IrsMpcQuasistatic(q_dynamics=q_dynamics, params=params)
 
 
 #%%
-Q_WB_d = RollPitchYaw(0, 0, np.pi / 4).ToQuaternion()
+Q_WB_d = RollPitchYaw(0, 0, np.pi / 6).ToQuaternion()
 p_WB_d = q_u0[4:] + np.array([0, 0, 0], dtype=float)
 q_d_dict = {idx_u: np.hstack([Q_WB_d.wxyz(), p_WB_d]),
             idx_a: q_a0}
@@ -134,10 +135,6 @@ print()
 #%% plot different components of the cost for all iterations.
 irs_mpc.plot_costs()
 
-#%% save visualization.
-# res = q_dynamics.q_sim_py.viz.vis.static_html()
-# with open("allegro_hand_irs_lqr_60_degrees_rotation.html", "w") as f:
-#     f.write(res)
-
-
+#%%
+irs_mpc
 

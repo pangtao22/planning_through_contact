@@ -6,6 +6,8 @@ from irs_rrt.irs_rrt_projection import IrsRrtProjection
 from irs_rrt.rrt_params import IrsRrtProjectionParams
 from planar_hand_setup import *
 
+from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
+
 # %% quasistatic dynamical system
 q_dynamics = QuasistaticDynamics(h=h,
                                  q_model_path=q_model_path,
@@ -31,13 +33,13 @@ joint_limits = {
 
 # %% RRT testing
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
-params.bundle_mode = BundleMode.kFirstRandomized
+params.bundle_mode = BundleMode.kFirstAnalytic
 params.log_barrier_weight_for_bundling = 100
 params.root_node = IrsNode(x0)
 params.max_size = 2000
 params.goal = np.copy(x0)
 params.goal[2] = np.pi
-params.termination_tolerance = 0.0
+params.termination_tolerance = 0.01
 params.goal_as_subgoal_prob = 0.1
 params.regularization = 1e-4
 params.rewire = False
@@ -48,21 +50,26 @@ params.distance_metric = 'local_u'
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 10.0, 10.0, 1.0])
 
-for i in range(5):
-    irs_rrt = IrsRrtProjection(params, contact_sampler)
-    irs_rrt.iterate()
 
-    d_batch = irs_rrt.calc_distance_batch(params.goal)
-    print("minimum distance: ", d_batch.min())
+prob_rrt = IrsRrtProjection(params, contact_sampler)
+prob_rrt.iterate()
 
-    # %%
-    irs_rrt.save_tree(os.path.join(
-        data_folder,
-        "randomized",
-        f"tree_{params.max_size}_{i}.pkl"))
+d_batch = prob_rrt.calc_distance_batch(params.goal)
+print("minimum distance: ", d_batch.min())
+
+#%%
+node_id_closest = np.argmin(d_batch)
+
 
 
 # %%
-# cProfile.runctx('irs_rrt.iterate()',
-#                  globals=globals(), locals=locals(),
-#                  filename='irs_rrt_profile.stat')
+prob_rrt.save_tree(os.path.join(
+    data_folder,
+    "randomized",
+    f"tree_{params.max_size}_{i}.pkl"))
+
+
+
+
+
+

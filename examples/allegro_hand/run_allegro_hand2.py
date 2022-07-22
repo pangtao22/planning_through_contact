@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+import copy
 import time
+import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -18,10 +20,10 @@ from irs_mpc2.irs_mpc_params import (SmoothingMode, IrsMpcQuasistaticParameters)
 from allegro_hand_setup import *
 
 #%% sim setup
-h = 0.1
+h = 0.01
 T = 20  # num of time steps to simulate forward.
 duration = T * h
-max_iterations = 10
+max_iterations = 15
 
 # quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path)
@@ -59,7 +61,7 @@ for model in q_sim.get_unactuated_models():
 
 params.R_dict = {idx_a: 10 * np.ones(dim_u)}
 
-u_size = 1.0
+u_size = 4.0
 params.u_bounds_abs = np.array([
     -np.ones(dim_u) * u_size * h, np.ones(dim_u) * u_size * h])
 
@@ -70,7 +72,7 @@ params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
 params.num_samples = 100
 # analytic bundling
-params.log_barrier_weight_initial = 100
+params.log_barrier_weight_initial = 200
 log_barrier_weight_final = 6000
 base = np.log(
     log_barrier_weight_final / params.log_barrier_weight_initial) \
@@ -86,7 +88,7 @@ prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
 
 
 #%%
-Q_WB_d = RollPitchYaw(0, 0, np.pi / 4).ToQuaternion()
+Q_WB_d = RollPitchYaw(0, 0, np.pi / 6).ToQuaternion()
 p_WB_d = q_u0[4:] + np.array([0, 0, 0], dtype=float)
 q_d_dict = {idx_u: np.hstack([Q_WB_d.wxyz(), p_WB_d]),
             idx_a: q_a0}
@@ -105,7 +107,7 @@ t1 = time.time()
 print(f"iterate took {t1 - t0} seconds.")
 
 #%% visualize goal.
-q_sim_py = prob_mpc.vis.q_sim_py
+q_sim_py = prob_mpc.q_vis.q_sim_py
 AddTriad(
     vis=q_sim_py.viz.vis,
     name='frame',
@@ -130,7 +132,7 @@ q_sim_py.viz.vis['goal'].set_transform(
 x_trj_to_publish = prob_mpc.rollout(
     x0=x0, u_trj=prob_mpc.u_trj_best, forward_mode=ForwardDynamicsMode.kSocpMp)
 
-prob_mpc.vis.publish_trajectory(x_trj_to_publish, h)
+prob_mpc.q_vis.publish_trajectory(x_trj_to_publish, h)
 q_dict_final = q_sim.get_q_dict_from_vec(x_trj_to_publish[-1])
 q_u_final = q_dict_final[idx_u]
 p_WB_f = q_u_final[4:]
@@ -142,8 +144,57 @@ print()
 
 #%% plot different components of the cost for all iterations.
 prob_mpc.plot_costs()
+prob_mpc.q_vis.publish_trajectory(prob_mpc.x_trj_best, h)
 
-#%% save visualization.
-# res = q_dynamics.q_sim_py.viz.vis.static_html()
-# with open("allegro_hand_irs_lqr_60_degrees_rotation.html", "w") as f:
-#     f.write(res)
+
+
+# assert False
+
+#%% save trajectories
+things_to_save = {"x_trj": prob_mpc.x_trj_best, "u_trj": prob_mpc.u_trj_best}
+with open("hand_trj.pkl", "wb") as f:
+    pickle.dump(things_to_save, f)
+
+
+
+#%%
+u_trj_best = prob_mpc.u_trj_best
+q_trj_best = prob_mpc.x_trj_best
+
+q_trj_computed = np.zeros_like(q_trj_best)
+q_trj_computed[0] = q_trj_best[0]
+
+for t in range(T):
+    q_trj_computed[t + 1] = prob_mpc.q_sim.calc_dynamics(
+        q_trj_computed[t], u_trj_best[t], prob_mpc.sim_params_rollout)
+
+
+print(q_trj_computed - q_trj_best)
+
+#%% reduce hydro-planing with smaller time steps.
+from pydrake.all import PiecewisePolynomial
+t_trj = np.arange(T) * h
+u_trj_poly = PiecewisePolynomial.ZeroOrderHold(t_trj, u_trj_best.T)
+
+h_small = 0.01
+N = int(h / h_small)
+
+q_trj_small = np.zeros((T * N + 1, prob_mpc.dim_x))
+q_trj_small[0] = q_trj_best[0]
+
+sim_params_small = copy.deepcopy(prob_mpc.sim_params_rollout)
+sim_params_small.h = h_small
+sim_params_small.unactuated_mass_scale = np.nan
+
+for t in range(N * T):
+    q_trj_small[t + 1] = prob_mpc.q_sim.calc_dynamics(
+        q_trj_small[t], u_trj_poly.value(h_small * t).squeeze(),
+        sim_params_small)
+
+
+#%%
+prob_mpc.q_vis.publish_trajectory(q_trj_small[::N], h)
+
+#%%
+np.linalg.norm(q_trj_small[:N] - q_trj_small[N], axis=1)
+

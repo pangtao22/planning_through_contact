@@ -76,8 +76,8 @@ params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.2
 params.num_samples = 100
 # analytic bundling
-params.log_barrier_weight_initial = 100
-log_barrier_weight_final = 3000
+params.log_barrier_weight_initial = 500
+log_barrier_weight_final = 1000
 base = np.log(
     log_barrier_weight_final / params.log_barrier_weight_initial) / T
 base = np.exp(base)
@@ -105,18 +105,29 @@ x_trj_d = np.tile(xd, (T + 1, 1))
 u_trj_0 = np.tile(u0, (T, 1))
 prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 
-# %%
-t0 = time.time()
-prob_mpc.iterate(max_iterations=20, cost_Qu_f_threshold=1.0)
-t1 = time.time()
+# # %%
+# t0 = time.time()
+# prob_mpc.iterate(max_iterations=20, cost_Qu_f_threshold=0.)
+# t1 = time.time()
+# 
+# print(f"iterate took {t1 - t0} seconds.")
+#
+# # %% plot different components of the cost for all iterations.
+# prob_mpc.plot_costs()
+#
+# # %%
+# x_traj_to_publish = prob_mpc.x_trj_best
+# prob_mpc.q_vis.publish_trajectory(x_traj_to_publish, h=h)
+# print('x_goal:', xd)
+# print('x_final:', x_traj_to_publish[-1])
 
-print(f"iterate took {t1 - t0} seconds.")
 
-# %% plot different components of the cost for all iterations.
-prob_mpc.plot_costs()
+#%%
+n_runs = 5
+costs = np.zeros((n_runs, 21))
+for i in range(n_runs):
+    prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
+    prob_mpc.iterate(max_iterations=20, cost_Qu_f_threshold=0.)
+    prob_mpc.plot_costs()
+    costs[i] = prob_mpc.cost_all_list
 
-# %%
-x_traj_to_publish = prob_mpc.x_trj_best
-prob_mpc.vis.publish_trajectory(x_traj_to_publish, h=h)
-print('x_goal:', xd)
-print('x_final:', x_traj_to_publish[-1])
