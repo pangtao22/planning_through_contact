@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import copy
 import time
+import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -20,7 +21,7 @@ from allegro_hand_setup import *
 
 #%% sim setup
 h = 0.01
-T = 40  # num of time steps to simulate forward.
+T = 20  # num of time steps to simulate forward.
 duration = T * h
 max_iterations = 15
 
@@ -60,7 +61,7 @@ for model in q_sim.get_unactuated_models():
 
 params.R_dict = {idx_a: 10 * np.ones(dim_u)}
 
-u_size = 10.0
+u_size = 4.0
 params.u_bounds_abs = np.array([
     -np.ones(dim_u) * u_size * h, np.ones(dim_u) * u_size * h])
 
@@ -71,7 +72,7 @@ params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
 params.num_samples = 100
 # analytic bundling
-params.log_barrier_weight_initial = 100
+params.log_barrier_weight_initial = 200
 log_barrier_weight_final = 6000
 base = np.log(
     log_barrier_weight_final / params.log_barrier_weight_initial) \
@@ -87,7 +88,7 @@ prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
 
 
 #%%
-Q_WB_d = RollPitchYaw(0, 0, np.pi / 3).ToQuaternion()
+Q_WB_d = RollPitchYaw(0, 0, np.pi / 6).ToQuaternion()
 p_WB_d = q_u0[4:] + np.array([0, 0, 0], dtype=float)
 q_d_dict = {idx_u: np.hstack([Q_WB_d.wxyz(), p_WB_d]),
             idx_a: q_a0}
@@ -106,7 +107,7 @@ t1 = time.time()
 print(f"iterate took {t1 - t0} seconds.")
 
 #%% visualize goal.
-q_sim_py = prob_mpc.vis.q_sim_py
+q_sim_py = prob_mpc.q_vis.q_sim_py
 AddTriad(
     vis=q_sim_py.viz.vis,
     name='frame',
@@ -144,13 +145,18 @@ print()
 #%% plot different components of the cost for all iterations.
 prob_mpc.plot_costs()
 prob_mpc.q_vis.publish_trajectory(prob_mpc.x_trj_best, h)
-#%% save visualization.
-# res = q_dynamics.q_sim_py.viz.vis.static_html()
-# with open("allegro_hand_irs_lqr_60_degrees_rotation.html", "w") as f:
-#     f.write(res)
 
 
-assert False
+
+# assert False
+
+#%% save trajectories
+things_to_save = {"x_trj": prob_mpc.x_trj_best, "u_trj": prob_mpc.u_trj_best}
+with open("hand_trj.pkl", "wb") as f:
+    pickle.dump(things_to_save, f)
+
+
+
 #%%
 u_trj_best = prob_mpc.u_trj_best
 q_trj_best = prob_mpc.x_trj_best

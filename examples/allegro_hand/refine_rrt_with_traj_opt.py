@@ -25,7 +25,7 @@ from allegro_hand_setup import robot_name, object_name
 #%%
 pickled_tree_path = os.path.join(
     os.path.dirname(irs_rrt.__file__), '..',
-    'examples', 'allegro_hand', "tree_1000_analytic_0.pkl")
+    'examples', 'allegro_hand', "tree_1000_0.pkl")
 
 # pickled_tree_path = "ptc_data/allegro_hand/analytic/tree_1000_0.pkl"
 
@@ -130,7 +130,7 @@ params.Qd_dict = {}
 for model in q_sim.get_actuated_models():
     params.Qd_dict[model] = params.Q_dict[model]
 for model in q_sim.get_unactuated_models():
-    params.Qd_dict[model] = params.Q_dict[model] * 100
+    params.Qd_dict[model] = params.Q_dict[model] * 200
 
 params.R_dict = {idx_a: 10 * np.ones(dim_u)}
 
@@ -198,13 +198,13 @@ def project_to_non_penetration(q: np.ndarray):
 q_trj_optimized_list = []
 u_trj_optimized_list = []
 
-n_steps_per_h = 1
+
 sub_segments = segments[0:]
-time_start = time.time()
+# time_start = time.time()
 for i_s, (t_start, t_end) in enumerate(sub_segments):
     u_trj = u_knots_trimmed[t_start: t_end]
     q_trj = q_knots_trimmed[t_start: t_end + 1]
-    # prob_mpc.q_vis.publish_trajectory(q_trj, prob_rrt.params.h)
+    prob_mpc.q_vis.publish_trajectory(q_trj, prob_rrt.params.h)
 
     q0 = np.array(q_trj[0])
     if len(q_trj_optimized_list) > 0:
@@ -214,7 +214,7 @@ for i_s, (t_start, t_end) in enumerate(sub_segments):
         q0 = project_to_non_penetration(q0)
         print('qu0 after projection', q0[indices_q_u_into_x])
 
-    # input("Original trajectory segment shown. Press any key to optimize...")
+    input("Original trajectory segment shown. Press any key to optimize...")
 
     if len(u_trj) < 3:
         n_steps_per_h = 5
@@ -231,12 +231,12 @@ for i_s, (t_start, t_end) in enumerate(sub_segments):
     q_trj_optimized_list.append(q_trj_optimized)
     u_trj_optimized_list.append(u_trj_optimized)
 
-    # prob_mpc.plot_costs()
-    # prob_mpc.q_vis.publish_trajectory(q_trj_optimized, h_small)
-    # input("Optimized trajectory shown. Press any key to go to the next segment")
+    prob_mpc.plot_costs()
+    prob_mpc.q_vis.publish_trajectory(q_trj_optimized, h_small)
+    input("Optimized trajectory shown. Press any key to go to the next segment")
 
-time_end = time.time()
-print(f"Refinement took {time_end - time_start} seconds.")
+# time_end = time.time()
+# print(f"Refinement took {time_end - time_start} seconds.")
 
 #%%
 def concatenate_traj_list(q_trj_list: List[np.ndarray]):
@@ -286,12 +286,36 @@ def trim_trajectory(q_trj: np.ndarray, angle_threshold: float = 1e-3,
 
 print("Trimming optimized trajectory segments")
 q_trj_optimized_trimmed_list = []
-for q_trj in q_trj_optimized_list:
+u_trj_optimized_trimmed_list = []
+for q_trj, u_trj in zip(q_trj_optimized_list, u_trj_optimized_list):
     t = trim_trajectory(q_trj)
     print(f"{t} / {len(q_trj)}")
     q_trj_optimized_trimmed_list.append(q_trj[:t+1])
+    u_trj_optimized_trimmed_list.append(u_trj[:t])
 
 
 q_trj_optimized_trimmed_all = concatenate_traj_list(
     q_trj_optimized_trimmed_list)
 prob_mpc.q_vis.publish_trajectory(q_trj_optimized_trimmed_all, 0.1)
+
+#%%
+with open("hand_optimized_q_and_u_trj.pkl", 'wb') as f:
+    pickle.dump({"q_trj_list": q_trj_optimized_trimmed_list,
+                 "u_trj_list": u_trj_optimized_trimmed_list,
+                 "h_small": h_small}, f)
+
+
+#%%
+prob_mpc.q_vis.meshcat_vis['/Cameras/default'].set_transform(
+    RigidTransform(RollPitchYaw(0, 0, 0), [-0.25, 0.2, 0.25]).GetAsMatrix4())
+prob_mpc.q_vis.meshcat_vis['/Cameras/default/rotated/<object>'].set_property(
+    "position", [-0.05, 0, 0.05])
+prob_mpc.q_vis.meshcat_vis['/Grid'].delete()
+prob_mpc.q_vis.meshcat_vis['/Axes'].delete()
+
+
+#%%
+res = prob_mpc.q_vis.meshcat_vis.static_html()
+# save to a file
+with open("allegro_hand.html", "w") as f:
+    f.write(res)

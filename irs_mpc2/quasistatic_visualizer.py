@@ -181,13 +181,13 @@ class QuasistaticVisualizer:
         cf_knots_map_reduced = {}
         for key, cf in cf_knots_map.items():
             n_forces = cf.shape[0]
-            assert (n_forces - 1) % stride == 0
-            T = (n_forces - 1) // stride
+            assert n_forces % stride == 0
+            T = n_forces // stride
 
-            cf_reduced = np.zeros((T + 1, 3))
+            cf_reduced = np.zeros((T, 3))
             for t in range(T):
-                i_start = 1 + t * stride
-                cf_reduced[t + 1] = np.mean(
+                i_start = t * stride
+                cf_reduced[t] = np.mean(
                     cf[i_start: i_start + stride], axis=0)
 
             cf_knots_map_reduced[key] = cf_reduced
@@ -197,7 +197,7 @@ class QuasistaticVisualizer:
     def render_trajectory(self, x_traj_knots: np.ndarray, h: float,
                           folder_path: str, fps: int = 60,
                           contact_results_list: List[ContactResults] = None,
-                          stride: int = None):
+                          stride: int = 1):
         """
         Saves rendered frames to folder_path.
         """

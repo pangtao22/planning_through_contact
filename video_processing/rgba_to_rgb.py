@@ -13,6 +13,9 @@ frames_folder_rgba = os.path.join(
 frames_folder_rgb = os.path.join(
     frames_folder_prefix, "allegro_rgb_0")
 
+if not os.path.exists(frames_folder_rgb):
+    os.mkdir(frames_folder_rgb)
+
 files = [os.path.join(
     frames_folder_rgba, p) for p in os.listdir(frames_folder_rgba)]
 
