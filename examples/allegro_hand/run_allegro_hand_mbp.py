@@ -13,9 +13,7 @@ from qsim.model_paths import models_dir, add_package_paths_local
 from robotics_utilities.iiwa_controller.robot_internal_controller import (
     RobotInternalController)
 
-from allegro_hand_setup import robot_name
-q_model_path = os.path.join(models_dir, 'q_sys',
-                            'allegro_hand_and_sphere_hardware.yml')
+from allegro_hand_setup import robot_name, q_model_path_hardware
 
 
 def create_allegro_controller_plant(gravity):
@@ -50,7 +48,7 @@ u_knots_planned = trj_dict["u_trj"]
 
 
 #%%
-q_parser = QuasistaticParser(q_model_path)
+q_parser = QuasistaticParser(q_model_path_hardware)
 gravity = q_parser.get_gravity()
 
 plant_allegro = create_allegro_controller_plant(gravity=gravity)
