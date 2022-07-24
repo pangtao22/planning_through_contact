@@ -70,7 +70,6 @@ class MeshcatJointSliders(LeafSystem):
             self.copy_allegro_cmd_out)
         self.allego_stats_msg = None
 
-
         def _broadcast(x, num):
             x = np.array(x)
             assert len(x.shape) <= 1
@@ -130,6 +129,11 @@ class MeshcatJointSliders(LeafSystem):
                 self.sliders[slider_num] = description
                 slider_num += 1
 
+        # Add button for changing the color of the controlled hand.
+        self.button_name = "Golden Hand"
+        self.meshcat.AddButton(self.button_name)
+        self.n_clicks = self.meshcat.GetButtonClicks(self.button_name)
+
         self.plant.SetPositions(self.plant_context, self.model_real, positions)
         self.plant.SetPositions(self.plant_context, self.model_cmd, positions)
         self.visualizer.Publish(self.vis_context)
@@ -155,6 +159,13 @@ class MeshcatJointSliders(LeafSystem):
         if self.allego_stats_msg is None:
             # "Initialization" of slider and golden hand.
             self.set_slider_values(status_msg.joint_position_measured)
+
+        # update button
+        n_clicks_new = self.meshcat.GetButtonClicks(self.button_name)
+        if n_clicks_new != self.n_clicks:
+            meshcat.SetProperty("/drake/visualizer/allegro_cmd", "color",
+                                [1, 0.84, 0., 0.7])
+            self.n_clicks = n_clicks_new
 
         self.allego_stats_msg = status_msg
         positions = status_msg.joint_position_measured
