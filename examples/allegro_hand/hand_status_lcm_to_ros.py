@@ -9,11 +9,11 @@ JOINT_STATE_TOPIC = '/allegroHand/joint_states'
 lc = lcm.LCM()
 
 
-class Sub:
+class AllegroStatusSubscriber:
     def __init__(self):
         self.allegro_state = JointState()
         rospy.Subscriber(JOINT_STATE_TOPIC, JointState, self.callback)
-        rospy.init_node('hand_state_to_lcm')
+        rospy.init_node('allegro_status_to_lcm')
 
     def callback(self, msg: JointState):
         self.allegro_state = msg
@@ -34,6 +34,6 @@ class Sub:
 
 
 if __name__ == "__main__":
-    sub = Sub()
+    sub = AllegroStatusSubscriber()
     rospy.spin()
 

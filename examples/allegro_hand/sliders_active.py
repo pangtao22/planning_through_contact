@@ -68,7 +68,7 @@ class MeshcatJointSliders(LeafSystem):
         self.cmd_output_port = self.DeclareAbstractOutputPort(
             "allegro_cmd", lambda: AbstractValue.Make(lcmt_allegro_command()),
             self.copy_allegro_cmd_out)
-        self.allego_stats_msg = None
+        self.allegro_stats_msg = None
 
         def _broadcast(x, num):
             x = np.array(x)
@@ -129,6 +129,9 @@ class MeshcatJointSliders(LeafSystem):
                 self.sliders[slider_num] = description
                 slider_num += 1
 
+        self.lower_limits = lower_limit
+        self.upper_limits = upper_limit
+
         # Add button for changing the color of the controlled hand.
         self.button_name = "Golden Hand"
         self.meshcat.AddButton(self.button_name)
@@ -150,13 +153,16 @@ class MeshcatJointSliders(LeafSystem):
 
     def copy_allegro_cmd_out(self, context, output):
         msg = output.get_value()
-        msg.utime = self.allego_stats_msg.utime
+        msg.utime = self.allegro_stats_msg.utime
+        positions = self.get_slider_values()
+        msg.num_joints = len(positions)
+        msg.joint_position = positions
 
     def DoPublish(self, context, event):
         super().DoPublish(context, event)
         status_msg = self.EvalAbstractInput(context, 0).get_value()
 
-        if self.allego_stats_msg is None:
+        if self.allegro_stats_msg is None:
             # "Initialization" of slider and golden hand.
             self.set_slider_values(status_msg.joint_position_measured)
 
@@ -167,7 +173,7 @@ class MeshcatJointSliders(LeafSystem):
                                 [1, 0.84, 0., 0.7])
             self.n_clicks = n_clicks_new
 
-        self.allego_stats_msg = status_msg
+        self.allegro_stats_msg = status_msg
         positions = status_msg.joint_position_measured
         self.plant.SetPositions(self.plant_context, self.model_real, positions)
         self.plant.SetPositions(self.plant_context, self.model_cmd,
@@ -202,8 +208,6 @@ def wait_for_status_msg():
             break
 
     return msg
-
-
 
 
 if __name__ == "__main__":
@@ -247,8 +251,10 @@ if __name__ == "__main__":
 
     # Make sure that the first status message read my the sliders is the real
     # status of the hand.
+    print("Waiting for first Allegro Status msg...")
     allegro_status = wait_for_status_msg()
     context_sub = allegro_lcm_sub.GetMyContextFromRoot(simulator.get_context())
     context_sub.SetAbstractState(0, allegro_status)
+    print("Running!")
 
     simulator.AdvanceTo(np.inf)
