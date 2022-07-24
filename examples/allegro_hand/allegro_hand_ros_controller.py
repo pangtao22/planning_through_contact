@@ -85,11 +85,10 @@ class MeshcatJointSliders:
         self.context = diagram.CreateDefaultContext()
         self.plant_context = plant.GetMyContextFromRoot(self.context)
         self.vis_context = self.visualizer.GetMyContextFromRoot(self.context)
-        self.visualizer.Publish(self.vis_context)
 
         self._sliders = {}
-        self._positions = plant.GetPositions(self.plant_context)
         slider_num = 0
+        positions = []
         for i in range(plant.num_joints()):
             joint = plant.get_joint(JointIndex(i))
             low = joint.position_lower_limits()
@@ -99,13 +98,20 @@ class MeshcatJointSliders:
                 description = joint.name()
                 if joint.num_positions() > 1:
                     description += '_' + joint.position_suffix(j)
-                meshcat.AddSlider(value=self._positions[index],
-                                  min=max(low[j], lower_limit[slider_num]),
-                                  max=min(upp[j], upper_limit[slider_num]),
+                lower_limit[slider_num] = max(low[j], lower_limit[slider_num])
+                upper_limit[slider_num] = min(upp[j], upper_limit[slider_num])
+                value = (lower_limit[slider_num] + upper_limit[slider_num]) / 2
+                positions.append(value)
+                meshcat.AddSlider(value=value,
+                                  min=lower_limit[slider_num],
+                                  max=upper_limit[slider_num],
                                   step=resolution[slider_num],
                                   name=description)
                 self._sliders[index] = description
                 slider_num += 1
+
+        self._plant.SetPositions(self.plant_context, positions)
+        self.visualizer.Publish(self.vis_context)
 
         # ROS
         rospy.Subscriber(
@@ -137,7 +143,7 @@ class MeshcatJointSliders:
         self._plant.SetPositions(self.plant_context,
                                  self.allegro_state.position)
         print(self.allegro_state.position)
-        # self.visualizer.Publish(self.vis_context)
+        self.visualizer.Publish(self.vis_context)
         self.cmd_pub.publish(self.allegro_state)
 
 
