@@ -124,11 +124,6 @@ class MeshcatJointSliders:
     def state_callback(self, msg):
         self.allegro_state = msg
 
-    def get_slider_values(self):
-        values = np.zeros(len(self._sliders))
-        for i, s in self._sliders.items():
-            values[i] = self._meshcat.GetSliderValue(s)
-
     def run(self, event=None):
 
         # old_positions = self._plant.GetPositions(plant_context)

@@ -9,9 +9,11 @@ from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
                          AddMultibodyPlantSceneGraph, MeshcatVisualizerCpp,
                          MeshcatVisualizerParams, JointIndex, Role,
                          StartMeshcat, DrakeLcm, AbstractValue,
-                         LcmSubscriberSystem, LcmInterfaceSystem, Simulator)
+                         LcmSubscriberSystem, LcmInterfaceSystem, Simulator,
+                         PublishEvent, TriggerType,
+                         LcmPublisherSystem)
 
-from drake import lcmt_allegro_status
+from drake import lcmt_allegro_status, lcmt_allegro_command
 from qsim.simulator import QuasistaticSimulator
 from qsim.model_paths import models_dir
 
@@ -56,12 +58,18 @@ class MeshcatJointSliders(LeafSystem):
             resolution:   A scalar or vector of length robot.num_positions()
                           that specifies the step argument of the FloatSlider.
         """
-        LeafSystem.__init__(self)
+        super().__init__()
         self.set_name('allegro_hand_sliders_passive')
         self.drake_lcm = drake_lcm
         self.DeclarePeriodicPublish(1. / 60, 0.0)  # draw at 30fps
-        self.DeclareAbstractInputPort("allegro_status",
-                                      AbstractValue.Make(lcmt_allegro_status()))
+        self.status_input_port = self.DeclareAbstractInputPort(
+            "allegro_status",
+            AbstractValue.Make(lcmt_allegro_status()))
+        self.cmd_output_port = self.DeclareAbstractOutputPort(
+            "allegro_cmd", lambda: AbstractValue.Make(lcmt_allegro_command()),
+            self.copy_allegro_cmd_out)
+        self.allego_stats_msg = None
+
 
         def _broadcast(x, num):
             x = np.array(x)
@@ -73,9 +81,15 @@ class MeshcatJointSliders(LeafSystem):
         plant, scene_graph = AddMultibodyPlantSceneGraph(
             builder, time_step=0.0)
 
-        Parser(plant, scene_graph).AddModelFromFile(allegro_file)
+        parser = Parser(plant, scene_graph)
+        self.model_real = parser.AddModelFromFile(allegro_file, "allegro_real")
+        self.model_cmd = parser.AddModelFromFile(allegro_file, "allegro_cmd")
         plant.WeldFrames(
-            plant.world_frame(), plant.GetFrameByName("hand_root"))
+            plant.world_frame(),
+            plant.GetFrameByName("hand_root", self.model_cmd))
+        plant.WeldFrames(
+            plant.world_frame(),
+            plant.GetFrameByName("hand_root", self.model_real))
         plant.Finalize()
         self.visualizer = MeshcatVisualizerCpp.AddToBuilder(
             builder, scene_graph, meshcat, mvp)
@@ -85,7 +99,7 @@ class MeshcatJointSliders(LeafSystem):
         upper_limit = _broadcast(upper_limit, plant.num_positions())
         resolution = _broadcast(resolution, plant.num_positions())
 
-        self._diagram = diagram
+        self.diagram = diagram
         self.meshcat = meshcat
         self.plant = plant
 
@@ -96,12 +110,11 @@ class MeshcatJointSliders(LeafSystem):
         self.sliders = {}
         slider_num = 0
         positions = []
-        for i in range(plant.num_joints()):
-            joint = plant.get_joint(JointIndex(i))
+        for i in plant.GetJointIndices(self.model_real):
+            joint = plant.get_joint(i)
             low = joint.position_lower_limits()
             upp = joint.position_upper_limits()
             for j in range(joint.num_positions()):
-                index = joint.position_start() + j
                 description = joint.name()
                 if joint.num_positions() > 1:
                     description += '_' + joint.position_suffix(j)
@@ -114,30 +127,72 @@ class MeshcatJointSliders(LeafSystem):
                                   max=upper_limit[slider_num],
                                   step=resolution[slider_num],
                                   name=description)
-                self.sliders[index] = description
+                self.sliders[slider_num] = description
                 slider_num += 1
 
-        self.plant.SetPositions(self.plant_context, positions)
+        self.plant.SetPositions(self.plant_context, self.model_real, positions)
+        self.plant.SetPositions(self.plant_context, self.model_cmd, positions)
         self.visualizer.Publish(self.vis_context)
+
+    def get_slider_values(self):
+        values = np.zeros(len(self.sliders))
+        for i, s in self.sliders.items():
+            values[i] = self.meshcat.GetSliderValue(s)
+        return values
 
     def set_slider_values(self, values):
         for i, slider_name in self.sliders.items():
             self.meshcat.SetSliderValue(slider_name, values[i])
 
+    def copy_allegro_cmd_out(self, context, output):
+        msg = output.get_value()
+        msg.utime = self.allego_stats_msg.utime
+
     def DoPublish(self, context, event):
-        while self.drake_lcm.HandleSubscriptions(10) == 0:
-            continue
-        LeafSystem.DoPublish(self, context, event)
+        super().DoPublish(context, event)
         status_msg = self.EvalAbstractInput(context, 0).get_value()
-        if status_msg.num_joints == 0:
-            print("empty allegro status msg!")
-            return
 
+        if self.allego_stats_msg is None:
+            # "Initialization" of slider and golden hand.
+            self.set_slider_values(status_msg.joint_position_measured)
+
+        self.allego_stats_msg = status_msg
         positions = status_msg.joint_position_measured
-
-        self.set_slider_values(positions)
-        self.plant.SetPositions(self.plant_context, positions)
+        self.plant.SetPositions(self.plant_context, self.model_real, positions)
+        self.plant.SetPositions(self.plant_context, self.model_cmd,
+                                self.get_slider_values())
         self.visualizer.Publish(self.vis_context)
+
+
+def wait_for_status_msg():
+    d_lcm = DrakeLcm()
+
+    builder = DiagramBuilder()
+
+    sub = builder.AddSystem(
+        LcmSubscriberSystem.Make(
+            channel="ALLEGRO_STATUS",
+            lcm_type=lcmt_allegro_status,
+            lcm=d_lcm))
+    builder.AddSystem(LcmInterfaceSystem(d_lcm))
+    diag = builder.Build()
+    sim = Simulator(diag)
+
+    while True:
+        n_msgs = d_lcm.HandleSubscriptions(10)
+        if n_msgs == 0:
+            continue
+
+        sim.reset_context(diag.CreateDefaultContext())
+        sim.AdvanceTo(1e-1)
+        msg = sub.get_output_port(0).Eval(
+            sub.GetMyContextFromRoot(sim.get_context()))
+        if msg.num_joints > 0:
+            break
+
+    return msg
+
+
 
 
 if __name__ == "__main__":
@@ -150,12 +205,27 @@ if __name__ == "__main__":
 
     builder = DiagramBuilder()
     builder.AddSystem(sliders)
-
-    iiwa_lcm_sub = builder.AddSystem(LcmSubscriberSystem.Make(
-        channel="ALLEGRO_STATUS", lcm_type=lcmt_allegro_status, lcm=drake_lcm))
-    builder.Connect(iiwa_lcm_sub.get_output_port(0),
-                    sliders.get_input_port(0))
     builder.AddSystem(LcmInterfaceSystem(drake_lcm))
+
+    # Allegro status subscriber.
+    allegro_lcm_sub = builder.AddSystem(
+        LcmSubscriberSystem.Make(
+            channel="ALLEGRO_STATUS",
+            lcm_type=lcmt_allegro_status,
+            lcm=drake_lcm))
+    builder.Connect(allegro_lcm_sub.get_output_port(0),
+                    sliders.status_input_port)
+
+    # Allegro command publisher.
+    allegro_lcm_pub = builder.AddSystem(
+        LcmPublisherSystem.Make(
+            channel="ALLEGRO_CMD",
+            lcm_type=lcmt_allegro_command,
+            lcm=drake_lcm,
+            publish_period=0.01))
+    builder.Connect(
+        sliders.cmd_output_port,
+        allegro_lcm_pub.get_input_port(0))
 
     diagram = builder.Build()
     # RenderSystemWithGraphviz(diagram)
@@ -164,5 +234,10 @@ if __name__ == "__main__":
     simulator.set_target_realtime_rate(1.0)
     simulator.set_publish_every_time_step(False)
 
-    simulator.AdvanceTo(np.inf)
+    # Make sure that the first status message read my the sliders is the real
+    # status of the hand.
+    allegro_status = wait_for_status_msg()
+    context_sub = allegro_lcm_sub.GetMyContextFromRoot(simulator.get_context())
+    context_sub.SetAbstractState(0, allegro_status)
 
+    simulator.AdvanceTo(np.inf)
