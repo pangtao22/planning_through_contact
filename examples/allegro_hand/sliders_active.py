@@ -3,14 +3,11 @@ import time
 
 import numpy as np
 
-import rospy
-from sensor_msgs.msg import JointState
 from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
                          AddMultibodyPlantSceneGraph, MeshcatVisualizerCpp,
-                         MeshcatVisualizerParams, JointIndex, Role,
+                         MeshcatVisualizerParams, Role,
                          StartMeshcat, DrakeLcm, AbstractValue,
                          LcmSubscriberSystem, LcmInterfaceSystem, Simulator,
-                         PublishEvent, TriggerType,
                          LcmPublisherSystem)
 
 from drake import lcmt_allegro_status, lcmt_allegro_command

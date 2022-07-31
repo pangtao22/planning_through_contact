@@ -38,10 +38,10 @@ idx_a = plant.GetModelInstanceByName(robot_name)
 idx_u = plant.GetModelInstanceByName(object_name)
 
 # initial conditions.
-q_a0 = np.array([0.03501504, 0.75276565, 0.74146232, 0.83261002, 0.63256269,
-                 1.02378254, 0.64089555, 0.82444782, -0.1438725, 0.74696812,
-                 0.61908827, 0.70064279, -0.06922541, 0.78533142, 0.82942863,
-                 0.90415436])
+q_a0 = np.array([0.03501504, 0.75276565, 0.74146232, 0.83261002,
+                 -0.1438725, 0.74696812, 0.61908827, 0.70064279,
+                 -0.06922541, 0.78533142, 0.82942863, 0.90415436,
+                 0.63256269, 1.02378254, 0.64089555, 0.82444782])
 q_u0 = np.array([1, 0, 0, 0, -0.081, 0.001, 0.071])
 
 q0_dict = {idx_a: q_a0, idx_u: q_u0}
@@ -51,7 +51,7 @@ params = IrsMpcQuasistaticParameters()
 params.h = h
 params.Q_dict = {
     idx_u: np.array([10, 10, 10, 10, 1, 1, 1.]),
-    idx_a: np.ones(dim_u) * 1e-3}
+    idx_a: np.ones(dim_u) * 1e-2}
 
 params.Qd_dict = {}
 for model in q_sim.get_actuated_models():
