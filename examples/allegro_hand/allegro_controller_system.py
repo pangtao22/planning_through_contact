@@ -22,8 +22,8 @@ class ControllerSystem(LeafSystem):
         self.q_sim = q_parser.make_simulator_cpp()
         self.plant = self.q_sim.get_plant()
 
-        self.x_nominal_input_port = self.DeclareInputPort(
-            "x_nominal",
+        self.q_nominal_input_port = self.DeclareInputPort(
+            "q_nominal",
             PortDataType.kVectorValued,
             self.plant.num_positions())
 
@@ -32,9 +32,10 @@ class ControllerSystem(LeafSystem):
             PortDataType.kVectorValued,
             self.q_sim.num_actuated_dofs())
 
-        self.position_cmd_ports = {}
-        # Make sure that the positions vector of the plant is q = [q_u, q_a].
-        assert self.q_sim.get_q_u_indices_into_q()[0] == 0
+        self.q_input_port = self.DeclareInputPort(
+            "q", PortDataType.kVectorValued, self.plant.num_positions())
+
+        self.position_cmd_output_ports = {}
         model_to_indices_map = self.q_sim.get_position_indices()
 
         for model in self.q_sim.get_actuated_models():
@@ -53,7 +54,7 @@ class ControllerSystem(LeafSystem):
     def DoCalcDiscreteVariableUpdates(self, context, events, discrete_state):
         super().DoCalcDiscreteVariableUpdates(context, events, discrete_state)
 
-        x_nominal = self.x_nominal_input_port.Eval(context)
+        x_nominal = self.q_nominal_input_port.Eval(context)
         u_nominal = self.u_nominal_input_port.Eval(context)
 
         x_nominal[self.q_sim.get_q_a_indices_into_q()] = u_nominal
