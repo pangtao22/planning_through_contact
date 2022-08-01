@@ -26,7 +26,7 @@ duration = T * h
 max_iterations = 15
 
 # quasistatic dynamical system
-q_parser = QuasistaticParser(q_model_path)
+q_parser = QuasistaticParser(q_model_path_hardware)
 # q_parser.set_sim_params(gravity=[0, 0, -10])
 
 q_sim = q_parser.make_simulator_cpp()
@@ -51,7 +51,7 @@ params = IrsMpcQuasistaticParameters()
 params.h = h
 params.Q_dict = {
     idx_u: np.array([10, 10, 10, 10, 1, 1, 1.]),
-    idx_a: np.ones(dim_u) * 1e-2}
+    idx_a: np.ones(dim_u) * 5e-2}
 
 params.Qd_dict = {}
 for model in q_sim.get_actuated_models():
@@ -147,15 +147,13 @@ prob_mpc.plot_costs()
 prob_mpc.q_vis.publish_trajectory(prob_mpc.x_trj_best, h)
 
 
-
-# assert False
-
 #%% save trajectories
 things_to_save = {"x_trj": prob_mpc.x_trj_best, "u_trj": prob_mpc.u_trj_best}
 with open("hand_trj.pkl", "wb") as f:
     pickle.dump(things_to_save, f)
 
 
+assert False
 
 #%%
 u_trj_best = prob_mpc.u_trj_best
