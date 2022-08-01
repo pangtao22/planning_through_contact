@@ -1,5 +1,6 @@
 import os
 import pickle
+import copy
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -81,7 +82,7 @@ u_knots_nominal_extended = np.vstack(
      u_knots_nominal])
 
 # Trajectory sources.
-h = 0.2
+h = 0.1
 T = len(u_knots_nominal)
 t_knots = np.linspace(0, T, T + 1) * h
 u_nominal_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_nominal_extended.T)
@@ -99,10 +100,10 @@ ctrller_allegro = RobotInternalController(
     controller_mode="impedance")
 
 # The output of controller_sys is the 16 joint position commands for the hand.
-h_ctrl = 0.01
+h_ctrl = 0.02
 ctrller_sys = ControllerSystem(control_period=h_ctrl,
-                               x0_nominal=q_knots_nominal[0],
-                               q_parser=q_parser)
+                               x0_nominal=q_knots_nominal[0], q_parser=q_parser,
+                               closed_loop=True)
 
 # Demux the MBP state x := [q, v] into q and v.
 demux = Demultiplexer([plant.num_positions(), plant.num_velocities()])
@@ -119,9 +120,9 @@ builder.Connect(plant.get_state_output_port(),
 builder.Connect(demux.get_output_port(0),
                 ctrller_sys.q_input_port)
 builder.Connect(trj_src_q.get_output_port(),
-                ctrller_sys.q_nominal_input_port)
+                ctrller_sys.q_ref_input_port)
 builder.Connect(trj_src_u.get_output_port(),
-                ctrller_sys.u_nominal_input_port)
+                ctrller_sys.u_ref_input_port)
 
 builder.Connect(ctrller_allegro.GetOutputPort("joint_torques"),
                 plant.get_actuation_input_port(allegro_model))
@@ -140,7 +141,7 @@ logger_x = LogVectorOutput(
     plant.get_state_output_port(), builder, h_ctrl)
 
 diagram = builder.Build()
-render_system_with_graphviz(diagram)
+# render_system_with_graphviz(diagram)
 
 
 #%% Run sim.
@@ -153,7 +154,9 @@ ctrller_allegro.tau_feedforward_input_port.FixValue(
     np.zeros(ctrller_allegro.tau_feedforward_input_port.size()))
 
 context_plant = plant.GetMyContextFromRoot(context)
-plant.SetPositions(context_plant, q_knots_nominal[0])
+q0 = copy.copy(q_knots_nominal[0])
+q0[-3] += 0.002
+plant.SetPositions(context_plant, q0)
 
 sim.Initialize()
 
@@ -168,7 +171,7 @@ AddTriad(
 # sim.set_target_realtime_rate(1.0)
 meshcat_vis.reset_recording()
 meshcat_vis.start_recording()
-sim.AdvanceTo(u_nominal_trj.end_time() + 0.2)
+sim.AdvanceTo(u_nominal_trj.end_time() + 1.0)
 meshcat_vis.publish_recording()
 
 #%% plots
@@ -178,10 +181,6 @@ u_nominals = np.array(
     [u_nominal_trj.value(t).squeeze() for t in u_log.sample_times()])
 
 u_diff = np.linalg.norm(u_nominals[:-1] - u_log.data().T[1:], axis=1)
-plt.plot(u_diff)
-plt.grid(True)
-plt.title("u diff")
-plt.show()
 
 #%% 2. q_u_nominal vs q_u.
 q_sim = ctrller_sys.q_sim
@@ -205,12 +204,17 @@ for i, t in enumerate(x_log.sample_times()):
     angle_error.append(AngleAxis(Q_WB.inverse().multiply(Q_WB_ref)).angle())
     position_error.append(np.linalg.norm(q_u_ref[4:] - q_u[4:]))
 
-plt.figure()
-plt.title("q_u error")
-plt.grid(True)
-plt.plot(angle_error, label="angle")
-plt.plot(position_error, label="pos")
-plt.legend()
+
+fig, axes = plt.subplots(1, 2, figsize=(8, 4))
+axes[0].plot(u_diff)
+axes[0].grid(True)
+axes[0].set_title("u diff")
+
+axes[1].set_title("q_u error")
+axes[1].grid(True)
+axes[1].plot(angle_error, label="angle")
+axes[1].plot(position_error, label="pos")
+axes[1].legend()
 plt.show()
 
 
