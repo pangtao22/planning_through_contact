@@ -118,7 +118,7 @@ class MeshcatJointSliders(LeafSystem):
         super().__init__()
         self.set_name('allegro_hand_sliders_passive')
         self.drake_lcm = drake_lcm
-        self.DeclarePeriodicPublish(1 / 32, 0.0)  # draw at 30fps
+        self.DeclarePeriodicPublish(0.02, 0.0)
         self.status_input_port = self.DeclareAbstractInputPort(
             "allegro_status",
             AbstractValue.Make(lcmt_allegro_status()))

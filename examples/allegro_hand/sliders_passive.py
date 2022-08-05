@@ -25,7 +25,8 @@ class MeshcatJointSliders(LeafSystem):
                  mvp: MeshcatVisualizerParams,
                  drake_lcm: DrakeLcm):
         """
-        Sliders show current joint
+        Sliders and black hand show measured joint angles.
+        Golden hand show commanded joint angles.
         """
         LeafSystem.__init__(self)
         self.set_name('allegro_hand_sliders_passive')
