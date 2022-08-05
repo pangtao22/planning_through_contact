@@ -1,8 +1,10 @@
+from typing import Tuple
 import copy
 import numpy as np
 
 from pydrake.all import (LeafSystem, AbstractValue, PortDataType, BasicVector,
-                         GurobiSolver)
+                         GurobiSolver, DiagramBuilder, TrajectorySource,
+                         PiecewisePolynomial)
 import pydrake.solvers.mathematicalprogram as mp
 
 from qsim_cpp import ForwardDynamicsMode, GradientMode
@@ -26,6 +28,13 @@ class Controller:
 
         self.Qu = 1e2 * np.diag([10, 10, 10, 10, 1, 1, 1.])
         self.R = np.diag(1e-1 * np.ones(self.q_sim.num_actuated_dofs()))
+
+        # joint limits
+        joint_limits = self.q_sim.get_actuated_joint_limits()
+        for model_allegro in self.q_sim.get_actuated_models():
+            pass
+        self.lower_limits = joint_limits[model_allegro]["lower"]
+        self.upper_limits = joint_limits[model_allegro]["upper"]
 
     def calc_linearization(self,
                            q_nominal: np.ndarray,
@@ -56,6 +65,9 @@ class Controller:
         prog = mp.MathematicalProgram()
         q_u_next = prog.NewContinuousVariables(n_u, "q_u_+")
         u = prog.NewContinuousVariables(n_a, "u")
+
+        # joint limits
+        prog.AddBoundingBoxConstraint(self.lower_limits, self.upper_limits, u)
 
         # TODO: q_u_ref should be q_u_nominal_+?
         prog.AddQuadraticErrorCost(self.Qu, q_u_nominal, q_u_next)
@@ -134,3 +146,45 @@ class ControllerSystem(LeafSystem):
 
         q_nominal[self.q_sim.get_q_a_indices_into_q()] = u
         discrete_state.set_value(q_nominal)
+
+
+def add_controller_system_to_diagram(
+        builder: DiagramBuilder,
+        t_knots: np.ndarray,
+        u_knots_ref: np.ndarray,
+        q_knots_ref: np.ndarray,
+        h_ctrl: float,
+        q_parser: QuasistaticParser,
+        closed_loop: bool) -> Tuple[ControllerSystem, PiecewisePolynomial,
+                                    PiecewisePolynomial]:
+    """
+    Adds the following three system to the diagram, and makes the following
+     two connections.
+    |trj_src_q| ---> |                  |
+                     | ControllerSystem |
+    |trj_src_u| ---> |                  |
+    """
+    # Create trajectory sources.
+    u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
+    q_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
+    trj_src_u = TrajectorySource(u_ref_trj)
+    trj_src_q = TrajectorySource(q_ref_trj)
+    trj_src_u.set_name("u_src")
+    trj_src_q.set_name("q_src")
+
+    # Allegro controller system.
+    ctrller_allegro = ControllerSystem(control_period=h_ctrl,
+                                       x0_nominal=q_knots_ref[0],
+                                       q_parser=q_parser,
+                                       closed_loop=closed_loop)
+    builder.AddSystem(trj_src_u)
+    builder.AddSystem(trj_src_q)
+    builder.AddSystem(ctrller_allegro)
+
+    # Make connections.
+    builder.Connect(trj_src_q.get_output_port(),
+                    ctrller_allegro.q_ref_input_port)
+    builder.Connect(trj_src_u.get_output_port(),
+                    ctrller_allegro.u_ref_input_port)
+
+    return ctrller_allegro, q_ref_trj, u_ref_trj

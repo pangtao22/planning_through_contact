@@ -17,6 +17,38 @@ from qsim.model_paths import models_dir
 allegro_file = os.path.join(
     models_dir, "allegro_hand_description_right_spheres.sdf")
 
+kAllegroStatusChannel = "ALLEGRO_STATUS"
+kAllegroCommandChannel = "ALLEGRO_CMD"
+
+
+def wait_for_status_msg():
+    d_lcm = DrakeLcm()
+
+    builder = DiagramBuilder()
+
+    sub = builder.AddSystem(
+        LcmSubscriberSystem.Make(
+            channel=kAllegroStatusChannel,
+            lcm_type=lcmt_allegro_status,
+            lcm=d_lcm))
+    builder.AddSystem(LcmInterfaceSystem(d_lcm))
+    diag = builder.Build()
+    sim = Simulator(diag)
+
+    while True:
+        n_msgs = d_lcm.HandleSubscriptions(10)
+        if n_msgs == 0:
+            continue
+
+        sim.reset_context(diag.CreateDefaultContext())
+        sim.AdvanceTo(1e-1)
+        msg = sub.get_output_port(0).Eval(
+            sub.GetMyContextFromRoot(sim.get_context()))
+        if msg.num_joints > 0:
+            break
+
+    return msg
+
 
 class MeshcatJointSliders(LeafSystem):
     """
@@ -145,8 +177,12 @@ class MeshcatJointSliders(LeafSystem):
         return values
 
     def set_slider_values(self, values):
+        n_q = len(values)
+        values_clipped = np.clip(
+            values, self.lower_limits[:n_q], self.upper_limits[:n_q])
         for i, slider_name in self.sliders.items():
-            self.meshcat.SetSliderValue(slider_name, values[i])
+            self.meshcat.SetSliderValue(
+                slider_name, values_clipped[i])
 
     def copy_allegro_cmd_out(self, context, output):
         msg = output.get_value()
@@ -178,35 +214,6 @@ class MeshcatJointSliders(LeafSystem):
         self.visualizer.Publish(self.vis_context)
 
 
-def wait_for_status_msg():
-    d_lcm = DrakeLcm()
-
-    builder = DiagramBuilder()
-
-    sub = builder.AddSystem(
-        LcmSubscriberSystem.Make(
-            channel="ALLEGRO_STATUS",
-            lcm_type=lcmt_allegro_status,
-            lcm=d_lcm))
-    builder.AddSystem(LcmInterfaceSystem(d_lcm))
-    diag = builder.Build()
-    sim = Simulator(diag)
-
-    while True:
-        n_msgs = d_lcm.HandleSubscriptions(10)
-        if n_msgs == 0:
-            continue
-
-        sim.reset_context(diag.CreateDefaultContext())
-        sim.AdvanceTo(1e-1)
-        msg = sub.get_output_port(0).Eval(
-            sub.GetMyContextFromRoot(sim.get_context()))
-        if msg.num_joints > 0:
-            break
-
-    return msg
-
-
 if __name__ == "__main__":
     meshcat = StartMeshcat()
     mvp = MeshcatVisualizerParams()
@@ -222,7 +229,7 @@ if __name__ == "__main__":
     # Allegro status subscriber.
     allegro_lcm_sub = builder.AddSystem(
         LcmSubscriberSystem.Make(
-            channel="ALLEGRO_STATUS",
+            channel=kAllegroStatusChannel,
             lcm_type=lcmt_allegro_status,
             lcm=drake_lcm))
     builder.Connect(allegro_lcm_sub.get_output_port(0),
@@ -231,7 +238,7 @@ if __name__ == "__main__":
     # Allegro command publisher.
     allegro_lcm_pub = builder.AddSystem(
         LcmPublisherSystem.Make(
-            channel="ALLEGRO_CMD",
+            channel=kAllegroCommandChannel,
             lcm_type=lcmt_allegro_command,
             lcm=drake_lcm,
             publish_period=0.01))
