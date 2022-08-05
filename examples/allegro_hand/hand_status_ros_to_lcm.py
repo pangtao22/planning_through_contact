@@ -1,3 +1,8 @@
+import sys
+for i, path in enumerate(sys.path):
+    if "2.7" in path:
+        sys.path.pop(i)
+
 import lcm
 import rospy
 import numpy as np

@@ -1,3 +1,8 @@
+import sys
+for i, path in enumerate(sys.path):
+    if "2.7" in path:
+        sys.path.pop(i)
+
 import lcm
 import rospy
 import numpy as np
@@ -10,8 +15,8 @@ DESIRED_STATE_TOPIC = "/allegroHand/joint_cmd"
 class AllegroCmdPublisher:
     def __init__(self):
         self.allegro_state = JointState()
-        self.pub = rospy.Publisher(DESIRED_STATE_TOPIC, JointState,
-                                   queue_size=1)
+        self.pub = rospy.Publisher(
+            DESIRED_STATE_TOPIC, JointState, queue_size=1)
 
     def handle_allegro_cmd_msg(self, channel, data):
         lcm_msg = lcmt_allegro_command.decode(data)
@@ -34,7 +39,5 @@ class AllegroCmdPublisher:
 
 if __name__ == "__main__":
     pub = AllegroCmdPublisher()
-
     rospy.init_node('allegro_cmd_from_lcm')
-
     pub.run()
