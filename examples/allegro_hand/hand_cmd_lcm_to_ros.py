@@ -34,7 +34,7 @@ class AllegroCmdPublisher:
         lc.subscribe("ALLEGRO_CMD", self.handle_allegro_cmd_msg)
 
         while True:
-            lc.handle()
+            lc.handle_timeout(10)
 
 
 if __name__ == "__main__":

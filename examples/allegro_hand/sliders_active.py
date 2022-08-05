@@ -5,7 +5,8 @@ import numpy as np
 
 from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
                          AddMultibodyPlantSceneGraph, MeshcatVisualizerCpp,
-                         MeshcatVisualizerParams, Role,
+                         MeshcatVisualizerParams, Role, RollPitchYaw,
+                         RigidTransform, Meshcat,
                          StartMeshcat, DrakeLcm, AbstractValue,
                          LcmSubscriberSystem, LcmInterfaceSystem, Simulator,
                          LcmPublisherSystem)
@@ -21,7 +22,7 @@ kAllegroStatusChannel = "ALLEGRO_STATUS"
 kAllegroCommandChannel = "ALLEGRO_CMD"
 
 
-def wait_for_status_msg():
+def wait_for_status_msg() -> lcmt_allegro_status:
     d_lcm = DrakeLcm()
 
     builder = DiagramBuilder()
@@ -50,6 +51,33 @@ def wait_for_status_msg():
     return msg
 
 
+def make_visualizer_diagram(
+        meshcat: Meshcat,
+        mvp: MeshcatVisualizerParams):
+    builder = DiagramBuilder()
+    plant, scene_graph = AddMultibodyPlantSceneGraph(
+        builder, time_step=0.0)
+
+    parser = Parser(plant, scene_graph)
+    model_real = parser.AddModelFromFile(allegro_file, "allegro_real")
+    model_cmd = parser.AddModelFromFile(allegro_file, "allegro_cmd")
+    X = RigidTransform(RollPitchYaw(0, -np.pi / 2, 0), np.zeros(3))
+    plant.WeldFrames(
+        plant.world_frame(),
+        plant.GetFrameByName("hand_root", model_cmd),
+        X)
+    plant.WeldFrames(
+        plant.world_frame(),
+        plant.GetFrameByName("hand_root", model_real),
+        X)
+    plant.Finalize()
+    visualizer = MeshcatVisualizerCpp.AddToBuilder(
+        builder, scene_graph, meshcat, mvp)
+    diagram = builder.Build()
+
+    return plant, visualizer, diagram, model_real, model_cmd
+
+
 class MeshcatJointSliders(LeafSystem):
     """
     Adds one slider per joint of the MultibodyPlant.  Any positions that are
@@ -66,7 +94,7 @@ class MeshcatJointSliders(LeafSystem):
     """
 
     def __init__(self,
-                 meshcat,
+                 meshcat: Meshcat,
                  mvp: MeshcatVisualizerParams,
                  drake_lcm: DrakeLcm,
                  lower_limit=-10.,
@@ -90,7 +118,7 @@ class MeshcatJointSliders(LeafSystem):
         super().__init__()
         self.set_name('allegro_hand_sliders_passive')
         self.drake_lcm = drake_lcm
-        self.DeclarePeriodicPublish(1. / 60, 0.0)  # draw at 30fps
+        self.DeclarePeriodicPublish(1 / 32, 0.0)  # draw at 30fps
         self.status_input_port = self.DeclareAbstractInputPort(
             "allegro_status",
             AbstractValue.Make(lcmt_allegro_status()))
@@ -98,6 +126,7 @@ class MeshcatJointSliders(LeafSystem):
             "allegro_cmd", lambda: AbstractValue.Make(lcmt_allegro_command()),
             self.copy_allegro_cmd_out)
         self.allegro_stats_msg = None
+        self.meshcat = meshcat
 
         def _broadcast(x, num):
             x = np.array(x)
@@ -105,41 +134,23 @@ class MeshcatJointSliders(LeafSystem):
             return np.array(x) * np.ones(num)
 
         # make diagram.
-        builder = DiagramBuilder()
-        plant, scene_graph = AddMultibodyPlantSceneGraph(
-            builder, time_step=0.0)
+        (self.plant, self.visualizer, self.diagram, self.model_real,
+         self.model_cmd) = make_visualizer_diagram(meshcat, mvp)
 
-        parser = Parser(plant, scene_graph)
-        self.model_real = parser.AddModelFromFile(allegro_file, "allegro_real")
-        self.model_cmd = parser.AddModelFromFile(allegro_file, "allegro_cmd")
-        plant.WeldFrames(
-            plant.world_frame(),
-            plant.GetFrameByName("hand_root", self.model_cmd))
-        plant.WeldFrames(
-            plant.world_frame(),
-            plant.GetFrameByName("hand_root", self.model_real))
-        plant.Finalize()
-        self.visualizer = MeshcatVisualizerCpp.AddToBuilder(
-            builder, scene_graph, meshcat, mvp)
-        diagram = builder.Build()
+        n_qa = self.plant.num_positions(self.model_real)
+        lower_limit = _broadcast(lower_limit, n_qa)
+        upper_limit = _broadcast(upper_limit, n_qa)
+        resolution = _broadcast(resolution, n_qa)
 
-        lower_limit = _broadcast(lower_limit, plant.num_positions())
-        upper_limit = _broadcast(upper_limit, plant.num_positions())
-        resolution = _broadcast(resolution, plant.num_positions())
-
-        self.diagram = diagram
-        self.meshcat = meshcat
-        self.plant = plant
-
-        self.context = diagram.CreateDefaultContext()
-        self.plant_context = plant.GetMyContextFromRoot(self.context)
+        self.context = self.diagram.CreateDefaultContext()
+        self.plant_context = self.plant.GetMyContextFromRoot(self.context)
         self.vis_context = self.visualizer.GetMyContextFromRoot(self.context)
 
         self.sliders = {}
         slider_num = 0
         positions = []
-        for i in plant.GetJointIndices(self.model_real):
-            joint = plant.get_joint(i)
+        for i in self.plant.GetJointIndices(self.model_real):
+            joint = self.plant.get_joint(i)
             low = joint.position_lower_limits()
             upp = joint.position_upper_limits()
             for j in range(joint.num_positions()):
@@ -177,9 +188,8 @@ class MeshcatJointSliders(LeafSystem):
         return values
 
     def set_slider_values(self, values):
-        n_q = len(values)
         values_clipped = np.clip(
-            values, self.lower_limits[:n_q], self.upper_limits[:n_q])
+            values, self.lower_limits, self.upper_limits)
         for i, slider_name in self.sliders.items():
             self.meshcat.SetSliderValue(
                 slider_name, values_clipped[i])

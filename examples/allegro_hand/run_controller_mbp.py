@@ -45,21 +45,25 @@ def render_system_with_graphviz(system, output_file="system_view.gz"):
     src.render(output_file, view=False)
 
 
-#%%
-with open("hand_trj.pkl", "rb") as f:
-    trj_dict = pickle.load(f)
+def load_ref_trajectories(file_path: str):
+    with open(file_path, "rb") as f:
+        trj_dict = pickle.load(f)
 
-'''
-If u_knots_nominal has length T, then q_knots_nominal has length T + 1. 
-During execution, u_knots_nominal is prepended with q_knots_nominal[0], 
-so that they have the same length.
-'''
-q_knots_ref = trj_dict["x_trj"]
-u_knots_ref = trj_dict["u_trj"]
+    '''
+    If u_knots_nominal has length T, then q_knots_nominal has length T + 1. 
+    During execution, u_knots_nominal is prepended with q_knots_nominal[0], 
+    so that they have the same length.
+    '''
+    return trj_dict["x_trj"], trj_dict["u_trj"]
+
+
+#%%
+q_knots_ref, u_knots_ref = load_ref_trajectories("hand_trj.pkl")
 
 
 #%%
 q_parser = QuasistaticParser(q_model_path_hardware)
+q_sim = q_parser.make_simulator_cpp()
 gravity = q_parser.get_gravity()
 
 plant_allegro = create_allegro_controller_plant(gravity=gravity)
@@ -106,7 +110,7 @@ ctrller_allegro, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
     u_knots_ref=u_knots_ref_extended,
     q_knots_ref=q_knots_ref,
     h_ctrl=h_ctrl,
-    q_parser=q_parser,
+    q_sim=q_sim,
     closed_loop=True)
 
 

@@ -11,113 +11,82 @@ from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
                          StartMeshcat, DrakeLcm, AbstractValue,
                          LcmSubscriberSystem, LcmInterfaceSystem, Simulator)
 
-from drake import lcmt_allegro_status
+from drake import lcmt_allegro_status, lcmt_allegro_command
 from qsim.simulator import QuasistaticSimulator
 from qsim.model_paths import models_dir
 
-allegro_file = os.path.join(
-    models_dir, "allegro_hand_description_right_spheres.sdf")
+from sliders_active import (wait_for_status_msg, kAllegroStatusChannel,
+                            kAllegroCommandChannel, make_visualizer_diagram)
 
 
 class MeshcatJointSliders(LeafSystem):
-    """
-    Adds one slider per joint of the MultibodyPlant.  Any positions that are
-    not associated with joints (e.g. floating-base "mobilizers") are held
-    constant at the default value obtained from robot.CreateDefaultContext().
-    .. pydrake_system::
-        name: JointSliders
-        output_ports:
-        - positions
-    In addition to being used inside a Diagram that is being simulated with
-    Simulator, this class also offers a `Run` method that runs its own simple
-    event loop, querying the slider values and calling `Publish`.  It does not
-    simulate any state dynamics.
-    """
-
     def __init__(self,
                  meshcat,
                  mvp: MeshcatVisualizerParams,
-                 drake_lcm: DrakeLcm,
-                 lower_limit=-10.,
-                 upper_limit=10.,
-                 resolution=0.01):
+                 drake_lcm: DrakeLcm):
         """
-        Creates an meshcat slider for each joint in the plant.
-        Args:
-            meshcat:      A Meshcat instance.
-            lower_limit:  A scalar or vector of length robot.num_positions().
-                          The lower limit of the slider will be the maximum
-                          value of this number and any limit specified in the
-                          Joint.
-            upper_limit:  A scalar or vector of length robot.num_positions().
-                          The upper limit of the slider will be the minimum
-                          value of this number and any limit specified in the
-                          Joint.
-            resolution:   A scalar or vector of length robot.num_positions()
-                          that specifies the step argument of the FloatSlider.
+        Sliders show current joint
         """
         LeafSystem.__init__(self)
         self.set_name('allegro_hand_sliders_passive')
         self.drake_lcm = drake_lcm
-        self.DeclarePeriodicPublish(1. / 60, 0.0)  # draw at 30fps
-        self.DeclareAbstractInputPort("allegro_status",
-                                      AbstractValue.Make(lcmt_allegro_status()))
-
-        def _broadcast(x, num):
-            x = np.array(x)
-            assert len(x.shape) <= 1
-            return np.array(x) * np.ones(num)
+        self.DeclarePeriodicPublish(1 / 32, 0.0)  # draw at 30fps
+        self.status_input_port = self.DeclareAbstractInputPort(
+            "allegro_status",
+            AbstractValue.Make(lcmt_allegro_status()))
+        self.cmd_input_port = self.DeclareAbstractInputPort(
+            "allegro_cmd",
+            AbstractValue.Make(lcmt_allegro_command()))
+        self.meshcat = meshcat
 
         # make diagram.
-        builder = DiagramBuilder()
-        plant, scene_graph = AddMultibodyPlantSceneGraph(
-            builder, time_step=0.0)
+        (self.plant, self.visualizer, self.diagram, self.model_real,
+         self.model_cmd) = make_visualizer_diagram(meshcat, mvp)
 
-        Parser(plant, scene_graph).AddModelFromFile(allegro_file)
-        plant.WeldFrames(
-            plant.world_frame(), plant.GetFrameByName("hand_root"))
-        plant.Finalize()
-        self.visualizer = MeshcatVisualizerCpp.AddToBuilder(
-            builder, scene_graph, meshcat, mvp)
-        diagram = builder.Build()
-
-        lower_limit = _broadcast(lower_limit, plant.num_positions())
-        upper_limit = _broadcast(upper_limit, plant.num_positions())
-        resolution = _broadcast(resolution, plant.num_positions())
-
-        self._diagram = diagram
-        self.meshcat = meshcat
-        self.plant = plant
-
-        self.context = diagram.CreateDefaultContext()
-        self.plant_context = plant.GetMyContextFromRoot(self.context)
+        self.context = self.diagram.CreateDefaultContext()
+        self.plant_context = self.plant.GetMyContextFromRoot(self.context)
         self.vis_context = self.visualizer.GetMyContextFromRoot(self.context)
+
+        n_qa = self.plant.num_positions(self.model_real)
+        lower_limit = np.zeros(n_qa)
+        upper_limit = np.zeros(n_qa)
+        positions_default = np.zeros(n_qa)
 
         self.sliders = {}
         slider_num = 0
-        positions = []
-        for i in range(plant.num_joints()):
-            joint = plant.get_joint(JointIndex(i))
+        for i in self.plant.GetJointIndices(self.model_real):
+            joint = self.plant.get_joint(i)
             low = joint.position_lower_limits()
             upp = joint.position_upper_limits()
             for j in range(joint.num_positions()):
-                index = joint.position_start() + j
                 description = joint.name()
                 if joint.num_positions() > 1:
                     description += '_' + joint.position_suffix(j)
-                lower_limit[slider_num] = max(low[j], lower_limit[slider_num])
-                upper_limit[slider_num] = min(upp[j], upper_limit[slider_num])
+                lower_limit[slider_num] = low[j]
+                upper_limit[slider_num] = upp[j]
                 value = (lower_limit[slider_num] + upper_limit[slider_num]) / 2
-                positions.append(value)
+                positions_default[slider_num] = value
                 meshcat.AddSlider(value=value,
                                   min=lower_limit[slider_num],
                                   max=upper_limit[slider_num],
-                                  step=resolution[slider_num],
+                                  step=0.01,
                                   name=description)
-                self.sliders[index] = description
+                self.sliders[slider_num] = description
                 slider_num += 1
 
-        self.plant.SetPositions(self.plant_context, positions)
+        self.lower_limits = lower_limit
+        self.upper_limits = upper_limit
+
+        # Add button for changing the color of the controlled hand.
+        self.button_name = "Golden Hand"
+        self.meshcat.AddButton(self.button_name)
+        self.n_clicks = self.meshcat.GetButtonClicks(self.button_name)
+
+        self.positions_default = positions_default
+        self.plant.SetPositions(self.plant_context, self.model_real,
+                                positions_default)
+        self.plant.SetPositions(self.plant_context, self.model_cmd,
+                                positions_default)
         self.visualizer.Publish(self.vis_context)
 
     def set_slider_values(self, values):
@@ -128,16 +97,27 @@ class MeshcatJointSliders(LeafSystem):
         while self.drake_lcm.HandleSubscriptions(10) == 0:
             continue
         LeafSystem.DoPublish(self, context, event)
-        status_msg = self.EvalAbstractInput(context, 0).get_value()
-        if status_msg.num_joints == 0:
-            print("empty allegro status msg!")
-            return
+        status_msg = self.status_input_port.Eval(context)
+        cmd_msg = self.cmd_input_port.Eval(context)
 
-        positions = status_msg.joint_position_measured
+        positions_measured = status_msg.joint_position_measured
+        positions_commanded = cmd_msg.joint_position
+        if len(positions_commanded) == 0:
+            positions_commanded = self.positions_default
 
-        self.set_slider_values(positions)
-        self.plant.SetPositions(self.plant_context, positions)
+        self.set_slider_values(positions_measured)
+        self.plant.SetPositions(self.plant_context, self.model_real,
+                                positions_measured)
+        self.plant.SetPositions(self.plant_context, self.model_cmd,
+                                positions_commanded)
         self.visualizer.Publish(self.vis_context)
+
+        # update button
+        n_clicks_new = self.meshcat.GetButtonClicks(self.button_name)
+        if n_clicks_new != self.n_clicks:
+            meshcat.SetProperty("/drake/visualizer/allegro_cmd", "color",
+                                [1, 0.84, 0., 0.7])
+            self.n_clicks = n_clicks_new
 
 
 if __name__ == "__main__":
@@ -150,19 +130,35 @@ if __name__ == "__main__":
 
     builder = DiagramBuilder()
     builder.AddSystem(sliders)
-
-    iiwa_lcm_sub = builder.AddSystem(LcmSubscriberSystem.Make(
-        channel="ALLEGRO_STATUS", lcm_type=lcmt_allegro_status, lcm=drake_lcm))
-    builder.Connect(iiwa_lcm_sub.get_output_port(0),
-                    sliders.get_input_port(0))
     builder.AddSystem(LcmInterfaceSystem(drake_lcm))
 
+    allegro_stats_sub = builder.AddSystem(
+        LcmSubscriberSystem.Make(
+            channel=kAllegroStatusChannel,
+            lcm_type=lcmt_allegro_status,
+            lcm=drake_lcm))
+    builder.Connect(allegro_stats_sub.get_output_port(0),
+                    sliders.status_input_port)
+
+    allegro_cmd_sub = builder.AddSystem(
+        LcmSubscriberSystem.Make(
+            channel=kAllegroCommandChannel,
+            lcm_type=lcmt_allegro_command,
+            lcm=drake_lcm))
+    builder.Connect(allegro_cmd_sub.get_output_port(0),
+                    sliders.cmd_input_port)
+
     diagram = builder.Build()
-    # RenderSystemWithGraphviz(diagram)
 
     simulator = Simulator(diagram)
     simulator.set_target_realtime_rate(1.0)
     simulator.set_publish_every_time_step(False)
 
-    simulator.AdvanceTo(np.inf)
+    print("Waiting for first Allegro Status msg...")
+    allegro_status = wait_for_status_msg()
+    context_sub = allegro_stats_sub.GetMyContextFromRoot(
+        simulator.get_context())
+    context_sub.SetAbstractState(0, allegro_status)
+    print("Running!")
 
+    simulator.AdvanceTo(np.inf)

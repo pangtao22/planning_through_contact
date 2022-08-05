@@ -7,19 +7,19 @@ from pydrake.all import (LeafSystem, AbstractValue, PortDataType, BasicVector,
                          PiecewisePolynomial)
 import pydrake.solvers.mathematicalprogram as mp
 
-from qsim_cpp import ForwardDynamicsMode, GradientMode
-from qsim.parser import QuasistaticParser
+from qsim_cpp import (ForwardDynamicsMode, GradientMode,
+                      QuasistaticSimulatorCpp)
 
 
 class Controller:
-    def __init__(self, q_parser: QuasistaticParser,
+    def __init__(self, q_sim: QuasistaticSimulatorCpp,
                  control_period: float):
-        self.q_sim = q_parser.make_simulator_cpp()
+        self.q_sim = q_sim
         self.solver = GurobiSolver()
 
         # TODO: do not hardcode these parameters. They need to be consistent
         #  with the trajectory optimizer that generates these trajectories.
-        p = copy.deepcopy(q_parser.q_sim_params)
+        p = copy.deepcopy(q_sim.get_sim_params())
         p.h = control_period
         p.forward_mode = ForwardDynamicsMode.kLogIcecream
         p.gradient_mode = GradientMode.kBOnly
@@ -86,7 +86,7 @@ class Controller:
 class ControllerSystem(LeafSystem):
     def __init__(self, control_period: float,
                  x0_nominal: np.ndarray,
-                 q_parser: QuasistaticParser,
+                 q_sim: QuasistaticSimulatorCpp,
                  closed_loop: bool):
         super().__init__()
         self.set_name("allegro_controller")
@@ -99,7 +99,7 @@ class ControllerSystem(LeafSystem):
         self.DeclareDiscreteState(x0_nominal)
 
         self.controller = Controller(
-            q_parser=q_parser, control_period=control_period)
+            q_sim=q_sim, control_period=control_period)
         self.q_sim = self.controller.q_sim
         self.plant = self.q_sim.get_plant()
 
@@ -154,7 +154,7 @@ def add_controller_system_to_diagram(
         u_knots_ref: np.ndarray,
         q_knots_ref: np.ndarray,
         h_ctrl: float,
-        q_parser: QuasistaticParser,
+        q_sim: QuasistaticSimulatorCpp,
         closed_loop: bool) -> Tuple[ControllerSystem, PiecewisePolynomial,
                                     PiecewisePolynomial]:
     """
@@ -175,7 +175,7 @@ def add_controller_system_to_diagram(
     # Allegro controller system.
     ctrller_allegro = ControllerSystem(control_period=h_ctrl,
                                        x0_nominal=q_knots_ref[0],
-                                       q_parser=q_parser,
+                                       q_sim=q_sim,
                                        closed_loop=closed_loop)
     builder.AddSystem(trj_src_u)
     builder.AddSystem(trj_src_q)
