@@ -67,10 +67,6 @@ allegro_status_sub = builder.AddSystem(
         lcm_type=lcmt_allegro_status,
         lcm=drake_lcm))
 
-# TODO: this is wrong. q_input should also include ball configuration.
-# builder.Connect(allegro_status_sub.get_output_port(0),
-#                 ctrller_allegro.q_input_port)
-
 # LCM command pub.
 allegro_lcm_pub = builder.AddSystem(
     LcmPublisherSystem.Make(
@@ -94,6 +90,7 @@ builder.Connect(
     allegro_lcm_pub.get_input_port(0))
 
 diagram = builder.Build()
+# render_system_with_graphviz(diagram)
 
 
 # Run simulator.
