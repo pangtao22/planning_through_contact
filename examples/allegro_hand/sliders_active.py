@@ -36,6 +36,7 @@ def wait_for_status_msg() -> lcmt_allegro_status:
     diag = builder.Build()
     sim = Simulator(diag)
 
+    print("Waiting for first Allegro Status msg...")
     while True:
         n_msgs = d_lcm.HandleSubscriptions(10)
         if n_msgs == 0:
@@ -47,7 +48,7 @@ def wait_for_status_msg() -> lcmt_allegro_status:
             sub.GetMyContextFromRoot(sim.get_context()))
         if msg.num_joints > 0:
             break
-
+    print("Message received!")
     return msg
 
 

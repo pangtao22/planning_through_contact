@@ -6,6 +6,7 @@ from pydrake.all import (LeafSystem, AbstractValue, PortDataType, BasicVector,
                          GurobiSolver, DiagramBuilder, TrajectorySource,
                          PiecewisePolynomial)
 import pydrake.solvers.mathematicalprogram as mp
+from drake import lcmt_allegro_status, lcmt_allegro_command
 
 from qsim_cpp import (ForwardDynamicsMode, GradientMode,
                       QuasistaticSimulatorCpp)
@@ -146,6 +147,33 @@ class ControllerSystem(LeafSystem):
 
         q_nominal[self.q_sim.get_q_a_indices_into_q()] = u
         discrete_state.set_value(q_nominal)
+
+
+class CommandVec2LcmSystem(LeafSystem):
+    def __init__(self, q_sim: QuasistaticSimulatorCpp):
+        super().__init__()
+        self.set_name("command_vec_to_lcm")
+        self.q_sim = q_sim
+        self.q_cmd_input_port = self.DeclareInputPort(
+            "q_a_cmd",
+            PortDataType.kVectorValued,
+            self.q_sim.num_actuated_dofs())
+
+        self.status_input_port = self.DeclareAbstractInputPort(
+            "allegro_status",
+            AbstractValue.Make(lcmt_allegro_status()))
+
+        self.cmd_output_port = self.DeclareAbstractOutputPort(
+            "allegro_cmd", lambda: AbstractValue.Make(lcmt_allegro_command()),
+            self.copy_allegro_cmd_out)
+
+    def copy_allegro_cmd_out(self, context, output):
+        msg = output.get_value()
+        allegro_staus_msg = self.status_input_port.Eval(context)
+        q_a_cmd = self.q_cmd_input_port.Eval(context)
+        msg.utime = allegro_staus_msg.utime
+        msg.num_joints = len(q_a_cmd)
+        msg.joint_position = q_a_cmd
 
 
 def add_controller_system_to_diagram(

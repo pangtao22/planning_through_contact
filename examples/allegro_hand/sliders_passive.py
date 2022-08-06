@@ -133,12 +133,12 @@ if __name__ == "__main__":
     builder.AddSystem(sliders)
     builder.AddSystem(LcmInterfaceSystem(drake_lcm))
 
-    allegro_stats_sub = builder.AddSystem(
+    allegro_status_sub = builder.AddSystem(
         LcmSubscriberSystem.Make(
             channel=kAllegroStatusChannel,
             lcm_type=lcmt_allegro_status,
             lcm=drake_lcm))
-    builder.Connect(allegro_stats_sub.get_output_port(0),
+    builder.Connect(allegro_status_sub.get_output_port(0),
                     sliders.status_input_port)
 
     allegro_cmd_sub = builder.AddSystem(
@@ -155,9 +155,8 @@ if __name__ == "__main__":
     simulator.set_target_realtime_rate(1.0)
     simulator.set_publish_every_time_step(False)
 
-    print("Waiting for first Allegro Status msg...")
     allegro_status = wait_for_status_msg()
-    context_sub = allegro_stats_sub.GetMyContextFromRoot(
+    context_sub = allegro_status_sub.GetMyContextFromRoot(
         simulator.get_context())
     context_sub.SetAbstractState(0, allegro_status)
     print("Running!")
