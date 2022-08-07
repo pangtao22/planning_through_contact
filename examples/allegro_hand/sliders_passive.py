@@ -7,21 +7,29 @@ import rospy
 from sensor_msgs.msg import JointState
 from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
                          AddMultibodyPlantSceneGraph, MeshcatVisualizerCpp,
-                         MeshcatVisualizerParams, JointIndex, Role,
-                         StartMeshcat, DrakeLcm, AbstractValue,
-                         LcmSubscriberSystem, LcmInterfaceSystem, Simulator)
+                         MeshcatVisualizerParams, JointIndex, Role, Meshcat,
+                         StartMeshcat, DrakeLcm, AbstractValue, Sphere,
+                         LcmSubscriberSystem, LcmInterfaceSystem, Simulator,
+                         RigidTransform)
 
 from drake import lcmt_allegro_status, lcmt_allegro_command
+from optitrack import optitrack_frame_t
+
 from qsim.simulator import QuasistaticSimulator
 from qsim.model_paths import models_dir
 
-from sliders_active import (wait_for_status_msg, kAllegroStatusChannel,
+from sliders_active import (wait_for_msg, wait_for_status_msg,
+                            kAllegroStatusChannel,
                             kAllegroCommandChannel, make_visualizer_diagram)
 
+kOptitrackChannelName = "OPTITRACK_FRAMES"
+kAllegroPalmName = "allegro_palm"  # 3 markers on the palm.
+kAllegroBackName = "allegro_back"  # 3 markers on the back.
 
-class MeshcatJointSliders(LeafSystem):
+
+class MeshcatAllegroBallVisualizer(LeafSystem):
     def __init__(self,
-                 meshcat,
+                 meshcat: Meshcat,
                  mvp: MeshcatVisualizerParams,
                  drake_lcm: DrakeLcm):
         """
@@ -38,6 +46,9 @@ class MeshcatJointSliders(LeafSystem):
         self.cmd_input_port = self.DeclareAbstractInputPort(
             "allegro_cmd",
             AbstractValue.Make(lcmt_allegro_command()))
+        self.optitrack_input_port = self.DeclareAbstractInputPort(
+            "optitrack",
+            AbstractValue.Make(optitrack_frame_t))
         self.meshcat = meshcat
 
         # make diagram.
@@ -100,7 +111,9 @@ class MeshcatJointSliders(LeafSystem):
         LeafSystem.DoPublish(self, context, event)
         status_msg = self.status_input_port.Eval(context)
         cmd_msg = self.cmd_input_port.Eval(context)
+        optitrack_msg = self.optitrack_input_port.Eval(context)
 
+        # Hands.
         positions_measured = status_msg.joint_position_measured
         positions_commanded = cmd_msg.joint_position
         if len(positions_commanded) == 0:
@@ -113,7 +126,7 @@ class MeshcatJointSliders(LeafSystem):
                                 positions_commanded)
         self.visualizer.Publish(self.vis_context)
 
-        # update button
+        # update button (for changing hand color)
         n_clicks_new = self.meshcat.GetButtonClicks(self.button_name)
         if n_clicks_new != self.n_clicks:
             meshcat.SetProperty("/drake/visualizer/allegro_cmd", "color",
@@ -121,13 +134,63 @@ class MeshcatJointSliders(LeafSystem):
             self.n_clicks = n_clicks_new
 
 
+def is_optitrack_message_good(msg: optitrack_frame_t):
+    if msg.num_marker_sets == 0:
+        return False
+
+    has_palm = False
+    has_back = False
+    for marker_set in msg.marker_sets:
+        if marker_set.name == kAllegroPalmName:
+            for p in marker_set.xyz:
+                if np.linalg.norm(p) < 1e-3:
+                    return False
+            has_palm = True
+
+        elif marker_set.name == kAllegroBackName:
+            for p in marker_set.xyz:
+                if np.linalg.norm(p) < 1e-3:
+                    return False
+            has_back = True
+
+    return has_back and has_palm
+#%%
+
+
+def get_marker_sets_points(marker_set_name: str,
+                           msg: optitrack_frame_t):
+    for marker_set in msg.marker_sets:
+        if marker_set.name == marker_set_name:
+            return np.array(marker_set.xyz)
+
+
+def draw_allegro_markers(
+        meshcat: Meshcat, p_palm: np.ndarray, p_back: np.ndarray):
+    # Add markers
+    for i in range(3):
+        meshcat.SetObject(
+            f"optitrack/{kAllegroPalmName}/{i}",
+            Sphere(0.00635))
+        meshcat.SetTransform(
+            f"optitrack/{kAllegroPalmName}/{i}",
+            RigidTransform(p_palm[i]))
+
+    for i in range(3):
+        meshcat.SetObject(
+            f"optitrack/{kAllegroBackName}/{i}",
+            Sphere(0.00635))
+        meshcat.SetTransform(
+            f"optitrack/{kAllegroBackName}/{i}",
+            RigidTransform(p_back[i]))
+
+#%%
 if __name__ == "__main__":
     meshcat = StartMeshcat()
     mvp = MeshcatVisualizerParams()
     mvp.role = Role.kIllustration
     drake_lcm = DrakeLcm()
 
-    sliders = MeshcatJointSliders(meshcat, mvp, drake_lcm)
+    sliders = MeshcatAllegroBallVisualizer(meshcat, mvp, drake_lcm)
 
     builder = DiagramBuilder()
     builder.AddSystem(sliders)
@@ -149,16 +212,34 @@ if __name__ == "__main__":
     builder.Connect(allegro_cmd_sub.get_output_port(0),
                     sliders.cmd_input_port)
 
+    optitrack_sub = builder.AddSystem(
+        LcmSubscriberSystem.Make(
+            channel=kOptitrackChannelName,
+            lcm_type=optitrack_frame_t,
+            lcm=drake_lcm))
+    builder.Connect(optitrack_sub.get_output_port(0),
+                    sliders.optitrack_input_port)
+
     diagram = builder.Build()
 
+    #%% Find World frame relative to Lab frame.
+    optitrack_msg = wait_for_msg(
+        channel_name=kOptitrackChannelName,
+        lcm_type=optitrack_frame_t,
+        is_message_good=is_optitrack_message_good)
+
+    p_palm = get_marker_sets_points(kAllegroPalmName, optitrack_msg)
+    p_back = get_marker_sets_points(kAllegroBackName, optitrack_msg)
+    draw_allegro_markers(meshcat, p_palm=p_palm, p_back=p_back)
+
+#%%
     simulator = Simulator(diagram)
     simulator.set_target_realtime_rate(1.0)
     simulator.set_publish_every_time_step(False)
-
     allegro_status = wait_for_status_msg()
     context_sub = allegro_status_sub.GetMyContextFromRoot(
         simulator.get_context())
     context_sub.SetAbstractState(0, allegro_status)
     print("Running!")
 
-    simulator.AdvanceTo(np.inf)
+    # simulator.AdvanceTo(np.inf)

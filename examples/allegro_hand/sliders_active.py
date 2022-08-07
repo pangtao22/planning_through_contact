@@ -1,3 +1,4 @@
+from typing import Callable
 import os
 import time
 
@@ -22,21 +23,21 @@ kAllegroStatusChannel = "ALLEGRO_STATUS"
 kAllegroCommandChannel = "ALLEGRO_CMD"
 
 
-def wait_for_status_msg() -> lcmt_allegro_status:
+def wait_for_msg(channel_name: str,  lcm_type, is_message_good: Callable):
     d_lcm = DrakeLcm()
 
     builder = DiagramBuilder()
 
     sub = builder.AddSystem(
         LcmSubscriberSystem.Make(
-            channel=kAllegroStatusChannel,
-            lcm_type=lcmt_allegro_status,
+            channel=channel_name,
+            lcm_type=lcm_type,
             lcm=d_lcm))
     builder.AddSystem(LcmInterfaceSystem(d_lcm))
     diag = builder.Build()
     sim = Simulator(diag)
 
-    print("Waiting for first Allegro Status msg...")
+    print(f"Waiting for first msg on {channel_name}...")
     while True:
         n_msgs = d_lcm.HandleSubscriptions(10)
         if n_msgs == 0:
@@ -46,10 +47,17 @@ def wait_for_status_msg() -> lcmt_allegro_status:
         sim.AdvanceTo(1e-1)
         msg = sub.get_output_port(0).Eval(
             sub.GetMyContextFromRoot(sim.get_context()))
-        if msg.num_joints > 0:
+        if is_message_good(msg):
             break
     print("Message received!")
     return msg
+
+
+def wait_for_status_msg() -> lcmt_allegro_status:
+    return wait_for_msg(
+        channel_name=kAllegroStatusChannel,
+        lcm_type=lcmt_allegro_status,
+        is_message_good=lambda msg: msg.num_joints > 0)
 
 
 def make_visualizer_diagram(
