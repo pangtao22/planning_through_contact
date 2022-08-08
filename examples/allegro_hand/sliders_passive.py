@@ -4,13 +4,14 @@ import time
 import numpy as np
 
 import rospy
+import torch
 from sensor_msgs.msg import JointState
 from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
                          AddMultibodyPlantSceneGraph, MeshcatVisualizerCpp,
                          MeshcatVisualizerParams, JointIndex, Role, Meshcat,
                          StartMeshcat, DrakeLcm, AbstractValue, Sphere,
                          LcmSubscriberSystem, LcmInterfaceSystem, Simulator,
-                         RigidTransform)
+                         RigidTransform, RotationMatrix, Rgba)
 
 from drake import lcmt_allegro_status, lcmt_allegro_command
 from optitrack import optitrack_frame_t
@@ -22,9 +23,13 @@ from sliders_active import (wait_for_msg, wait_for_status_msg,
                             kAllegroStatusChannel,
                             kAllegroCommandChannel, make_visualizer_diagram)
 
+from optitrack_pose_estimator import (OptitrackPoseEstimator,
+                                      is_optitrack_message_good, kBallName,
+                                      kAllegroPalmName, kMarkerRadius,
+                                      get_marker_set_points)
+
+
 kOptitrackChannelName = "OPTITRACK_FRAMES"
-kAllegroPalmName = "allegro_palm"  # 3 markers on the palm.
-kAllegroBackName = "allegro_back"  # 3 markers on the back.
 
 
 class MeshcatAllegroBallVisualizer(LeafSystem):
@@ -134,54 +139,17 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
             self.n_clicks = n_clicks_new
 
 
-def is_optitrack_message_good(msg: optitrack_frame_t):
-    if msg.num_marker_sets == 0:
-        return False
-
-    has_palm = False
-    has_back = False
-    for marker_set in msg.marker_sets:
-        if marker_set.name == kAllegroPalmName:
-            for p in marker_set.xyz:
-                if np.linalg.norm(p) < 1e-3:
-                    return False
-            has_palm = True
-
-        elif marker_set.name == kAllegroBackName:
-            for p in marker_set.xyz:
-                if np.linalg.norm(p) < 1e-3:
-                    return False
-            has_back = True
-
-    return has_back and has_palm
-#%%
-
-
-def get_marker_sets_points(marker_set_name: str,
-                           msg: optitrack_frame_t):
-    for marker_set in msg.marker_sets:
-        if marker_set.name == marker_set_name:
-            return np.array(marker_set.xyz)
-
-
 def draw_allegro_markers(
-        meshcat: Meshcat, p_palm: np.ndarray, p_back: np.ndarray):
+        meshcat: Meshcat, p_palm: np.ndarray):
     # Add markers
     for i in range(3):
         meshcat.SetObject(
             f"optitrack/{kAllegroPalmName}/{i}",
-            Sphere(0.00635))
+            Sphere(kMarkerRadius))
         meshcat.SetTransform(
             f"optitrack/{kAllegroPalmName}/{i}",
             RigidTransform(p_palm[i]))
 
-    for i in range(3):
-        meshcat.SetObject(
-            f"optitrack/{kAllegroBackName}/{i}",
-            Sphere(0.00635))
-        meshcat.SetTransform(
-            f"optitrack/{kAllegroBackName}/{i}",
-            RigidTransform(p_back[i]))
 
 #%%
 if __name__ == "__main__":
@@ -228,9 +196,27 @@ if __name__ == "__main__":
         lcm_type=optitrack_frame_t,
         is_message_good=is_optitrack_message_good)
 
-    p_palm = get_marker_sets_points(kAllegroPalmName, optitrack_msg)
-    p_back = get_marker_sets_points(kAllegroBackName, optitrack_msg)
-    draw_allegro_markers(meshcat, p_palm=p_palm, p_back=p_back)
+    #%%
+    pose_estimator = OptitrackPoseEstimator(optitrack_msg)
+    X_WL = pose_estimator.X_WL
+    p_palm_W = pose_estimator.p_palm_W
+    draw_allegro_markers(meshcat, p_palm=p_palm_W)
+    # %% ball
+    p_ball_surface_L = get_marker_set_points(kBallName, optitrack_msg)
+    p_ball_center_W = pose_estimator.calc_ball_center_W(p_ball_surface_L)
+    p_ball_surface_W = X_WL.multiply(p_ball_surface_L.T).T
+
+    meshcat.SetObject(
+        f"optitrack/{kBallName}/body",
+        Sphere(0.06), Rgba(0.5, 0.5, 0.5, 0.6))
+    meshcat.SetTransform(f"optitrack/{kBallName}/body",
+                         RigidTransform(p_ball_center_W))
+
+    for i in range(len(p_ball_surface_L)):
+        name = f"optitrack/{kBallName}/{i}"
+        meshcat.SetObject(name, Sphere(kMarkerRadius))
+        meshcat.SetTransform(name, RigidTransform(p_ball_surface_W[i]))
+
 
 #%%
     simulator = Simulator(diagram)
