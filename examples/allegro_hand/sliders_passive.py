@@ -3,9 +3,6 @@ import time
 
 import numpy as np
 
-import rospy
-import torch
-from sensor_msgs.msg import JointState
 from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
                          AddMultibodyPlantSceneGraph, MeshcatVisualizerCpp,
                          MeshcatVisualizerParams, JointIndex, Role, Meshcat,
@@ -36,7 +33,8 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
     def __init__(self,
                  meshcat: Meshcat,
                  mvp: MeshcatVisualizerParams,
-                 drake_lcm: DrakeLcm):
+                 drake_lcm: DrakeLcm,
+                 pose_estimator: OptitrackPoseEstimator):
         """
         Sliders and black hand show measured joint angles.
         Golden hand show commanded joint angles.
@@ -55,6 +53,7 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
             "optitrack",
             AbstractValue.Make(optitrack_frame_t))
         self.meshcat = meshcat
+        self.pose_estimator = pose_estimator
 
         # make diagram.
         (self.plant, self.visualizer, self.diagram, self.model_real,
@@ -106,6 +105,25 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
                                 positions_default)
         self.visualizer.Publish(self.vis_context)
 
+        # Add objects for markers and the sphere.
+        # Palm markers.
+        for i in range(3):
+            meshcat.SetObject(
+                f"optitrack/{kAllegroPalmName}/{i}",
+                Sphere(kMarkerRadius))
+            meshcat.SetTransform(
+                f"optitrack/{kAllegroPalmName}/{i}",
+                RigidTransform(pose_estimator.p_palm_W[i]))
+
+        # Sphere markers.
+        for i in range(5):
+            name = f"optitrack/{kBallName}/{i}"
+            meshcat.SetObject(name, Sphere(kMarkerRadius))
+        # Sphere.
+        meshcat.SetObject(
+            f"optitrack/{kBallName}/body",
+            Sphere(0.06), Rgba(0.5, 0.5, 0.5, 0.6))
+
     def set_slider_values(self, values):
         for i, slider_name in self.sliders.items():
             self.meshcat.SetSliderValue(slider_name, values[i])
@@ -138,17 +156,17 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
                                 [1, 0.84, 0., 0.7])
             self.n_clicks = n_clicks_new
 
-
-def draw_allegro_markers(
-        meshcat: Meshcat, p_palm: np.ndarray):
-    # Add markers
-    for i in range(3):
-        meshcat.SetObject(
-            f"optitrack/{kAllegroPalmName}/{i}",
-            Sphere(kMarkerRadius))
-        meshcat.SetTransform(
-            f"optitrack/{kAllegroPalmName}/{i}",
-            RigidTransform(p_palm[i]))
+        # Markers and sphere.
+        X_WL = self.pose_estimator.X_WL
+        p_ball_surface_L = get_marker_set_points(kBallName, optitrack_msg)
+        p_ball_surface_W = X_WL.multiply(p_ball_surface_L.T).T
+        p_ball_center_W = self.pose_estimator.calc_ball_center_W(
+            p_ball_surface_L)
+        self.meshcat.SetTransform(f"optitrack/{kBallName}/body",
+                                  RigidTransform(p_ball_center_W))
+        for i in range(len(p_ball_surface_W)):
+            name = f"optitrack/{kBallName}/{i}"
+            meshcat.SetTransform(name, RigidTransform(p_ball_surface_W[i]))
 
 
 #%%
@@ -158,7 +176,14 @@ if __name__ == "__main__":
     mvp.role = Role.kIllustration
     drake_lcm = DrakeLcm()
 
-    sliders = MeshcatAllegroBallVisualizer(meshcat, mvp, drake_lcm)
+    optitrack_msg = wait_for_msg(
+        channel_name=kOptitrackChannelName,
+        lcm_type=optitrack_frame_t,
+        is_message_good=is_optitrack_message_good)
+    pose_estimator = OptitrackPoseEstimator(optitrack_msg)
+
+    sliders = MeshcatAllegroBallVisualizer(meshcat, mvp, drake_lcm,
+                                           pose_estimator)
 
     builder = DiagramBuilder()
     builder.AddSystem(sliders)
@@ -190,42 +215,21 @@ if __name__ == "__main__":
 
     diagram = builder.Build()
 
-    #%% Find World frame relative to Lab frame.
-    optitrack_msg = wait_for_msg(
-        channel_name=kOptitrackChannelName,
-        lcm_type=optitrack_frame_t,
-        is_message_good=is_optitrack_message_good)
-
-    #%%
-    pose_estimator = OptitrackPoseEstimator(optitrack_msg)
-    X_WL = pose_estimator.X_WL
-    p_palm_W = pose_estimator.p_palm_W
-    draw_allegro_markers(meshcat, p_palm=p_palm_W)
-    # %% ball
-    p_ball_surface_L = get_marker_set_points(kBallName, optitrack_msg)
-    p_ball_center_W = pose_estimator.calc_ball_center_W(p_ball_surface_L)
-    p_ball_surface_W = X_WL.multiply(p_ball_surface_L.T).T
-
-    meshcat.SetObject(
-        f"optitrack/{kBallName}/body",
-        Sphere(0.06), Rgba(0.5, 0.5, 0.5, 0.6))
-    meshcat.SetTransform(f"optitrack/{kBallName}/body",
-                         RigidTransform(p_ball_center_W))
-
-    for i in range(len(p_ball_surface_L)):
-        name = f"optitrack/{kBallName}/{i}"
-        meshcat.SetObject(name, Sphere(kMarkerRadius))
-        meshcat.SetTransform(name, RigidTransform(p_ball_surface_W[i]))
-
 
 #%%
     simulator = Simulator(diagram)
     simulator.set_target_realtime_rate(1.0)
     simulator.set_publish_every_time_step(False)
-    allegro_status = wait_for_status_msg()
-    context_sub = allegro_status_sub.GetMyContextFromRoot(
+
+    allegro_status_msg = wait_for_status_msg()
+    context_allegro_sub = allegro_status_sub.GetMyContextFromRoot(
         simulator.get_context())
-    context_sub.SetAbstractState(0, allegro_status)
+    context_allegro_sub.SetAbstractState(0, allegro_status_msg)
+
+    context_optitrack_sub = optitrack_sub.GetMyContextFromRoot(
+        simulator.get_context())
+    context_optitrack_sub.SetAbstractState(0, optitrack_msg)
+
     print("Running!")
 
-    # simulator.AdvanceTo(np.inf)
+    simulator.AdvanceTo(np.inf)
