@@ -1,13 +1,13 @@
 import numpy as np
 
-from pydrake.all import (RotationMatrix, RigidTransform, )
+from pydrake.all import (RotationMatrix, RigidTransform, Quaternion)
 from optitrack import optitrack_frame_t
 from estimate_sphere_center import estimate_center_and_r, estimate_center
 
 kAllegroPalmName = "allegro_palm"  # 3 markers on the palm.
-kAllegroBackName = "allegro_back"  # 3 markers on the back.
 kBallName = "ball"
 kMarkerRadius = 0.00635
+kMarkerCenterToPalm = 0.0254 / 16 * 7
 
 
 def is_optitrack_message_good(msg: optitrack_frame_t):
@@ -34,43 +34,112 @@ def get_marker_set_points(marker_set_name: str,
                           msg: optitrack_frame_t):
     """
     Returns None if msg does not have a marker_set with name marker_set_name.
+    Otherwise, returns ((n, 3) marker coordinates, index of marker set.)
     """
-    for marker_set in msg.marker_sets:
+    for i, marker_set in enumerate(msg.marker_sets):
         if marker_set.name == marker_set_name:
-            return np.array(marker_set.xyz)
+            return np.array(marker_set.xyz), i
 
 
 class OptitrackPoseEstimator:
     def __init__(self, optitrack_msg: optitrack_frame_t):
-        self.X_WL, self.p_palm_W = self.calc_X_LW(optitrack_msg)
-        self.delta_surface_to_center = \
-            self.calc_ball_markers_relative_to_center(optitrack_msg)
+        self.X_WL, self.p_palm_W = self.calc_X_WL(optitrack_msg)
+        self.X_WP = self.calc_X_WP(optitrack_msg, self.X_WL)
+
+        # B0: frame of the ball defined in optitrack.
+        # B: frame of the ball at the ball's center.
+        self.X_B0B = self.calc_X_B0B(optitrack_msg)
+        # self.X_B0B = RigidTransform()
 
     @staticmethod
-    def calc_X_LW(optitrack_msg: optitrack_frame_t):
+    def get_X_LB_from_msg(optitrack_msg: optitrack_frame_t,
+                          idx_rigid_body: int):
+        q = optitrack_msg.rigid_bodies[idx_rigid_body].quat
+        return RigidTransform(
+            Quaternion(q[3], q[0], q[1], q[2]),
+            optitrack_msg.rigid_bodies[idx_rigid_body].xyz)
+
+    @staticmethod
+    def calc_X_WP(optitrack_msg: optitrack_frame_t, X_WL: RigidTransform):
+        _, idx_p = get_marker_set_points(kAllegroPalmName, optitrack_msg)
+        X_LP = OptitrackPoseEstimator.get_X_LB_from_msg(optitrack_msg,
+                                                        idx_p)
+        return X_WL.multiply(X_LP)
+
+    @staticmethod
+    def get_palm_marker_indices(p_palm_L: np.ndarray):
         """
+        p_palm_L (3, 3) array, where p_palm_L[i] is the xyz coordinates of
+         palm marker i in L frame.
         W is the world frame of the hand-ball MBP.
-        *----------*--> y_W
+        A----------B--> y_W
           |
           |
-          *
+          C
           |
           V
          x_W
-        The three palm markers are indicated by stars.
-        The axes of the Lab frame (L) should be almost aligned with those of W.
+        The three palm markers are indicated by (A, B, C).
         """
-        p_palm_L = get_marker_set_points(kAllegroPalmName, optitrack_msg)
+        idx_C = np.argmax(p_palm_L[:, 0])
+        idx_B = np.argmax(p_palm_L[:, 1])
+        idx_all = [0, 1, 2]
+        idx_all.remove(idx_B)
+        idx_all.remove(idx_C)
+        idx_A = idx_all[0]
+        return idx_A, idx_B, idx_C
 
-        idx_palm_back = np.argmax(p_palm_L[:, 0])
-        idx_palm_front = [0, 1, 2]
-        idx_palm_front.remove(idx_palm_back)
-        # z-axis
+    @staticmethod
+    def calc_z_LW(p_palm_L: np.ndarray):
         nz_LW = np.cross(p_palm_L[1] - p_palm_L[0], p_palm_L[2] - p_palm_L[0])
         nz_LW /= np.linalg.norm(nz_LW)
+        if nz_LW[2] < 0:
+            nz_LW *= -1
+
+        return nz_LW
+
+    @staticmethod
+    def calc_X_B0B(optitrack_msg: optitrack_frame_t):
+        p_palm_L, _ = get_marker_set_points(kAllegroPalmName, optitrack_msg)
+        _, idx_rigid_body_ball = get_marker_set_points(kBallName, optitrack_msg)
+        idx_A, idx_B, idx_C = OptitrackPoseEstimator.get_palm_marker_indices(
+            p_palm_L)
+        X_LB0 = OptitrackPoseEstimator.get_X_LB_from_msg(
+            optitrack_msg, idx_rigid_body_ball)
+
+        R = 0.061  # sphere radius
+        y = np.linalg.norm(p_palm_L[idx_C] - p_palm_L[idx_A])
+        c = np.sqrt((R + kMarkerRadius) ** 2 - (R - kMarkerCenterToPalm) ** 2)
+        e = np.sqrt(c ** 2 - (y / 2) ** 2)
+
+        n_AC = p_palm_L[idx_C] - p_palm_L[idx_A]
+        n_AC /= np.linalg.norm(n_AC)
+        nz_LW = OptitrackPoseEstimator.calc_z_LW(p_palm_L)
+
+        n_e = np.cross(nz_LW, n_AC)
+        # Sc: sphere center.
+        p_Sc_L = (p_palm_L[idx_A] + p_palm_L[idx_C]) / 2 + n_e * e
+        p_Sc_L += nz_LW * (R - kMarkerCenterToPalm)
+
+        X_LB = RigidTransform(p_Sc_L)
+
+        return X_LB0.inverse().multiply(X_LB)
+
+    @staticmethod
+    def calc_X_WL(optitrack_msg: optitrack_frame_t):
+        """
+        The axes of the Lab frame (L) should be almost aligned with those of W.
+        """
+
+        p_palm_L, _ = get_marker_set_points(kAllegroPalmName, optitrack_msg)
+        idx_A, idx_B, idx_C = OptitrackPoseEstimator.get_palm_marker_indices(
+            p_palm_L)
+
+        # z-axis
+        nz_LW = OptitrackPoseEstimator.calc_z_LW(p_palm_L)
 
         # y-axis
-        ny_LW = p_palm_L[idx_palm_front[0]] - p_palm_L[idx_palm_front[1]]
+        ny_LW = p_palm_L[idx_B] - p_palm_L[idx_A]
         ny_LW /= np.linalg.norm(ny_LW)
         if ny_LW[1] < 0:
             ny_LW *= -1
@@ -80,12 +149,11 @@ class OptitrackPoseEstimator:
         R_LW = RotationMatrix(np.vstack([nx_LW, ny_LW, nz_LW]).T)
 
         # origin.
-        y0_LW = (p_palm_L[idx_palm_front[0], 1]
-                 + p_palm_L[idx_palm_front[1], 1]) / 2
+        y0_LW = (p_palm_L[idx_B, 1] + p_palm_L[idx_A, 1]) / 2
         # the center of the markers are 7 / 16 inches above the surface.
-        z0_LW = np.mean(p_palm_L[:, 2]) - 0.0254 / 16 * 7 - 0.0098
+        z0_LW = np.mean(p_palm_L[:, 2]) - kMarkerCenterToPalm - 0.0098
 
-        x0_LW = np.mean(p_palm_L[idx_palm_front, 0]) + 0.0859
+        x0_LW = np.mean(p_palm_L[[idx_A, idx_B], 0]) + 0.0859
 
         X_LW = RigidTransform(R_LW, [x0_LW, y0_LW, z0_LW])
         X_WL = X_LW.inverse()
@@ -93,40 +161,17 @@ class OptitrackPoseEstimator:
 
         return X_WL, p_palm_W
 
-    @staticmethod
-    def calc_ball_markers_relative_to_center(
-            optitrack_msg: optitrack_frame_t):
+    def calc_p_ball_surface_W_and_X_WB(
+            self, optitrack_msg: optitrack_frame_t):
         """
-        Assuming that there are three markers on the x, y, and z axis of the
-        ball. Check my phone for the correct starting pose for this function
-        to work.
+        returns (p_ball_surface_W (4, 3), X_WB)
         """
-        p_ball_surface_L = get_marker_set_points(kBallName, optitrack_msg)
+        p_ball_surface_L, idx = get_marker_set_points(kBallName, optitrack_msg)
+        p_ball_surface_W = self.X_WL.multiply(p_ball_surface_L.T).T
 
-        idx_x = np.argmin(p_ball_surface_L[:, 0])
-        idx_y = np.argmin(p_ball_surface_L[:, 1])
-        idx_z = np.argmax(p_ball_surface_L[:, 2])
+        X_LB0 = self.get_X_LB_from_msg(optitrack_msg, idx)
+        X_WB0 = self.X_WL.multiply(X_LB0)
 
-        p_x_L = p_ball_surface_L[idx_x]
-        p_y_L = p_ball_surface_L[idx_y]
-        p_z_L = p_ball_surface_L[idx_z]
-        p_c_L = (p_x_L + p_y_L + p_z_L) / 3
-
-        d_xy = np.linalg.norm(p_x_L - p_y_L)
-        d_yz = np.linalg.norm(p_y_L - p_z_L)
-        d_zx = np.linalg.norm(p_z_L - p_x_L)
-        r_ball = (d_xy + d_yz + d_zx) / 3 / np.sqrt(2)
-        v_xz = p_z_L - p_x_L
-        v_zy = p_y_L - p_z_L
-        n = np.cross(v_xz, v_zy)
-        n /= np.linalg.norm(n)
-        p_ball_center_L = p_c_L + n * r_ball / np.sqrt(3)
-
-        return p_ball_surface_L - p_ball_center_L
-
-    def calc_ball_center_W(self, p_ball_surface_L: np.ndarray):
-        p_ball_center_L = np.mean(
-            p_ball_surface_L - self.delta_surface_to_center, axis=0)
-        return self.X_WL.multiply(p_ball_center_L)
+        return p_ball_surface_W, X_WB0.multiply(self.X_B0B)
 
 

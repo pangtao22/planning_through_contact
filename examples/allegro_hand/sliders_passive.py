@@ -8,7 +8,8 @@ from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
                          MeshcatVisualizerParams, JointIndex, Role, Meshcat,
                          StartMeshcat, DrakeLcm, AbstractValue, Sphere,
                          LcmSubscriberSystem, LcmInterfaceSystem, Simulator,
-                         RigidTransform, RotationMatrix, Rgba)
+                         RigidTransform, RotationMatrix, Rgba, Cylinder,
+                         AngleAxis)
 
 from drake import lcmt_allegro_status, lcmt_allegro_command
 from optitrack import optitrack_frame_t
@@ -27,6 +28,38 @@ from optitrack_pose_estimator import (OptitrackPoseEstimator,
 
 
 kOptitrackChannelName = "OPTITRACK_FRAMES"
+
+
+def add_triad(vis: Meshcat,
+              name: str, prefix: str, length=1., radius=0.04, opacity=1.):
+    """
+    Initializes coordinate axes of a frame T. The x-axis is drawn red,
+    y-axis green and z-axis blue. The axes point in +x, +y and +z directions,
+    respectively.
+    Args:
+        vis: a meshcat.Visualizer object.
+        name: (string) the name of the triad in meshcat.
+        prefix: (string) name of the node in the meshcat tree to which this
+            triad is added.
+        length: the length of each axis in meters.
+        radius: the radius of each axis in meters.
+        opacity: the opacity of the coordinate axes, between 0 and 1.
+    """
+    delta_xyz = np.array([[length / 2, 0, 0],
+                          [0, length / 2, 0],
+                          [0, 0, length / 2]])
+
+    axes_name = ['x', 'y', 'z']
+    axes_color = [Rgba(1, 0, 0, opacity),
+                  Rgba(0, 1, 0, opacity),
+                  Rgba(0, 0, 1, opacity)]
+    rotation_axes = [[0, 1, 0], [1, 0, 0], [0, 0, 1]]
+
+    for i in range(3):
+        path = f"{prefix}/{name}/{axes_name[i]}"
+        vis.SetObject(path, Cylinder(radius, length), axes_color[i])
+        X = RigidTransform(AngleAxis(np.pi / 2, rotation_axes[i]), delta_xyz[i])
+        vis.SetTransform(path, X)
 
 
 class MeshcatAllegroBallVisualizer(LeafSystem):
@@ -115,6 +148,16 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
                 f"optitrack/{kAllegroPalmName}/{i}",
                 RigidTransform(pose_estimator.p_palm_W[i]))
 
+        # Palm frame.
+        palm_frame_path = f"optitrack/{kAllegroPalmName}/frame"
+        add_triad(
+            vis=self.meshcat,
+            prefix=palm_frame_path,
+            name="triad",
+            length=0.075,
+            radius=0.0015)
+        self.meshcat.SetTransform(palm_frame_path, pose_estimator.X_WP)
+
         # Sphere markers.
         for i in range(5):
             name = f"optitrack/{kBallName}/{i}"
@@ -123,6 +166,16 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
         meshcat.SetObject(
             f"optitrack/{kBallName}/body",
             Sphere(0.06), Rgba(0.5, 0.5, 0.5, 0.6))
+
+        add_triad(
+            vis=self.meshcat,
+            prefix=f"optitrack/{kBallName}/body",
+            name="triad",
+            length=0.075,
+            radius=0.0015)
+
+        # draw goal frame.
+
 
     def set_slider_values(self, values):
         for i, slider_name in self.sliders.items():
@@ -157,13 +210,10 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
             self.n_clicks = n_clicks_new
 
         # Markers and sphere.
-        X_WL = self.pose_estimator.X_WL
-        p_ball_surface_L = get_marker_set_points(kBallName, optitrack_msg)
-        p_ball_surface_W = X_WL.multiply(p_ball_surface_L.T).T
-        p_ball_center_W = self.pose_estimator.calc_ball_center_W(
-            p_ball_surface_L)
-        self.meshcat.SetTransform(f"optitrack/{kBallName}/body",
-                                  RigidTransform(p_ball_center_W))
+        (p_ball_surface_W, X_WB
+         ) = self.pose_estimator.calc_p_ball_surface_W_and_X_WB(optitrack_msg)
+
+        self.meshcat.SetTransform(f"optitrack/{kBallName}/body", X_WB)
         for i in range(len(p_ball_surface_W)):
             name = f"optitrack/{kBallName}/{i}"
             meshcat.SetTransform(name, RigidTransform(p_ball_surface_W[i]))
