@@ -19,6 +19,7 @@ from robotics_utilities.iiwa_controller.robot_internal_controller import (
 from allegro_hand_setup import robot_name, q_model_path_hardware
 from allegro_controller_system import (
     add_controller_system_to_diagram, ControllerSystem)
+from systems_utils import render_system_with_graphviz
 
 
 def create_allegro_controller_plant(gravity):
@@ -33,16 +34,6 @@ def create_allegro_controller_plant(gravity):
     plant.Finalize()
 
     return plant
-
-
-def render_system_with_graphviz(system, output_file="system_view.gz"):
-    """ Renders the Drake system (presumably a diagram,
-    otherwise this graph will be fairly trivial) using
-    graphviz to a specified file. """
-    from graphviz import Source
-    string = system.GetGraphvizString()
-    src = Source(string)
-    src.render(output_file, view=False)
 
 
 def load_ref_trajectories(file_path: str):
@@ -155,7 +146,7 @@ ctrller_internal.tau_feedforward_input_port.FixValue(
 
 context_plant = plant.GetMyContextFromRoot(context)
 q0 = copy.copy(q_knots_ref[0])
-q0[-3] += 0.003
+# q0[-3] += 0.003
 plant.SetPositions(context_plant, q0)
 
 sim.Initialize()

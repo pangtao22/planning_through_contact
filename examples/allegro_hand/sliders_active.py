@@ -1,6 +1,6 @@
 from typing import Callable
 import os
-import time
+import pickle
 
 import numpy as np
 
@@ -181,14 +181,27 @@ class MeshcatJointSliders(LeafSystem):
         self.lower_limits = lower_limit
         self.upper_limits = upper_limit
 
-        # Add button for changing the color of the controlled hand.
-        self.button_name = "Golden Hand"
-        self.meshcat.AddButton(self.button_name)
-        self.n_clicks = self.meshcat.GetButtonClicks(self.button_name)
-
         self.plant.SetPositions(self.plant_context, self.model_real, positions)
         self.plant.SetPositions(self.plant_context, self.model_cmd, positions)
         self.visualizer.Publish(self.vis_context)
+
+        # Add button for changing the color of the controlled hand.
+        self.color_button_name = "Golden Hand"
+        self.meshcat.AddButton(self.color_button_name)
+        self.n_clicks_color = self.meshcat.GetButtonClicks(
+            self.color_button_name)
+
+        # Add button for moving to a pre-defined joint angle configuration.
+        self.move_button_name = "Move to q_a0"
+        self.meshcat.AddButton(self.move_button_name)
+        self.n_clicks_move = self.meshcat.GetButtonClicks(
+            self.move_button_name)
+
+        with open("hand_trj.pkl", "rb") as f:
+            trj_dict = pickle.load(f)
+        q_trj = trj_dict["x_trj"]
+        # TODO: hard-coding joint indices is bad.
+        self.q_a0 = q_trj[0, :16]
 
     def get_slider_values(self):
         values = np.zeros(len(self.sliders))
@@ -218,12 +231,18 @@ class MeshcatJointSliders(LeafSystem):
             # "Initialization" of slider and golden hand.
             self.set_slider_values(status_msg.joint_position_measured)
 
-        # update button
-        n_clicks_new = self.meshcat.GetButtonClicks(self.button_name)
-        if n_clicks_new != self.n_clicks:
+        # update color button
+        n_clicks_new = self.meshcat.GetButtonClicks(self.color_button_name)
+        if n_clicks_new != self.n_clicks_color:
             meshcat.SetProperty("/drake/visualizer/allegro_cmd", "color",
                                 [1, 0.84, 0., 0.7])
-            self.n_clicks = n_clicks_new
+            self.n_clicks_color = n_clicks_new
+
+        # update move button
+        n_clicks_new = self.meshcat.GetButtonClicks(self.move_button_name)
+        if n_clicks_new != self.n_clicks_move:
+            self.set_slider_values(self.q_a0)
+            self.n_clicks_move = n_clicks_new
 
         self.allegro_stats_msg = status_msg
         positions = status_msg.joint_position_measured

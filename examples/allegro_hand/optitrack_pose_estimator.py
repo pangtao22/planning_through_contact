@@ -174,4 +174,11 @@ class OptitrackPoseEstimator:
 
         return p_ball_surface_W, X_WB0.multiply(self.X_B0B)
 
+    def reset_ball_orientation(self, optitrack_msg: optitrack_frame_t):
+        p_ball_surface_L, idx = get_marker_set_points(kBallName, optitrack_msg)
+        X_LB0 = self.get_X_LB_from_msg(optitrack_msg, idx)
+        X_WB0 = self.X_WL.multiply(X_LB0)
 
+        R_WB0 = X_WB0.rotation()
+        R_WB = RotationMatrix()
+        self.X_B0B.set_rotation(R_WB0.inverse().multiply(R_WB))

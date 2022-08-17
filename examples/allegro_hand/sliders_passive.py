@@ -1,5 +1,6 @@
 import os
 import time
+import pickle
 
 import numpy as np
 
@@ -9,7 +10,7 @@ from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
                          StartMeshcat, DrakeLcm, AbstractValue, Sphere,
                          LcmSubscriberSystem, LcmInterfaceSystem, Simulator,
                          RigidTransform, RotationMatrix, Rgba, Cylinder,
-                         AngleAxis)
+                         AngleAxis, Quaternion)
 
 from drake import lcmt_allegro_status, lcmt_allegro_command
 from optitrack import optitrack_frame_t
@@ -23,8 +24,9 @@ from sliders_active import (wait_for_msg, wait_for_status_msg,
 
 from optitrack_pose_estimator import (OptitrackPoseEstimator,
                                       is_optitrack_message_good, kBallName,
-                                      kAllegroPalmName, kMarkerRadius,
-                                      get_marker_set_points)
+                                      kAllegroPalmName, kMarkerRadius)
+
+from systems_utils import render_system_with_graphviz
 
 
 kOptitrackChannelName = "OPTITRACK_FRAMES"
@@ -126,17 +128,23 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
         self.lower_limits = lower_limit
         self.upper_limits = upper_limit
 
-        # Add button for changing the color of the controlled hand.
-        self.button_name = "Golden Hand"
-        self.meshcat.AddButton(self.button_name)
-        self.n_clicks = self.meshcat.GetButtonClicks(self.button_name)
-
         self.positions_default = positions_default
         self.plant.SetPositions(self.plant_context, self.model_real,
                                 positions_default)
         self.plant.SetPositions(self.plant_context, self.model_cmd,
                                 positions_default)
         self.visualizer.Publish(self.vis_context)
+
+        # Add button for changing the color of the controlled hand.
+        self.color_button_name = "Golden Hand"
+        self.meshcat.AddButton(self.color_button_name)
+        self.n_clicks_color = self.meshcat.GetButtonClicks(
+            self.color_button_name)
+
+        self.reset_button_name = "Reset ball orientation"
+        self.meshcat.AddButton(self.reset_button_name)
+        self.n_clicks_reset = self.meshcat.GetButtonClicks(
+            self.reset_button_name)
 
         # Add objects for markers and the sphere.
         # Palm markers.
@@ -149,24 +157,24 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
                 RigidTransform(pose_estimator.p_palm_W[i]))
 
         # Palm frame.
-        palm_frame_path = f"optitrack/{kAllegroPalmName}/frame"
-        add_triad(
-            vis=self.meshcat,
-            prefix=palm_frame_path,
-            name="triad",
-            length=0.075,
-            radius=0.0015)
-        self.meshcat.SetTransform(palm_frame_path, pose_estimator.X_WP)
+        # palm_frame_path = f"optitrack/{kAllegroPalmName}/frame"
+        # add_triad(
+        #     vis=self.meshcat,
+        #     prefix=palm_frame_path,
+        #     name="triad",
+        #     length=0.075,
+        #     radius=0.0015,
+        #     opacity=0.1)
+        # self.meshcat.SetTransform(palm_frame_path, pose_estimator.X_WP)
 
         # Sphere markers.
-        for i in range(5):
+        for i in range(4):
             name = f"optitrack/{kBallName}/{i}"
             meshcat.SetObject(name, Sphere(kMarkerRadius))
         # Sphere.
-        meshcat.SetObject(
-            f"optitrack/{kBallName}/body",
-            Sphere(0.06), Rgba(0.5, 0.5, 0.5, 0.6))
-
+        # meshcat.SetObject(
+        #     f"optitrack/{kBallName}/body",
+        #     Sphere(0.06), Rgba(0.5, 0.5, 0.5, 0.6))
         add_triad(
             vis=self.meshcat,
             prefix=f"optitrack/{kBallName}/body",
@@ -174,8 +182,32 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
             length=0.075,
             radius=0.0015)
 
-        # draw goal frame.
+        # Draw start and goal frames.
+        with open("hand_trj.pkl", "rb") as f:
+            trj_dict = pickle.load(f)
+        q_trj = trj_dict["x_trj"]
+        # TODO: hard-coding joint indices is bad.
+        q_u0 = q_trj[0, -7:]
+        q_u_goal = q_trj[-1, -7:]
 
+        def draw_q_u_frame(name: str, q_u):
+            """
+            q_u[:4] quaternion in World frame.
+            q_u[4:] translation in World frame.
+            """
+            q_path = f"trj_tracking/{name}"
+            add_triad(
+                vis=self.meshcat,
+                prefix=q_path,
+                name="triad",
+                length=0.075,
+                radius=0.003,
+                opacity=0.3)
+            X_WB = RigidTransform(Quaternion(q_u[:4]), q_u[4:])
+            meshcat.SetTransform(q_path, X_WB)
+
+        draw_q_u_frame("start", q_u0)
+        draw_q_u_frame("goal", q_u_goal)
 
     def set_slider_values(self, values):
         for i, slider_name in self.sliders.items():
@@ -203,11 +235,17 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
         self.visualizer.Publish(self.vis_context)
 
         # update button (for changing hand color)
-        n_clicks_new = self.meshcat.GetButtonClicks(self.button_name)
-        if n_clicks_new != self.n_clicks:
+        n_clicks_new = self.meshcat.GetButtonClicks(self.color_button_name)
+        if n_clicks_new != self.n_clicks_color:
             meshcat.SetProperty("/drake/visualizer/allegro_cmd", "color",
                                 [1, 0.84, 0., 0.7])
-            self.n_clicks = n_clicks_new
+            self.n_clicks_color = n_clicks_new
+
+        # update button for reset ball orientation.
+        n_clicks_new = self.meshcat.GetButtonClicks(self.reset_button_name)
+        if n_clicks_new != self.n_clicks_reset:
+            self.pose_estimator.reset_ball_orientation(optitrack_msg)
+            self.n_clicks_reset = n_clicks_new
 
         # Markers and sphere.
         (p_ball_surface_W, X_WB
@@ -265,6 +303,7 @@ if __name__ == "__main__":
 
     diagram = builder.Build()
 
+    render_system_with_graphviz(diagram, "sliders_active.gz")
 
 #%%
     simulator = Simulator(diagram)
