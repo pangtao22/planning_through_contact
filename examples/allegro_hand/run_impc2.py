@@ -39,10 +39,12 @@ idx_u = plant.GetModelInstanceByName(object_name)
 
 # initial conditions.
 q_a0 = np.array([0.03501504, 0.75276565, 0.74146232, 0.83261002,
-                 -0.1438725, 0.74696812, 0.61908827, 0.70064279,
-                 -0.06922541, 0.78533142, 0.82942863, 0.90415436,
-                 0.63256269, 1.02378254, 0.64089555, 0.82444782])
-q_u0 = np.array([1, 0, 0, 0, -0.081, 0.001, 0.071])
+                 -0.1438725, 0.74696812, 0.61908827, 0.6,
+                 -0.06922541, 0.78533142, 0.82942863, 0.7,
+                 0.63256269, 1.02378254, 0.7, 0.5])
+
+# Alternative thumb angles:  0.58, 1.01, 0.81, 0.17
+q_u0 = np.array([1, 0, 0, 0, -0.076, 0.001, 0.076])
 
 q0_dict = {idx_a: q_a0, idx_u: q_u0}
 
@@ -85,7 +87,10 @@ params.use_A = False
 params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
 
 prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
-
+q_sim_py = prob_mpc.q_vis.q_sim_py
+#%%
+q_sim_py.update_mbp_positions(q0_dict)
+q_sim_py.draw_current_configuration()
 
 #%%
 Q_WB_d = RollPitchYaw(0, 0, np.pi / 6).ToQuaternion()
@@ -107,7 +112,6 @@ t1 = time.time()
 print(f"iterate took {t1 - t0} seconds.")
 
 #%% visualize goal.
-q_sim_py = prob_mpc.q_vis.q_sim_py
 AddTriad(
     vis=q_sim_py.viz.vis,
     name='frame',

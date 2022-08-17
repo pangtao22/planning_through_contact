@@ -2,7 +2,7 @@ import numpy as np
 
 from pydrake.all import (RotationMatrix, RigidTransform, Quaternion)
 from optitrack import optitrack_frame_t
-from estimate_sphere_center import estimate_center_and_r, estimate_center
+from robotics_utilities.primitives.low_pass_filter import LowPassFilter
 
 kAllegroPalmName = "allegro_palm"  # 3 markers on the palm.
 kBallName = "ball"
@@ -49,7 +49,13 @@ class OptitrackPoseEstimator:
         # B0: frame of the ball defined in optitrack.
         # B: frame of the ball at the ball's center.
         self.X_B0B = self.calc_X_B0B(optitrack_msg)
-        # self.X_B0B = RigidTransform()
+
+        # TODO: maybe not hard-code the filtering frequencies?
+        h = 0.02
+        w_cutoff = 2 * 2 * np.pi
+        self.p_WBo_lpf = LowPassFilter(dimension=3, h=h, w_cutoff=w_cutoff)
+        self.q_WB_lpf = LowPassFilter(dimension=4, h=h, w_cutoff=w_cutoff)
+        self.update_X_WB(optitrack_msg)
 
     @staticmethod
     def get_X_LB_from_msg(optitrack_msg: optitrack_frame_t,
@@ -161,7 +167,28 @@ class OptitrackPoseEstimator:
 
         return X_WL, p_palm_W
 
-    def calc_p_ball_surface_W_and_X_WB(
+    def update_X_WB(self, optitrack_msg: optitrack_frame_t):
+        _, idx = get_marker_set_points(kBallName, optitrack_msg)
+        X_LB0 = self.get_X_LB_from_msg(optitrack_msg, idx)
+        X_WB0 = self.X_WL.multiply(X_LB0)
+        X_WB = X_WB0.multiply(self.X_B0B)
+
+        p_WBo = X_WB.translation()
+        q_WB = X_WB.rotation().ToQuaternion().wxyz()
+
+        self.p_WBo_lpf.update(p_WBo)
+        self.q_WB_lpf.update(q_WB)
+        self.q_WB_lpf.x /= np.linalg.norm(self.q_WB_lpf.x)
+
+    def get_X_WB(self):
+        """
+        Get filtered X_WB.
+        """
+        return RigidTransform(
+            Quaternion(self.q_WB_lpf.get_current_state()),
+            self.p_WBo_lpf.get_current_state())
+
+    def get_p_ball_surface_W_and_X_WB(
             self, optitrack_msg: optitrack_frame_t):
         """
         returns (p_ball_surface_W (4, 3), X_WB)
@@ -169,10 +196,7 @@ class OptitrackPoseEstimator:
         p_ball_surface_L, idx = get_marker_set_points(kBallName, optitrack_msg)
         p_ball_surface_W = self.X_WL.multiply(p_ball_surface_L.T).T
 
-        X_LB0 = self.get_X_LB_from_msg(optitrack_msg, idx)
-        X_WB0 = self.X_WL.multiply(X_LB0)
-
-        return p_ball_surface_W, X_WB0.multiply(self.X_B0B)
+        return p_ball_surface_W, self.get_X_WB()
 
     def reset_ball_orientation(self, optitrack_msg: optitrack_frame_t):
         p_ball_surface_L, idx = get_marker_set_points(kBallName, optitrack_msg)

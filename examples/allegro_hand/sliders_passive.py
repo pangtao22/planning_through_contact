@@ -10,12 +10,13 @@ from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
                          StartMeshcat, DrakeLcm, AbstractValue, Sphere,
                          LcmSubscriberSystem, LcmInterfaceSystem, Simulator,
                          RigidTransform, RotationMatrix, Rgba, Cylinder,
-                         AngleAxis, Quaternion)
+                         AngleAxis, Quaternion, PortDataType, BasicVector,
+                         LcmScopeSystem)
 
 from drake import lcmt_allegro_status, lcmt_allegro_command
 from optitrack import optitrack_frame_t
 
-from qsim.simulator import QuasistaticSimulator
+from qsim.parser import QuasistaticParser
 from qsim.model_paths import models_dir
 
 from sliders_active import (wait_for_msg, wait_for_status_msg,
@@ -27,9 +28,10 @@ from optitrack_pose_estimator import (OptitrackPoseEstimator,
                                       kAllegroPalmName, kMarkerRadius)
 
 from systems_utils import render_system_with_graphviz
-
+from allegro_hand_setup import q_model_path_hardware
 
 kOptitrackChannelName = "OPTITRACK_FRAMES"
+kQEstimatedChannelName = "Q_SYSTEM_ESTIMATED"
 
 
 def add_triad(vis: Meshcat,
@@ -75,10 +77,13 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
         Golden hand show commanded joint angles.
         """
         LeafSystem.__init__(self)
+        parser = QuasistaticParser(q_model_path_hardware)
+        self.q_sim = parser.make_simulator_cpp()
+
         self.set_name('allegro_hand_sliders_passive')
         self.drake_lcm = drake_lcm
         self.DeclarePeriodicPublish(1 / 32, 0.0)  # draw at 30fps
-        self.status_input_port = self.DeclareAbstractInputPort(
+        self.allegro_status_input_port = self.DeclareAbstractInputPort(
             "allegro_status",
             AbstractValue.Make(lcmt_allegro_status()))
         self.cmd_input_port = self.DeclareAbstractInputPort(
@@ -87,6 +92,9 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
         self.optitrack_input_port = self.DeclareAbstractInputPort(
             "optitrack",
             AbstractValue.Make(optitrack_frame_t))
+        self.q_estimated_output_port = self.DeclareVectorOutputPort(
+            "q_estimated", BasicVector(self.q_sim.get_plant().num_positions()),
+            self.calc_q_estimated)
         self.meshcat = meshcat
         self.pose_estimator = pose_estimator
 
@@ -213,11 +221,25 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
         for i, slider_name in self.sliders.items():
             self.meshcat.SetSliderValue(slider_name, values[i])
 
+    def calc_q_estimated(self, context, output):
+        status_msg = self.allegro_status_input_port.Eval(context)
+        optitrack_msg = self.optitrack_input_port.Eval(context)
+        q_a = np.array(status_msg.joint_position_measured)
+        self.pose_estimator.update_X_WB(optitrack_msg)
+        X_WB = self.pose_estimator.get_X_WB()
+        q_u = np.hstack([X_WB.rotation().ToQuaternion().wxyz(),
+                         X_WB.translation()])
+        q = np.zeros(self.q_sim.get_plant().num_positions())
+        q[self.q_sim.get_q_a_indices_into_q()] = q_a
+        q[self.q_sim.get_q_u_indices_into_q()] = q_u
+
+        output.SetFromVector(q)
+
     def DoPublish(self, context, event):
         while self.drake_lcm.HandleSubscriptions(10) == 0:
             continue
         LeafSystem.DoPublish(self, context, event)
-        status_msg = self.status_input_port.Eval(context)
+        status_msg = self.allegro_status_input_port.Eval(context)
         cmd_msg = self.cmd_input_port.Eval(context)
         optitrack_msg = self.optitrack_input_port.Eval(context)
 
@@ -249,7 +271,7 @@ class MeshcatAllegroBallVisualizer(LeafSystem):
 
         # Markers and sphere.
         (p_ball_surface_W, X_WB
-         ) = self.pose_estimator.calc_p_ball_surface_W_and_X_WB(optitrack_msg)
+         ) = self.pose_estimator.get_p_ball_surface_W_and_X_WB(optitrack_msg)
 
         self.meshcat.SetTransform(f"optitrack/{kBallName}/body", X_WB)
         for i in range(len(p_ball_surface_W)):
@@ -283,7 +305,7 @@ if __name__ == "__main__":
             lcm_type=lcmt_allegro_status,
             lcm=drake_lcm))
     builder.Connect(allegro_status_sub.get_output_port(0),
-                    sliders.status_input_port)
+                    sliders.allegro_status_input_port)
 
     allegro_cmd_sub = builder.AddSystem(
         LcmSubscriberSystem.Make(
@@ -301,9 +323,16 @@ if __name__ == "__main__":
     builder.Connect(optitrack_sub.get_output_port(0),
                     sliders.optitrack_input_port)
 
+    LcmScopeSystem.AddToBuilder(
+        builder=builder,
+        lcm=drake_lcm,
+        signal=sliders.q_estimated_output_port,
+        channel=kQEstimatedChannelName,
+        publish_period=0.02)
+
     diagram = builder.Build()
 
-    render_system_with_graphviz(diagram, "sliders_active.gz")
+    render_system_with_graphviz(diagram, "sliders_passive.gz")
 
 #%%
     simulator = Simulator(diagram)

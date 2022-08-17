@@ -2,17 +2,23 @@ import pickle
 
 import numpy as np
 from examples.allegro_hand.sliders_active import (wait_for_status_msg,
-    kAllegroCommandChannel, kAllegroStatusChannel)
+    wait_for_msg, kAllegroCommandChannel, kAllegroStatusChannel)
 
 from pydrake.all import (PiecewisePolynomial, DiagramBuilder,
-    LcmSubscriberSystem, LcmPublisherSystem, DrakeLcm, Simulator)
-from drake import lcmt_allegro_status, lcmt_allegro_command
+                         LcmSubscriberSystem, LcmPublisherSystem, DrakeLcm,
+                         Simulator, LcmInterfaceSystem)
+from drake import lcmt_allegro_status, lcmt_allegro_command, lcmt_scope
 from qsim.parser import QuasistaticParser
 
 from allegro_hand_setup import robot_name, q_model_path_hardware
 from allegro_controller_system import (
     add_controller_system_to_diagram, ControllerSystem, CommandVec2LcmSystem)
 
+from sliders_passive import kQEstimatedChannelName
+from systems_utils import render_system_with_graphviz, QReceiver
+
+
+#%%
 q_parser = QuasistaticParser(q_model_path_hardware)
 q_sim = q_parser.make_simulator_cpp()
 plant = q_sim.get_plant()
@@ -27,7 +33,7 @@ q_a0 = np.clip(
     allegro_status_msg.joint_position_measured, lower_limits, upper_limits)
 
 #%%
-h = 0.3
+h = 1.0
 with open("hand_trj.pkl", "rb") as f:
     trj_dict = pickle.load(f)
 q_knots_ref = trj_dict["x_trj"]
@@ -38,7 +44,6 @@ t_knots = np.linspace(0, T, T + 1) * h
 q_a_start = q_knots_ref[0, q_sim.get_q_a_indices_into_q()]
 q0 = np.copy(q_knots_ref[0])
 q0[q_sim.get_q_a_indices_into_q()] = q_a0
-
 
 q_knots_ref = np.vstack([q0, q_knots_ref])
 u_knots_ref = np.vstack([q_a0, q_a_start, u_knots_ref])
@@ -58,7 +63,9 @@ ctrller_allegro, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
     q_knots_ref=q_knots_ref,
     h_ctrl=h_ctrl,
     q_sim=q_sim,
-    closed_loop=False)
+    closed_loop=True)
+
+builder.AddSystem(LcmInterfaceSystem(drake_lcm))
 
 # LCM status sub
 allegro_status_sub = builder.AddSystem(
@@ -66,6 +73,21 @@ allegro_status_sub = builder.AddSystem(
         channel=kAllegroStatusChannel,
         lcm_type=lcmt_allegro_status,
         lcm=drake_lcm))
+
+q_sub = builder.AddSystem(
+    LcmSubscriberSystem.Make(
+        channel=kQEstimatedChannelName,
+        lcm_type=lcmt_scope,
+        lcm=drake_lcm))
+
+q_receiver = QReceiver(n_q=q_sim.get_plant().num_positions())
+builder.AddSystem(q_receiver)
+builder.Connect(
+    q_sub.get_output_port(0),
+    q_receiver.input_port)
+builder.Connect(
+    q_receiver.output_port,
+    ctrller_allegro.q_input_port)
 
 # LCM command pub.
 allegro_lcm_pub = builder.AddSystem(
@@ -90,8 +112,7 @@ builder.Connect(
     allegro_lcm_pub.get_input_port(0))
 
 diagram = builder.Build()
-# render_system_with_graphviz(diagram)
-
+render_system_with_graphviz(diagram, "controller_hardware.gz")
 
 # Run simulator.
 simulator = Simulator(diagram)
@@ -101,12 +122,17 @@ simulator.set_publish_every_time_step(False)
 # Make sure that the first status message read my the sliders is the real
 # status of the hand.
 context = simulator.get_context()
-context_sub = allegro_status_sub.GetMyContextFromRoot(context)
-context_sub.SetAbstractState(0, allegro_status_msg)
-context_ctrller = ctrller_allegro.GetMyContextFromRoot(context)
-ctrller_allegro.q_input_port.FixValue(context_ctrller, q0)
+context_allegro_sub = allegro_status_sub.GetMyContextFromRoot(context)
+context_allegro_sub.SetAbstractState(0, allegro_status_msg)
+# context_ctrller = ctrller_allegro.GetMyContextFromRoot(context)
+# ctrller_allegro.q_input_port.FixValue(context_ctrller, q0)
+
+q_scope_msg = wait_for_msg(kQEstimatedChannelName, lcmt_scope,
+                           lambda msg: msg.size > 0)
+context_q_sub = q_sub.GetMyContextFromRoot(context)
+context_q_sub.SetAbstractState(0, q_scope_msg)
+
 
 print("Running!")
-simulator.AdvanceTo(np.inf)
-
-
+simulator.AdvanceTo(t_knots[-1] + 5)
+print("Done!")
