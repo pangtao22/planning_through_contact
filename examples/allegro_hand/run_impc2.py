@@ -38,13 +38,12 @@ idx_a = plant.GetModelInstanceByName(robot_name)
 idx_u = plant.GetModelInstanceByName(object_name)
 
 # initial conditions.
-q_a0 = np.array([0.03501504, 0.75276565, 0.74146232, 0.83261002,
-                 -0.1438725, 0.74696812, 0.61908827, 0.6,
-                 -0.06922541, 0.78533142, 0.82942863, 0.7,
+q_a0 = np.array([0.03501504, 0.75276565, 0.74146232, 0.6,
+                 -0.1438725, 0.74696812, 0.61908827, 0.5,
+                 -0.06922541, 0.78533142, 0.82942863, 0.6,
                  0.63256269, 1.02378254, 0.7, 0.5])
 
-# Alternative thumb angles:  0.58, 1.01, 0.81, 0.17
-q_u0 = np.array([1, 0, 0, 0, -0.076, 0.001, 0.076])
+q_u0 = np.array([1, 0, 0, 0, -0.08, 0.001, 0.076])
 
 q0_dict = {idx_a: q_a0, idx_u: q_u0}
 
@@ -61,9 +60,9 @@ for model in q_sim.get_actuated_models():
 for model in q_sim.get_unactuated_models():
     params.Qd_dict[model] = params.Q_dict[model] * 100
 
-params.R_dict = {idx_a: 10 * np.ones(dim_u)}
+params.R_dict = {idx_a: 20 * np.ones(dim_u)}
 
-u_size = 4.0
+u_size = 3.0
 params.u_bounds_abs = np.array([
     -np.ones(dim_u) * u_size * h, np.ones(dim_u) * u_size * h])
 
@@ -71,7 +70,7 @@ params.u_bounds_abs = np.array([
 params.smoothing_mode = SmoothingMode.kFirstAnalyticIcecream
 # sampling-based bundling
 params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
-params.std_u_initial = np.ones(dim_u) * 0.3
+params.std_u_initial = np.ones(dim_u) * 0.2
 params.num_samples = 100
 # analytic bundling
 params.log_barrier_weight_initial = 200
