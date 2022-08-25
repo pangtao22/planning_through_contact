@@ -26,22 +26,23 @@ q_dynamics.update_default_sim_params(
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 q_sim_py = q_dynamics.q_sim_py
+q_sim = q_dynamics.q_sim
 plant = q_sim_py.get_plant()
 idx_a = plant.GetModelInstanceByName(robot_name)
 idx_u = plant.GetModelInstanceByName(object_name)
 
 contact_sampler = AllegroHandContactSampler(q_dynamics)
 
-q_a0 = np.array([0.03501504, 0.75276565, 0.74146232, 0.83261002, 0.63256269,
-                 1.02378254, 0.64089555, 0.82444782, -0.1438725, 0.74696812,
-                 0.61908827, 0.70064279, -0.06922541, 0.78533142, 0.82942863,
-                 0.90415436])
+q_a0 = np.array([0.03501504, 0.75276565, 0.74146232, 0.83261002,
+                 -0.1438725, 0.74696812, 0.61908827, 0.70064279,
+                 -0.06922541, 0.78533142, 0.82942863, 0.90415436,
+                 0.63256269, 1.02378254, 0.64089555, 0.82444782])
 
 
 q_u0 = np.array([1, 0, 0, 0, -0.081, 0.001, 0.071])
 x0 = contact_sampler.sample_contact(q_u0)
 
-num_joints = plant.num_joints() - 1 # The last joint is weldjoint (welded to the world)
+num_joints = q_sim.num_actuated_dofs()
 joint_limits = {
     # The first four elements correspond to quaternions. However, we are being
     # a little hacky and interpreting the first three elements as rpy here.
@@ -50,17 +51,14 @@ joint_limits = {
     # and IrsRrtTrajopt3D have different sample_subgoal functions. Should make
     # this slightly more consistent.
     idx_u: np.array([
-        [-0.1, 0.1],[-0.1, 0.1], [-0.1, np.pi + 0.1], [0, 0],
+        [-0.1, 0.1], [-0.1, 0.1], [-0.1, np.pi + 0.1], [0, 0],
         [-0.086, -0.075], [-0.005, 0.005], [0.068, 0.075]]),
     idx_a: np.zeros([num_joints, 2])
 }
 
-for i in range(num_joints):
-    joint = plant.get_joint(JointIndex(i))
-    low = joint.position_lower_limits()
-    upp = joint.position_upper_limits()
-    joint_limits[idx_a][i, :] = [low[0], upp[0]]
-
+q_a_limits_dict = q_sim.get_actuated_joint_limits()
+joint_limits[idx_a][:, 0] = q_a_limits_dict[idx_a]["lower"]
+joint_limits[idx_a][:, 0] = q_a_limits_dict[idx_a]["upper"]
 
 
 #%% RRT testing

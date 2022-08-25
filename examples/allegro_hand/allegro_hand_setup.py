@@ -6,7 +6,8 @@ from qsim.model_paths import models_dir
 
 
 q_model_path = os.path.join(models_dir, 'q_sys', 'allegro_hand_and_sphere.yml')
-
+q_model_path_hardware = os.path.join(
+    models_dir, 'q_sys', 'allegro_hand_and_sphere_hardware.yml')
 # names.
 robot_name = 'allegro_hand_right'
 object_name = 'sphere'

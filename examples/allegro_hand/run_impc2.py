@@ -26,7 +26,7 @@ duration = T * h
 max_iterations = 15
 
 # quasistatic dynamical system
-q_parser = QuasistaticParser(q_model_path)
+q_parser = QuasistaticParser(q_model_path_hardware)
 # q_parser.set_sim_params(gravity=[0, 0, -10])
 
 q_sim = q_parser.make_simulator_cpp()
@@ -38,11 +38,12 @@ idx_a = plant.GetModelInstanceByName(robot_name)
 idx_u = plant.GetModelInstanceByName(object_name)
 
 # initial conditions.
-q_a0 = np.array([0.03501504, 0.75276565, 0.74146232, 0.83261002, 0.63256269,
-                 1.02378254, 0.64089555, 0.82444782, -0.1438725, 0.74696812,
-                 0.61908827, 0.70064279, -0.06922541, 0.78533142, 0.82942863,
-                 0.90415436])
-q_u0 = np.array([1, 0, 0, 0, -0.081, 0.001, 0.071])
+q_a0 = np.array([0.03501504, 0.75276565, 0.74146232, 0.6,
+                 -0.1438725, 0.74696812, 0.61908827, 0.5,
+                 -0.06922541, 0.78533142, 0.82942863, 0.6,
+                 0.63256269, 1.02378254, 0.7, 0.5])
+
+q_u0 = np.array([1, 0, 0, 0, -0.08, 0.001, 0.076])
 
 q0_dict = {idx_a: q_a0, idx_u: q_u0}
 
@@ -51,7 +52,7 @@ params = IrsMpcQuasistaticParameters()
 params.h = h
 params.Q_dict = {
     idx_u: np.array([10, 10, 10, 10, 1, 1, 1.]),
-    idx_a: np.ones(dim_u) * 1e-3}
+    idx_a: np.ones(dim_u) * 5e-2}
 
 params.Qd_dict = {}
 for model in q_sim.get_actuated_models():
@@ -59,9 +60,9 @@ for model in q_sim.get_actuated_models():
 for model in q_sim.get_unactuated_models():
     params.Qd_dict[model] = params.Q_dict[model] * 100
 
-params.R_dict = {idx_a: 10 * np.ones(dim_u)}
+params.R_dict = {idx_a: 20 * np.ones(dim_u)}
 
-u_size = 4.0
+u_size = 3.0
 params.u_bounds_abs = np.array([
     -np.ones(dim_u) * u_size * h, np.ones(dim_u) * u_size * h])
 
@@ -69,7 +70,7 @@ params.u_bounds_abs = np.array([
 params.smoothing_mode = SmoothingMode.kFirstAnalyticIcecream
 # sampling-based bundling
 params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
-params.std_u_initial = np.ones(dim_u) * 0.3
+params.std_u_initial = np.ones(dim_u) * 0.2
 params.num_samples = 100
 # analytic bundling
 params.log_barrier_weight_initial = 200
@@ -85,7 +86,10 @@ params.use_A = False
 params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
 
 prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
-
+q_sim_py = prob_mpc.q_vis.q_sim_py
+#%%
+q_sim_py.update_mbp_positions(q0_dict)
+q_sim_py.draw_current_configuration()
 
 #%%
 Q_WB_d = RollPitchYaw(0, 0, np.pi / 6).ToQuaternion()
@@ -107,7 +111,6 @@ t1 = time.time()
 print(f"iterate took {t1 - t0} seconds.")
 
 #%% visualize goal.
-q_sim_py = prob_mpc.q_vis.q_sim_py
 AddTriad(
     vis=q_sim_py.viz.vis,
     name='frame',
@@ -147,15 +150,13 @@ prob_mpc.plot_costs()
 prob_mpc.q_vis.publish_trajectory(prob_mpc.x_trj_best, h)
 
 
-
-# assert False
-
 #%% save trajectories
 things_to_save = {"x_trj": prob_mpc.x_trj_best, "u_trj": prob_mpc.u_trj_best}
 with open("hand_trj.pkl", "wb") as f:
     pickle.dump(things_to_save, f)
 
 
+assert False
 
 #%%
 u_trj_best = prob_mpc.u_trj_best
