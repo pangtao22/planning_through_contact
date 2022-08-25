@@ -84,16 +84,17 @@ class IrsRrtProjection(IrsRrt):
         regrasp = (np.random.rand() < self.params.grasp_prob)
 
         if regrasp:
-            xnext = self.contact_sampler.sample_contact(
+            x_next = self.contact_sampler.sample_contact(
                 parent_node.q[self.q_dynamics.get_q_u_indices_into_x()])
 
         else:
             # Compute least-squares solution.
             # NOTE(terry-suh): it is important to only do this on the submatrix
             # of B that has to do with u.
+
             du = np.linalg.lstsq(
                 parent_node.Bhat[
-                    self.q_dynamics.get_q_u_indices_into_x(),:],
+                    self.q_dynamics.get_q_u_indices_into_x(), :],
                 (q - parent_node.chat)[
                     self.q_dynamics.get_q_u_indices_into_x()],
                 rcond=None)[0]
@@ -104,11 +105,11 @@ class IrsRrtProjection(IrsRrt):
             du = du / du_norm
             ustar = parent_node.ubar + step_size * du
 
-            xnext = self.q_dynamics.dynamics(parent_node.q, ustar)
+            x_next = self.q_dynamics.dynamics(parent_node.q, ustar)
 
         cost = 0.0
 
-        child_node = IrsNode(xnext)
+        child_node = IrsNode(x_next)
         child_node.subgoal = q
 
         edge = IrsEdge()
