@@ -4,18 +4,18 @@ import numpy as np
 from examples.allegro_hand.sliders_active import (wait_for_status_msg,
     wait_for_msg, kAllegroCommandChannel, kAllegroStatusChannel)
 
-from pydrake.all import (PiecewisePolynomial, DiagramBuilder,
+from pydrake.all import (DiagramBuilder,
                          LcmSubscriberSystem, LcmPublisherSystem, DrakeLcm,
                          Simulator, LcmInterfaceSystem)
 from drake import lcmt_allegro_status, lcmt_allegro_command, lcmt_scope
 from qsim.parser import QuasistaticParser
 
 from allegro_hand_setup import robot_name, q_model_path_hardware
-from allegro_controller_system import (
-    add_controller_system_to_diagram, ControllerSystem, CommandVec2LcmSystem)
+from control.controller_system import (
+    add_controller_system_to_diagram, CommandVec2LcmSystem)
 
 from sliders_passive import kQEstimatedChannelName
-from systems_utils import render_system_with_graphviz, QReceiver
+from control.systems_utils import render_system_with_graphviz, QReceiver
 
 
 #%%

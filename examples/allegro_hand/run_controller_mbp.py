@@ -1,28 +1,21 @@
 import os
-import pickle
 import copy
 
 import numpy as np
 import matplotlib.pyplot as plt
 from pydrake.all import (MultibodyPlant, Parser, ProcessModelDirectives,
-                         LoadModelDirectives, DiagramBuilder, TrajectorySource,
-                         PiecewisePolynomial, ConnectMeshcatVisualizer,
-                         Simulator, AddTriad, Demultiplexer, LogVectorOutput,
-                         Quaternion, AngleAxis)
+                         LoadModelDirectives,  Quaternion, AngleAxis,
+                         Simulator, AddTriad)
 
-from qsim.simulator import QuasistaticSimulator
 from qsim.parser import QuasistaticParser
 from qsim.model_paths import models_dir, add_package_paths_local
-from robotics_utilities.iiwa_controller.robot_internal_controller import (
-    RobotInternalController)
 
 from allegro_hand_setup import robot_name, q_model_path_hardware
-from allegro_controller_system import (
-    add_controller_system_to_diagram, ControllerSystem)
-from systems_utils import render_system_with_graphviz
+from control.drake_sim import load_ref_trajectories, make_controller_diagram
+from control.systems_utils import render_system_with_graphviz
 
 
-def create_allegro_controller_plant(gravity):
+def create_allegro_controller_plant(gravity: np.ndarray):
     plant = MultibodyPlant(1e-3)
     parser = Parser(plant=plant)
     add_package_paths_local(parser)
@@ -36,113 +29,50 @@ def create_allegro_controller_plant(gravity):
     return plant
 
 
-def load_ref_trajectories(file_path: str):
-    with open(file_path, "rb") as f:
-        trj_dict = pickle.load(f)
-
-    '''
-    If u_knots_nominal has length T, then q_knots_nominal has length T + 1. 
-    During execution, u_knots_nominal is prepended with q_knots_nominal[0], 
-    so that they have the same length.
-    '''
-    return trj_dict["x_trj"], trj_dict["u_trj"]
-
-
 #%%
-q_knots_ref, u_knots_ref = load_ref_trajectories("hand_trj.pkl")
-
-
-#%%
+h_ref_knot = 0.2
+h_ctrl = 0.02
 q_parser = QuasistaticParser(q_model_path_hardware)
 q_sim = q_parser.make_simulator_cpp()
-gravity = q_parser.get_gravity()
 
-plant_allegro = create_allegro_controller_plant(gravity=gravity)
+q_knots_ref, u_knots_ref, t_knots = load_ref_trajectories(
+    file_path="hand_trj.pkl", h_ref_knot=h_ref_knot, q_sim=q_sim)
 
-builder = DiagramBuilder()
-plant, scene_graph, robot_models, object_models = \
-    QuasistaticSimulator.create_plant_with_robots_and_objects(
-        builder=builder,
-        model_directive_path=q_parser.model_directive_path,
-        robot_names=[name for name in q_parser.robot_stiffness_dict.keys()],
-        object_sdf_paths=q_parser.object_sdf_paths,
-        time_step=1e-4,  # Only useful for MBP simulations.
-        gravity=gravity)
-allegro_model = plant.GetModelInstanceByName(robot_name)
-
-# Add visualizer.
-meshcat_vis = ConnectMeshcatVisualizer(builder, scene_graph)
-
-# robot trajectory source
-u_knots_ref_extended = np.vstack(
-    [plant.GetPositionsFromArray(allegro_model, q_knots_ref[0]),
-     u_knots_ref])
-
-# Trajectory sources.
-h = 0.2
-T = len(u_knots_ref)
-t_knots = np.linspace(0, T, T + 1) * h
-h_ctrl = 0.02  # Controller frequency.
-
-# Impedance (PD) controller for the allegro hand, with gravity compensation.
-# The output of controller_allegro is the 16 joint torques for the hand.
-ctrller_internal = RobotInternalController(
-    plant_robot=plant_allegro,
-    joint_stiffness=q_parser.get_robot_stiffness_by_name(robot_name),
-    controller_mode="impedance")
-builder.AddSystem(ctrller_internal)
-
-
-# Add Controller System and trajectory sources
-# The output of controller_sys is the 16 joint position commands for the hand.
-ctrller_allegro, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
-    builder=builder,
+diagram_and_contents = make_controller_diagram(
+    q_parser=q_parser,
+    q_sim=q_sim,
     t_knots=t_knots,
-    u_knots_ref=u_knots_ref_extended,
+    u_knots_ref=u_knots_ref,
     q_knots_ref=q_knots_ref,
     h_ctrl=h_ctrl,
-    q_sim=q_sim,
+    create_controller_plant_functions={robot_name:
+                                       create_allegro_controller_plant},
     closed_loop=True)
 
+# unpack return values.
+diagram = diagram_and_contents['diagram']
+controller_robots = diagram_and_contents['controller_robots']
+robot_internal_controllers = diagram_and_contents["robot_internal_controllers"]
+plant = diagram_and_contents['plant']
+meshcat_vis = diagram_and_contents['meshcat_vis']
+loggers_cmd = diagram_and_contents['loggers_cmd']
+q_ref_trj = diagram_and_contents['q_ref_trj']
+u_ref_trj = diagram_and_contents['u_ref_trj']
+logger_x = diagram_and_contents['logger_x']
 
-# Demux the MBP state x := [q, v] into q and v.
-demux = Demultiplexer([plant.num_positions(), plant.num_velocities()])
-builder.AddSystem(demux)
-
-builder.Connect(plant.get_state_output_port(),
-                demux.get_input_port(0))
-builder.Connect(demux.get_output_port(0),
-                ctrller_allegro.q_input_port)
-
-
-builder.Connect(ctrller_internal.GetOutputPort("joint_torques"),
-                plant.get_actuation_input_port(allegro_model))
-builder.Connect(plant.get_state_output_port(allegro_model),
-                ctrller_internal.robot_state_input_port)
-
-# TODO: change this to a for loop over all actuated model instances.
-builder.Connect(ctrller_allegro.position_cmd_output_ports[allegro_model],
-                ctrller_internal.joint_angle_commanded_input_port)
-
-# Logging.
-logger_cmd = LogVectorOutput(
-    ctrller_allegro.position_cmd_output_ports[allegro_model],
-    builder, h_ctrl)
-logger_x = LogVectorOutput(
-    plant.get_state_output_port(), builder, h_ctrl)
-
-diagram = builder.Build()
 # render_system_with_graphviz(diagram)
+model_a = plant.GetModelInstanceByName(robot_name)
 
 
 #%% Run sim.
 sim = Simulator(diagram)
 context = sim.get_context()
 
-context_controller = diagram.GetSubsystemContext(ctrller_internal, context)
-ctrller_internal.tau_feedforward_input_port.FixValue(
-    context_controller,
-    np.zeros(ctrller_internal.tau_feedforward_input_port.size()))
+for model_a in q_sim.get_actuated_models():
+    controller = robot_internal_controllers[model_a]
+    controller.tau_feedforward_input_port.FixValue(
+        controller.GetMyContextFromRoot(context),
+        np.zeros(controller.tau_feedforward_input_port.size()))
 
 context_plant = plant.GetMyContextFromRoot(context)
 q0 = copy.copy(q_knots_ref[0])
@@ -162,11 +92,12 @@ AddTriad(
 # sim.set_target_realtime_rate(1.0)
 meshcat_vis.reset_recording()
 meshcat_vis.start_recording()
-sim.AdvanceTo(u_ref_trj.end_time() + 1.0)
+sim.AdvanceTo(t_knots[-1] + 1.0)
 meshcat_vis.publish_recording()
 
 #%% plots
 # 1. cmd vs nominal u.
+logger_cmd = loggers_cmd[model_a]
 u_log = logger_cmd.FindLog(context)
 u_nominals = np.array(
     [u_ref_trj.value(t).squeeze() for t in u_log.sample_times()])
@@ -174,7 +105,6 @@ u_nominals = np.array(
 u_diff = np.linalg.norm(u_nominals[:-1] - u_log.data().T[1:], axis=1)
 
 #%% 2. q_u_nominal vs q_u.
-q_sim = ctrller_allegro.q_sim
 x_log = logger_x.FindLog(context)
 q_log = x_log.data()[:plant.num_positions()].T
 q_u_log = q_log[:, q_sim.get_q_u_indices_into_q()]

@@ -1,23 +1,19 @@
-import os
-import time
 import pickle
 
 import numpy as np
 
-from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
-                         AddMultibodyPlantSceneGraph, MeshcatVisualizerCpp,
-                         MeshcatVisualizerParams, JointIndex, Role, Meshcat,
+from pydrake.all import (LeafSystem, DiagramBuilder, MeshcatVisualizerParams,
+                         Role, Meshcat,
                          StartMeshcat, DrakeLcm, AbstractValue, Sphere,
                          LcmSubscriberSystem, LcmInterfaceSystem, Simulator,
-                         RigidTransform, RotationMatrix, Rgba, Cylinder,
-                         AngleAxis, Quaternion, PortDataType, BasicVector,
+                         RigidTransform, Rgba, Cylinder,
+                         AngleAxis, Quaternion, BasicVector,
                          LcmScopeSystem)
 
 from drake import lcmt_allegro_status, lcmt_allegro_command
 from optitrack import optitrack_frame_t
 
 from qsim.parser import QuasistaticParser
-from qsim.model_paths import models_dir
 
 from sliders_active import (wait_for_msg, wait_for_status_msg,
                             kAllegroStatusChannel,
@@ -27,7 +23,7 @@ from optitrack_pose_estimator import (OptitrackPoseEstimator,
                                       is_optitrack_message_good, kBallName,
                                       kAllegroPalmName, kMarkerRadius)
 
-from systems_utils import render_system_with_graphviz
+from control.systems_utils import render_system_with_graphviz
 from allegro_hand_setup import q_model_path_hardware
 
 kOptitrackChannelName = "OPTITRACK_FRAMES"

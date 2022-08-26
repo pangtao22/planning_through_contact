@@ -32,11 +32,21 @@ class Controller:
         self.R = np.diag(1e-1 * np.ones(self.q_sim.num_actuated_dofs()))
 
         # joint limits
+        self.lower_limits, self.upper_limits = self.get_joint_limits_vec()
+
+    def get_joint_limits_vec(self):
         joint_limits = self.q_sim.get_actuated_joint_limits()
-        for model_allegro in self.q_sim.get_actuated_models():
-            pass
-        self.lower_limits = joint_limits[model_allegro]["lower"]
-        self.upper_limits = joint_limits[model_allegro]["upper"]
+        n_qa = self.q_sim.num_actuated_dofs()
+        model_to_idx_map = self.q_sim.get_position_indices()
+
+        lower_limits = np.zeros(n_qa)
+        upper_limits = np.zeros(n_qa)
+        for model in self.q_sim.get_actuated_models():
+            indices = model_to_idx_map[model]
+            lower_limits[indices] = joint_limits[model]["lower"]
+            upper_limits[indices] = joint_limits[model]["upper"]
+
+        return lower_limits, upper_limits
 
     def calc_linearization(self,
                            q_nominal: np.ndarray,
@@ -91,7 +101,7 @@ class ControllerSystem(LeafSystem):
                  q_sim: QuasistaticSimulatorCpp,
                  closed_loop: bool):
         super().__init__()
-        self.set_name("allegro_controller")
+        self.set_name("quasistatic_controller")
         # Periodic state update
         self.control_period = control_period
         self.closed_loop = closed_loop
