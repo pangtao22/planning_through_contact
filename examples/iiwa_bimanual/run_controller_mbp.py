@@ -9,38 +9,29 @@ from pydrake.all import (MultibodyPlant, Parser, ProcessModelDirectives,
 
 from qsim.parser import QuasistaticParser
 from qsim.model_paths import models_dir, add_package_paths_local
+from robotics_utilities.iiwa_controller.utils import (
+    create_iiwa_controller_plant)
 
+from iiwa_bimanual_setup import (q_model_path, iiwa_l_name, iiwa_r_name,
+                                 controller_params)
 from control.drake_sim import load_ref_trajectories, make_controller_mbp_diagram
+
 from control.systems_utils import render_system_with_graphviz
-
-from allegro_hand_setup import (robot_name, q_model_path_hardware,
-                                controller_params)
-
-
-def create_allegro_controller_plant(gravity: np.ndarray):
-    plant = MultibodyPlant(1e-3)
-    parser = Parser(plant=plant)
-    add_package_paths_local(parser)
-    ProcessModelDirectives(
-        LoadModelDirectives(os.path.join(models_dir, 'allegro_hand.yml')),
-        plant, parser)
-    plant.mutable_gravity_field().set_gravity_vector(gravity)
-
-    plant.Finalize()
-
-    return plant
-
 
 #%%
 h_ref_knot = 0.2
 h_ctrl = 0.02
 controller_params.control_period = h_ctrl
 
-q_parser = QuasistaticParser(q_model_path_hardware)
+q_parser = QuasistaticParser(q_model_path)
 q_sim = q_parser.make_simulator_cpp()
 
 q_knots_ref, u_knots_ref, t_knots = load_ref_trajectories(
     file_path="hand_trj.pkl", h_ref_knot=h_ref_knot, q_sim=q_sim)
+
+controller_plant_makers = {
+    iiwa_r_name: lambda gravity: create_iiwa_controller_plant(gravity)[0]}
+controller_plant_makers[iiwa_l_name] = controller_plant_makers[iiwa_r_name]
 
 diagram_and_contents = make_controller_mbp_diagram(
     q_parser=q_parser,
@@ -49,8 +40,7 @@ diagram_and_contents = make_controller_mbp_diagram(
     u_knots_ref=u_knots_ref,
     q_knots_ref=q_knots_ref,
     controller_params=controller_params,
-    create_controller_plant_functions={robot_name:
-                                       create_allegro_controller_plant},
+    create_controller_plant_functions=controller_plant_makers,
     closed_loop=True)
 
 # unpack return values.
@@ -64,8 +54,9 @@ q_ref_trj = diagram_and_contents['q_ref_trj']
 u_ref_trj = diagram_and_contents['u_ref_trj']
 logger_x = diagram_and_contents['logger_x']
 
-# render_system_with_graphviz(diagram)
-model_a = plant.GetModelInstanceByName(robot_name)
+render_system_with_graphviz(diagram)
+model_a_l = plant.GetModelInstanceByName(iiwa_l_name)
+model_a_r = plant.GetModelInstanceByName(iiwa_r_name)
 
 
 #%% Run sim.
@@ -80,7 +71,6 @@ for model_a in q_sim.get_actuated_models():
 
 context_plant = plant.GetMyContextFromRoot(context)
 q0 = copy.copy(q_knots_ref[0])
-# q0[-3] += 0.003
 plant.SetPositions(context_plant, q0)
 
 sim.Initialize()
@@ -88,7 +78,7 @@ sim.Initialize()
 AddTriad(
     vis=meshcat_vis.vis,
     name='frame',
-    prefix='drake/plant/sphere/sphere',
+    prefix='drake/plant/box/box',
     length=0.1,
     radius=0.001,
     opacity=1)
@@ -101,12 +91,25 @@ meshcat_vis.publish_recording()
 
 #%% plots
 # 1. cmd vs nominal u.
-logger_cmd = loggers_cmd[model_a]
-u_log = logger_cmd.FindLog(context)
-u_nominals = np.array(
-    [u_ref_trj.value(t).squeeze() for t in u_log.sample_times()])
+u_logs = {model_a: loggers_cmd[model_a].FindLog(context)
+          for model_a in q_sim.get_actuated_models()}
 
-u_diff = np.linalg.norm(u_nominals[:-1] - u_log.data().T[1:], axis=1)
+u_log_l = u_logs[model_a_l]
+
+n_q = q_sim.num_actuated_dofs() + q_sim.num_unactuated_dofs()
+T = u_logs[model_a_l].data().shape[1]
+u_logged = np.zeros((T, n_q))
+
+for model_a in q_sim.get_actuated_models():
+    indices = q_sim.get_position_indices()[model_a]
+    u_logged[:, indices] = u_logs[model_a].data().T
+
+u_logged = u_logged[:, q_sim.get_q_a_indices_into_q()]
+
+u_refs = np.array(
+    [u_ref_trj.value(t).squeeze() for t in u_log_l.sample_times()])
+
+u_diff = np.linalg.norm(u_refs[:-1] - u_logged[1:], axis=1)
 
 #%% 2. q_u_nominal vs q_u.
 x_log = logger_x.FindLog(context)

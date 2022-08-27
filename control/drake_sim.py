@@ -16,7 +16,8 @@ from qsim.model_paths import models_dir, add_package_paths_local
 from robotics_utilities.iiwa_controller.robot_internal_controller import (
     RobotInternalController)
 from qsim_cpp import QuasistaticSimulatorCpp
-from .controller_system import add_controller_system_to_diagram
+from .controller_system import (add_controller_system_to_diagram,
+                                ControllerParams)
 
 CreateControllerPlantFunction = Callable[[np.ndarray], MultibodyPlant]
 
@@ -43,13 +44,13 @@ def load_ref_trajectories(file_path: str, h_ref_knot: float,
     return q_knots_ref, u_knots_ref_extended, t_knots
 
 
-def make_controller_diagram(
+def make_controller_mbp_diagram(
         q_parser: QuasistaticParser,
         q_sim: QuasistaticSimulatorCpp,
         t_knots: np.ndarray,
         u_knots_ref: np.ndarray,
         q_knots_ref: np.ndarray,
-        h_ctrl: float,
+        controller_params: ControllerParams,
         create_controller_plant_functions: Dict[str,
                                                 CreateControllerPlantFunction],
         closed_loop: bool):
@@ -78,7 +79,7 @@ def make_controller_diagram(
         t_knots=t_knots,
         u_knots_ref=u_knots_ref,
         q_knots_ref=q_knots_ref,
-        h_ctrl=h_ctrl,
+        controller_params=controller_params,
         q_sim=q_sim,
         closed_loop=closed_loop)
 
@@ -118,6 +119,7 @@ def make_controller_diagram(
         robot_internal_controllers[model_a] = controller_internal
 
     # Logging
+    h_ctrl = controller_params.control_period
     logger_x = LogVectorOutput(
         plant.get_state_output_port(), builder, h_ctrl)
     loggers_cmd = {}

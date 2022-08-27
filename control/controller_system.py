@@ -10,26 +10,42 @@ import pydrake.solvers.mathematicalprogram as mp
 from drake import lcmt_allegro_status, lcmt_allegro_command
 
 from qsim_cpp import (ForwardDynamicsMode, GradientMode,
-                      QuasistaticSimulatorCpp)
+                      QuasistaticSimulatorCpp, QuasistaticSimParameters)
+
+
+class ControllerParams:
+    def __init__(self,
+                 forward_mode: ForwardDynamicsMode,
+                 gradient_mode: GradientMode,
+                 log_barrier_weight: float,
+                 Qu: np.ndarray,
+                 R: np.ndarray,
+                 control_period: float):
+        self.forward_mode = forward_mode
+        self.gradient_mode = gradient_mode
+        self.log_barrier_weight = log_barrier_weight
+        self.Qu = Qu
+        self.R = R
+        self.control_period = control_period
 
 
 class Controller:
     def __init__(self, q_sim: QuasistaticSimulatorCpp,
-                 control_period: float):
+                 controller_params: ControllerParams):
         self.q_sim = q_sim
         self.solver = GurobiSolver()
 
         # TODO: do not hardcode these parameters. They need to be consistent
         #  with the trajectory optimizer that generates these trajectories.
         p = copy.deepcopy(q_sim.get_sim_params())
-        p.h = control_period
-        p.forward_mode = ForwardDynamicsMode.kLogIcecream
-        p.gradient_mode = GradientMode.kBOnly
-        p.log_barrier_weight = 5000
+        p.h = controller_params.control_period
+        p.forward_mode = controller_params.forward_mode
+        p.gradient_mode = controller_params.gradient_mode
+        p.log_barrier_weight = controller_params.log_barrier_weight
         self.sim_params = p
 
-        self.Qu = 1e2 * np.diag([10, 10, 10, 10, 1, 1, 1.])
-        self.R = np.diag(1e-1 * np.ones(self.q_sim.num_actuated_dofs()))
+        self.Qu = controller_params.Qu
+        self.R = controller_params.R
 
         # joint limits
         self.lower_limits, self.upper_limits = self.get_joint_limits_vec()
@@ -96,22 +112,23 @@ class Controller:
 
 
 class ControllerSystem(LeafSystem):
-    def __init__(self, control_period: float,
+    def __init__(self,
                  x0_nominal: np.ndarray,
                  q_sim: QuasistaticSimulatorCpp,
+                 controller_params: ControllerParams,
                  closed_loop: bool):
         super().__init__()
         self.set_name("quasistatic_controller")
         # Periodic state update
-        self.control_period = control_period
+        self.control_period = controller_params.control_period
         self.closed_loop = closed_loop
-        self.DeclarePeriodicDiscreteUpdate(control_period)
+        self.DeclarePeriodicDiscreteUpdate(self.control_period)
         # The object configuration is declared as part of the state, but not
         # used, so that indexing becomes easier.
         self.DeclareDiscreteState(x0_nominal)
 
         self.controller = Controller(
-            q_sim=q_sim, control_period=control_period)
+            q_sim=q_sim, controller_params=controller_params)
         self.q_sim = self.controller.q_sim
         self.plant = self.q_sim.get_plant()
 
@@ -135,7 +152,7 @@ class ControllerSystem(LeafSystem):
             nq = self.plant.num_positions(model)
             name = self.plant.GetModelInstanceName(model)
 
-            def calc_output(context, output):
+            def calc_output(context, output, model=model):
                 output.SetFromVector(
                 context.get_discrete_state().value()[
                     model_to_indices_map[model]])
@@ -160,39 +177,12 @@ class ControllerSystem(LeafSystem):
         discrete_state.set_value(q_nominal)
 
 
-class CommandVec2LcmSystem(LeafSystem):
-    def __init__(self, q_sim: QuasistaticSimulatorCpp):
-        super().__init__()
-        self.set_name("command_vec_to_lcm")
-        self.q_sim = q_sim
-        self.q_cmd_input_port = self.DeclareInputPort(
-            "q_a_cmd",
-            PortDataType.kVectorValued,
-            self.q_sim.num_actuated_dofs())
-
-        self.status_input_port = self.DeclareAbstractInputPort(
-            "allegro_status",
-            AbstractValue.Make(lcmt_allegro_status()))
-
-        self.cmd_output_port = self.DeclareAbstractOutputPort(
-            "allegro_cmd", lambda: AbstractValue.Make(lcmt_allegro_command()),
-            self.copy_allegro_cmd_out)
-
-    def copy_allegro_cmd_out(self, context, output):
-        msg = output.get_value()
-        allegro_staus_msg = self.status_input_port.Eval(context)
-        q_a_cmd = self.q_cmd_input_port.Eval(context)
-        msg.utime = allegro_staus_msg.utime
-        msg.num_joints = len(q_a_cmd)
-        msg.joint_position = q_a_cmd
-
-
 def add_controller_system_to_diagram(
         builder: DiagramBuilder,
         t_knots: np.ndarray,
         u_knots_ref: np.ndarray,
         q_knots_ref: np.ndarray,
-        h_ctrl: float,
+        controller_params: ControllerParams,
         q_sim: QuasistaticSimulatorCpp,
         closed_loop: bool) -> Tuple[ControllerSystem, PiecewisePolynomial,
                                     PiecewisePolynomial]:
@@ -212,7 +202,7 @@ def add_controller_system_to_diagram(
     trj_src_q.set_name("q_src")
 
     # Allegro controller system.
-    ctrller_allegro = ControllerSystem(control_period=h_ctrl,
+    ctrller_allegro = ControllerSystem(controller_params=controller_params,
                                        x0_nominal=q_knots_ref[0],
                                        q_sim=q_sim,
                                        closed_loop=closed_loop)
