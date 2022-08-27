@@ -53,6 +53,7 @@ loggers_cmd = diagram_and_contents['loggers_cmd']
 q_ref_trj = diagram_and_contents['q_ref_trj']
 u_ref_trj = diagram_and_contents['u_ref_trj']
 logger_x = diagram_and_contents['logger_x']
+loggers_contact_torque = diagram_and_contents['loggers_contact_torque']
 
 render_system_with_graphviz(diagram)
 model_a_l = plant.GetModelInstanceByName(iiwa_l_name)
@@ -79,8 +80,8 @@ AddTriad(
     vis=meshcat_vis.vis,
     name='frame',
     prefix='drake/plant/box/box',
-    length=0.1,
-    radius=0.001,
+    length=0.5,
+    radius=0.01,
     opacity=1)
 
 # sim.set_target_realtime_rate(1.0)
@@ -149,8 +150,25 @@ axes[1].legend()
 plt.show()
 
 
-# 3. v_u, i.e. object velocity.
+#%% 3. joint torque due to contact.
+contact_torque_logs = {
+    model_a: loggers_contact_torque[model_a].FindLog(context)
+    for model_a in q_sim.get_actuated_models()}
 
+contact_torque_left = contact_torque_logs[model_a_l]
+contact_torque_right = contact_torque_logs[model_a_r]
 
+t = contact_torque_left.sample_times()
 
+fig, axes = plt.subplots(1, 2, figsize=(8, 4))
+x_axis_label = "Time [s]"
+for i_axes, model in enumerate(q_sim.get_actuated_models()):
+    contact_torque_log = contact_torque_logs[model]
+    for i in range(7):
+        axes[i_axes].plot(t, contact_torque_log.data()[i], label=f"joint_{i}")
+        axes[i_axes].grid(True)
+        axes[i_axes].set_title(f"{plant.GetModelInstanceName(model)}")
+        axes[i_axes].set_xlabel(x_axis_label)
+        axes[i_axes].legend()
 
+plt.show()

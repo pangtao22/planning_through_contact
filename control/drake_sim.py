@@ -123,9 +123,13 @@ def make_controller_mbp_diagram(
     logger_x = LogVectorOutput(
         plant.get_state_output_port(), builder, h_ctrl)
     loggers_cmd = {}
+    loggers_contact_torque = {}
     for model in models_actuated:
         loggers_cmd[model] = LogVectorOutput(
             controller_robots.position_cmd_output_ports[model], builder, h_ctrl)
+        loggers_contact_torque[model] = LogVectorOutput(
+            plant.get_generalized_contact_forces_output_port(model),
+            builder, h_ctrl)
 
     diagram = builder.Build()
 
@@ -137,9 +141,5 @@ def make_controller_mbp_diagram(
             'logger_x': logger_x,
             'loggers_cmd': loggers_cmd,
             'q_ref_trj': q_ref_trj,
-            'u_ref_trj': u_ref_trj}
-
-
-
-
-
+            'u_ref_trj': u_ref_trj,
+            'loggers_contact_torque': loggers_contact_torque}
