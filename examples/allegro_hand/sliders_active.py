@@ -13,44 +13,15 @@ from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
                          LcmPublisherSystem)
 
 from drake import lcmt_allegro_status, lcmt_allegro_command
-from qsim.simulator import QuasistaticSimulator
 from qsim.model_paths import models_dir
+
+from control.systems_utils import wait_for_msg
 
 allegro_file = os.path.join(
     models_dir, "allegro_hand_description_right_spheres.sdf")
 
 kAllegroStatusChannel = "ALLEGRO_STATUS"
 kAllegroCommandChannel = "ALLEGRO_CMD"
-
-
-def wait_for_msg(channel_name: str,  lcm_type, is_message_good: Callable):
-    d_lcm = DrakeLcm()
-
-    builder = DiagramBuilder()
-
-    sub = builder.AddSystem(
-        LcmSubscriberSystem.Make(
-            channel=channel_name,
-            lcm_type=lcm_type,
-            lcm=d_lcm))
-    builder.AddSystem(LcmInterfaceSystem(d_lcm))
-    diag = builder.Build()
-    sim = Simulator(diag)
-
-    print(f"Waiting for first msg on {channel_name}...")
-    while True:
-        n_msgs = d_lcm.HandleSubscriptions(10)
-        if n_msgs == 0:
-            continue
-
-        sim.reset_context(diag.CreateDefaultContext())
-        sim.AdvanceTo(1e-1)
-        msg = sub.get_output_port(0).Eval(
-            sub.GetMyContextFromRoot(sim.get_context()))
-        if is_message_good(msg):
-            break
-    print("Message received!")
-    return msg
 
 
 def wait_for_status_msg() -> lcmt_allegro_status:

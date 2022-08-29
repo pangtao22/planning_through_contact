@@ -16,7 +16,6 @@ from drake import lcmt_iiwa_command, lcmt_iiwa_status
 from robotics_utilities.iiwa_controller.utils import (
     create_iiwa_controller_plant)
 
-
 from control.drake_sim import add_mbp_scene_graph, add_internal_controllers
 
 from iiwa_bimanual_setup import q_model_path, iiwa_l_name, iiwa_r_name
@@ -87,9 +86,13 @@ class StatusVec2LcmSystem(LeafSystem):
         iiwa_status_msg.joint_velocity_estimated = v[self.q_a_indices_into_q]
         iiwa_status_msg.joint_position_commanded = iiwa_cmd_msg.joint_position
 
-        iiwa_status_msg.joint_torque_commanded = iiwa_cmd_msg.joint_torque
+        if len(iiwa_cmd_msg.joint_torque) > 0:
+            iiwa_status_msg.joint_torque_commanded = \
+                iiwa_cmd_msg.joint_torque
+        else:
+            iiwa_status_msg.joint_torque_commanded = np.zeros(14)
 
-        # Fields not populated yet.
+            # Fields not populated yet.
         iiwa_status_msg.joint_position_ipo = np.full(14, np.nan)
         iiwa_status_msg.joint_torque_measured = np.full(14, np.nan)
         iiwa_status_msg.joint_torque_external = np.full(14, np.nan)
