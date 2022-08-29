@@ -162,7 +162,7 @@ t = contact_torque_left.sample_times()
 
 fig, axes = plt.subplots(1, 2, figsize=(8, 4))
 x_axis_label = "Time [s]"
-for i_axes, model in enumerate(q_sim.get_actuated_models()):
+for i_axes, model in enumerate(sorted(q_sim.get_actuated_models())):
     contact_torque_log = contact_torque_logs[model]
     for i in range(7):
         axes[i_axes].plot(t, contact_torque_log.data()[i], label=f"joint_{i}")

@@ -1,21 +1,17 @@
-import os
 import pickle
-from typing import Callable, Dict
+from typing import Callable, Dict, Set
 
 import numpy as np
-import matplotlib.pyplot as plt
-from pydrake.all import (MultibodyPlant, Parser, ProcessModelDirectives,
-                         LoadModelDirectives, DiagramBuilder, TrajectorySource,
-                         PiecewisePolynomial, ConnectMeshcatVisualizer,
-                         Simulator, AddTriad, Demultiplexer, LogVectorOutput,
-                         Quaternion, AngleAxis, )
-
-from qsim.simulator import QuasistaticSimulator
+from pydrake.all import (MultibodyPlant, DiagramBuilder,
+                         ConnectMeshcatVisualizer,
+                         Demultiplexer, LogVectorOutput,
+                         ModelInstanceIndex)
 from qsim.parser import QuasistaticParser
-from qsim.model_paths import models_dir, add_package_paths_local
+from qsim.simulator import QuasistaticSimulator
+from qsim_cpp import QuasistaticSimulatorCpp
 from robotics_utilities.iiwa_controller.robot_internal_controller import (
     RobotInternalController)
-from qsim_cpp import QuasistaticSimulatorCpp
+
 from .controller_system import (add_controller_system_to_diagram,
                                 ControllerParams)
 
@@ -44,6 +40,52 @@ def load_ref_trajectories(file_path: str, h_ref_knot: float,
     return q_knots_ref, u_knots_ref_extended, t_knots
 
 
+def add_mbp_scene_graph(q_parser: QuasistaticParser, builder: DiagramBuilder,
+                        has_objects=True, mbp_time_step=1e-4):
+    object_sdf_paths = q_parser.object_sdf_paths if has_objects else {}
+    plant, scene_graph, robot_models, object_models = \
+        QuasistaticSimulator.create_plant_with_robots_and_objects(
+            builder=builder,
+            model_directive_path=q_parser.model_directive_path,
+            robot_names=[name for name in q_parser.robot_stiffness_dict.keys()],
+            object_sdf_paths=object_sdf_paths,
+            time_step=mbp_time_step,  # Only useful for MBP simulations.
+            gravity=q_parser.get_gravity())
+
+    return plant, scene_graph, robot_models, object_models
+
+
+def add_internal_controllers(
+        models_actuated: Set[ModelInstanceIndex],
+        plant: MultibodyPlant,
+        q_parser: QuasistaticParser,
+        builder: DiagramBuilder,
+        controller_plant_makers: Dict[str,
+                                      CreateControllerPlantFunction],
+):
+    robot_internal_controllers = {}
+    for model_a in models_actuated:
+        model_name = plant.GetModelInstanceName(model_a)
+        make_plant = controller_plant_makers[model_name]
+
+        plant_for_control = make_plant(q_parser.get_gravity())
+        controller_internal = RobotInternalController(
+            plant_robot=plant_for_control,
+            joint_stiffness=q_parser.get_robot_stiffness_by_name(model_name),
+            controller_mode="impedance")
+        controller_internal.set_name(f"{model_name}_internal_controller")
+        builder.AddSystem(controller_internal)
+
+        builder.Connect(controller_internal.GetOutputPort("joint_torques"),
+                        plant.get_actuation_input_port(model_a))
+        builder.Connect(plant.get_state_output_port(model_a),
+                        controller_internal.robot_state_input_port)
+
+        robot_internal_controllers[model_a] = controller_internal
+
+    return robot_internal_controllers
+
+
 def make_controller_mbp_diagram(
         q_parser: QuasistaticParser,
         q_sim: QuasistaticSimulatorCpp,
@@ -61,19 +103,22 @@ def make_controller_mbp_diagram(
     builder = DiagramBuilder()
 
     # MBP and SceneGraph.
-    plant, scene_graph, robot_models, object_models = \
-        QuasistaticSimulator.create_plant_with_robots_and_objects(
-            builder=builder,
-            model_directive_path=q_parser.model_directive_path,
-            robot_names=[name for name in q_parser.robot_stiffness_dict.keys()],
-            object_sdf_paths=q_parser.object_sdf_paths,
-            time_step=1e-4,  # Only useful for MBP simulations.
-            gravity=q_parser.get_gravity())
+    plant, scene_graph, robot_models, object_models = add_mbp_scene_graph(
+        q_parser, builder)
 
     # Add visualizer.
     meshcat_vis = ConnectMeshcatVisualizer(builder, scene_graph)
 
-    # Add Robot Controller System and trajectory sources
+    # Impedance (PD) controller for robots, with gravity compensation.
+    models_actuated = q_sim.get_actuated_models()
+    robot_internal_controllers = add_internal_controllers(
+        models_actuated=models_actuated,
+        q_parser=q_parser,
+        plant=plant,
+        builder=builder,
+        controller_plant_makers=create_controller_plant_functions)
+
+    # Add Quasistatic Robot Controller System and trajectory sources
     controller_robots, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
         builder=builder,
         t_knots=t_knots,
@@ -91,32 +136,11 @@ def make_controller_mbp_diagram(
     builder.Connect(demux_mbp.get_output_port(0),
                     controller_robots.q_input_port)
 
-    # Impedance (PD) controller for robots, with gravity compensation.
-    models_actuated = q_sim.get_actuated_models()
-
-    robot_internal_controllers = {}
     for model_a in models_actuated:
-        model_name = plant.GetModelInstanceName(model_a)
-        make_plant = create_controller_plant_functions[model_name]
-
-        plant_for_control = make_plant(q_parser.get_gravity())
-        controller_internal = RobotInternalController(
-            plant_robot=plant_for_control,
-            joint_stiffness=q_parser.get_robot_stiffness_by_name(model_name),
-            controller_mode="impedance")
-        controller_internal.set_name(f"{model_name}_internal_controller")
-        builder.AddSystem(controller_internal)
-
-        builder.Connect(controller_internal.GetOutputPort("joint_torques"),
-                        plant.get_actuation_input_port(model_a))
-        builder.Connect(plant.get_state_output_port(model_a),
-                        controller_internal.robot_state_input_port)
-
         builder.Connect(
             controller_robots.position_cmd_output_ports[model_a],
-            controller_internal.joint_angle_commanded_input_port)
-
-        robot_internal_controllers[model_a] = controller_internal
+            robot_internal_controllers[
+                model_a].joint_angle_commanded_input_port)
 
     # Logging
     h_ctrl = controller_params.control_period

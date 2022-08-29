@@ -194,8 +194,10 @@ def add_controller_system_to_diagram(
     |trj_src_u| ---> |                  |
     """
     # Create trajectory sources.
-    u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
-    q_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
+    u_ref_trj = PiecewisePolynomial.CubicWithContinuousSecondDerivatives(
+        t_knots, u_knots_ref.T)
+    q_ref_trj = PiecewisePolynomial.CubicWithContinuousSecondDerivatives(
+        t_knots, q_knots_ref.T)
     trj_src_u = TrajectorySource(u_ref_trj)
     trj_src_q = TrajectorySource(q_ref_trj)
     trj_src_u.set_name("u_src")
