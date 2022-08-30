@@ -21,4 +21,5 @@ controller_params = ControllerParams(
     log_barrier_weight=5000,
     control_period=None,
     Qu=np.diag([10, 10, 10, 10, 1, 1, 1.]),
-    R=np.diag(np.ones(14)))
+    R=np.diag(np.ones(14)),
+    joint_limit_padding=0.05)

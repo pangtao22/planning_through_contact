@@ -20,7 +20,7 @@ from control.systems_utils import render_system_with_graphviz
 
 #%%
 h_ref_knot = 0.2
-h_ctrl = 0.02
+h_ctrl = 0.01
 controller_params.control_period = h_ctrl
 
 q_parser = QuasistaticParser(q_model_path)

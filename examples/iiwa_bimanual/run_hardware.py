@@ -11,12 +11,14 @@ from qsim.parser import QuasistaticParser
 from control.drake_sim import load_ref_trajectories
 from control.systems_utils import wait_for_msg
 
-from iiwa_bimanual_setup import q_model_path
+from iiwa_bimanual_setup import q_model_path, controller_params
 from state_estimator import kQEstimatedChannelName
+
+from control.controller_system import Controller
 
 #%%
 q_parser = QuasistaticParser(q_model_path)
-q_sim = q_parser.make_simulator_cpp(has_objects=False)
+q_sim = q_parser.make_simulator_cpp(has_objects=True)
 
 h_ref_knot = 0.5
 q_knots_ref, u_knots_ref, t_knots = load_ref_trajectories(
@@ -25,15 +27,23 @@ q_knots_ref, u_knots_ref, t_knots = load_ref_trajectories(
 q_msg = wait_for_msg(
     kQEstimatedChannelName, lcmt_scope, lambda msg: msg.size == 21)
 
-t_knots += 10.0
+t_transition = 10.0
+t_knots += t_transition
 t_knots = np.hstack([0, t_knots])
 q = np.array(q_msg.value)
 q_a0 = q[q_sim.get_q_a_indices_into_q()]
 u_knots_ref = np.vstack([q_a0, u_knots_ref])
-u_ref_trj = PiecewisePolynomial.FirstOrderHold(
-    t_knots, u_knots_ref.T)
+q_knots_ref = np.vstack([q, q_knots_ref])
+u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
+q_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
+
+# Controller
+controller_params.control_period = 0.01
+controller_params.R = np.diag(50 * np.ones(14))
+controller = Controller(q_sim=q_sim, controller_params=controller_params)
 
 
+# LCM callback.
 first_status_msg_time = None
 
 
@@ -44,10 +54,20 @@ def calc_iiwa_command(channel, data):
         first_status_msg_time = q_msg.utime / 1e6
 
     t = q_msg.utime / 1e6 - first_status_msg_time
+
+    u_nominal = u_ref_trj.value(t).squeeze()
+    if t < t_transition:
+        u = u_nominal
+    else:
+        # q_nominal = q_ref_trj.value(t).squeeze()
+        # q = np.array(q_msg.value)
+        # u = controller.calc_u(q_nominal, u_nominal, q)
+        u = u_nominal
+
     cmd_msg = lcmt_iiwa_command()
     cmd_msg.utime = q_msg.utime
-    cmd_msg.num_joints = 14
-    cmd_msg.joint_position = u_ref_trj.value(t).squeeze()
+    cmd_msg.num_joints = len(u)
+    cmd_msg.joint_position = u
 
     lc.publish("IIWA_COMMAND", cmd_msg.encode())
 
@@ -61,10 +81,10 @@ try:
     t_start = time.time()
     while True:
         lc.handle()
-        dt = time.time() - t_start
-        if dt > t_knots[-1] + 5:
-            break
-    print("Done!")
+        # dt = time.time() - t_start
+    #     if dt > t_knots[-1] + 5:
+    #         break
+    # print("Done!")
 
 except KeyboardInterrupt:
     pass

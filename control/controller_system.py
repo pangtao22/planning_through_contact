@@ -20,13 +20,15 @@ class ControllerParams:
                  log_barrier_weight: float,
                  Qu: np.ndarray,
                  R: np.ndarray,
-                 control_period: float):
+                 control_period: float,
+                 joint_limit_padding: float = 0.):
         self.forward_mode = forward_mode
         self.gradient_mode = gradient_mode
         self.log_barrier_weight = log_barrier_weight
         self.Qu = Qu
         self.R = R
         self.control_period = control_period
+        self.joint_limit_padding = joint_limit_padding
 
 
 class Controller:
@@ -48,9 +50,13 @@ class Controller:
         self.R = controller_params.R
 
         # joint limits
-        self.lower_limits, self.upper_limits = self.get_joint_limits_vec()
+        self.lower_limits, self.upper_limits = self.get_joint_limits_vec(
+            controller_params.joint_limit_padding)
 
-    def get_joint_limits_vec(self):
+    def get_joint_limits_vec(self, padding: float):
+        """
+        Padding \in [0, 1]. (1 - padding) of the joint limits are used.
+        """
         joint_limits = self.q_sim.get_actuated_joint_limits()
         n_qa = self.q_sim.num_actuated_dofs()
         model_to_idx_map = self.q_sim.get_position_indices()
@@ -59,8 +65,12 @@ class Controller:
         upper_limits = np.zeros(n_qa)
         for model in self.q_sim.get_actuated_models():
             indices = model_to_idx_map[model]
-            lower_limits[indices] = joint_limits[model]["lower"]
-            upper_limits[indices] = joint_limits[model]["upper"]
+            lower_original = joint_limits[model]["lower"]
+            upper_original = joint_limits[model]["upper"]
+            joint_midpoint = (lower_original + upper_original) / 2
+            joint_range = (upper_original - lower_original) * (1 - padding)
+            lower_limits[indices] = joint_midpoint - joint_range / 2
+            upper_limits[indices] = joint_midpoint + joint_range / 2
 
         return lower_limits, upper_limits
 

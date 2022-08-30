@@ -7,7 +7,7 @@ from pydrake.all import (MultibodyPlant, DiagramBuilder,
                          LcmPublisherSystem, LcmInterfaceSystem, LeafSystem,
                          Demultiplexer, LogVectorOutput, DrakeLcm, BasicVector,
                          AbstractValue, PortDataType, Simulator,
-                         ModelInstanceIndex)
+                         ModelInstanceIndex, LcmScopeSystem)
 from qsim.parser import QuasistaticParser
 from qsim_cpp import QuasistaticSimulatorCpp
 
@@ -17,9 +17,10 @@ from robotics_utilities.iiwa_controller.utils import (
     create_iiwa_controller_plant)
 
 from control.drake_sim import add_mbp_scene_graph, add_internal_controllers
+from control.systems_utils import render_system_with_graphviz
 
 from iiwa_bimanual_setup import q_model_path, iiwa_l_name, iiwa_r_name
-from control.systems_utils import render_system_with_graphviz
+from state_estimator import kQEstimatedChannelName
 
 
 #%%
@@ -100,7 +101,7 @@ class StatusVec2LcmSystem(LeafSystem):
 
 #%%
 q_parser = QuasistaticParser(q_model_path)
-has_objects = False
+has_objects = True
 q_sim = q_parser.make_simulator_cpp(has_objects)
 model_l_iiwa = q_sim.get_plant().GetModelInstanceByName(iiwa_l_name)
 model_r_iiwa = q_sim.get_plant().GetModelInstanceByName(iiwa_r_name)
@@ -169,9 +170,20 @@ builder.Connect(
     iiwa_cmd_sub.get_output_port(0),
     status_2_lcm.iiwa_cmd_input_port)
 
+# Publish q on lcm_scope.
+demux_mbp = Demultiplexer([plant.num_positions(), plant.num_velocities()])
+builder.AddSystem(demux_mbp)
+builder.Connect(plant.get_state_output_port(),
+                demux_mbp.get_input_port(0))
+LcmScopeSystem.AddToBuilder(
+    builder=builder,
+    lcm=drake_lcm,
+    signal=demux_mbp.get_output_port(0),
+    channel=kQEstimatedChannelName,
+    publish_period=0.01)
 
 diagram = builder.Build()
-render_system_with_graphviz(diagram)
+render_system_with_graphviz(diagram, "mock_station.gz")
 
 
 #%% Run sim.
