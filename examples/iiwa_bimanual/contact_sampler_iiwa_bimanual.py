@@ -63,8 +63,8 @@ class IiwaBimanualContactSampler(ContactSampler):
             q_dict = self.q_dynamics.get_q_dict_from_x(x)
             q_dict_lst.append(q_dict)
 
-        self.q_sim_py.animate_system_trajectory(
-            0.1, q_dict_lst)
+        #self.q_sim_py.animate_system_trajectory(
+        #    0.1, q_dict_lst)
         return x, q_dict_lst 
 
     def get_corner(self, qu):
@@ -147,7 +147,7 @@ class IiwaBimanualContactSampler(ContactSampler):
                 xnext_l, q_dict_lst = self.simulate_qdot(
                     q0, qdot, self.T, 10)    
                 q_next_l = xnext_l[self.q_dynamics.get_q_u_indices_into_x()]
-                diff_next_l = np.linalg.norm(q_next_r - q_u)
+                diff_next_l = np.linalg.norm(q_next_l - q_u)
 
                 qdot = np.zeros(14)
 
