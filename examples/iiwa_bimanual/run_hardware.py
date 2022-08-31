@@ -20,7 +20,7 @@ from control.controller_system import Controller
 q_parser = QuasistaticParser(q_model_path)
 q_sim = q_parser.make_simulator_cpp(has_objects=True)
 
-h_ref_knot = 0.5
+h_ref_knot = 1.0
 q_knots_ref, u_knots_ref, t_knots = load_ref_trajectories(
     file_path="hand_trj.pkl", h_ref_knot=h_ref_knot, q_sim=q_sim)
 
@@ -38,8 +38,11 @@ u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
 q_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
 
 # Controller
-controller_params.control_period = 0.01
-controller_params.R = np.diag(50 * np.ones(14))
+controller_params.control_period = 0.005
+R_diag = np.zeros(14)
+R_diag[:7] = [1, 1, 0.5, 0.5, 0.5, 0.5, 0.2]
+R_diag[7:] = R_diag[:7]
+controller_params.R = np.diag(5 * R_diag)
 controller = Controller(q_sim=q_sim, controller_params=controller_params)
 
 
@@ -59,10 +62,10 @@ def calc_iiwa_command(channel, data):
     if t < t_transition:
         u = u_nominal
     else:
-        # q_nominal = q_ref_trj.value(t).squeeze()
-        # q = np.array(q_msg.value)
-        # u = controller.calc_u(q_nominal, u_nominal, q)
-        u = u_nominal
+        q_nominal = q_ref_trj.value(t).squeeze()
+        q = np.array(q_msg.value)
+        u = controller.calc_u(q_nominal, u_nominal, q)
+        # u = u_nominal
 
     cmd_msg = lcmt_iiwa_command()
     cmd_msg.utime = q_msg.utime
@@ -81,7 +84,7 @@ try:
     t_start = time.time()
     while True:
         lc.handle()
-        # dt = time.time() - t_start
+    #     dt = time.time() - t_start
     #     if dt > t_knots[-1] + 5:
     #         break
     # print("Done!")

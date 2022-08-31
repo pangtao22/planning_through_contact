@@ -20,7 +20,11 @@ from control.systems_utils import render_system_with_graphviz
 
 #%%
 h_ref_knot = 0.2
-h_ctrl = 0.01
+h_ctrl = 0.005
+R_diag = np.zeros(14)
+R_diag[:7] = [1, 1, 0.5, 0.5, 0.5, 0.5, 0.2]
+R_diag[7:] = R_diag[:7]
+controller_params.R = np.diag(5 * R_diag)
 controller_params.control_period = h_ctrl
 
 q_parser = QuasistaticParser(q_model_path)
@@ -41,7 +45,7 @@ diagram_and_contents = make_controller_mbp_diagram(
     q_knots_ref=q_knots_ref,
     controller_params=controller_params,
     create_controller_plant_functions=controller_plant_makers,
-    closed_loop=True)
+    closed_loop=False)
 
 # unpack return values.
 diagram = diagram_and_contents['diagram']

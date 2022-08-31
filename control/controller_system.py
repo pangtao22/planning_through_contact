@@ -93,6 +93,7 @@ class Controller:
                q: np.ndarray):
         idx_q_u_into_q = self.q_sim.get_q_u_indices_into_q()
         q_u_nominal = q_nominal[idx_q_u_into_q]
+        q_u_nominal[:4] /= np.linalg.norm(q_u_nominal[:4])
         q_u = q[idx_q_u_into_q]
         q_a = q[self.q_sim.get_q_a_indices_into_q()]
         Au, Bu, cu = self.calc_linearization(q_nominal, u_nominal)

@@ -4,6 +4,7 @@ from pydrake.all import (RotationMatrix, RigidTransform, Quaternion)
 from optitrack import optitrack_frame_t
 
 from control.systems_utils import wait_for_msg
+from control.low_pass_filter_SE3 import LowPassFilterSe3
 
 kBoxName = "box"
 kRightBaseName = "right_base"
@@ -43,6 +44,8 @@ class BoxPoseEstimator:
         self.box_idx = self.get_index_from_optitrack_msg(kBoxName, initial_msg)
         self.X_B0B = self.calc_X_B0B(initial_msg)
 
+        self.lpf_SE3 = LowPassFilterSe3(h=0.005, w_cutoff=4 * 2 * np.pi)
+
     @staticmethod
     def get_X_LF_from_msg(optitrack_msg: optitrack_frame_t,
                           idx_rigid_body: int):
@@ -74,8 +77,8 @@ class BoxPoseEstimator:
         p_Wo_L[0] = p_Ro_L[0]
         p_Wo_L[1] = p_Ro_L[1] + kInchM * 16  # Wo is 16 inches away.
         p_Wo_L[2] = p_Ro_L[2] - kInchM / 16 * 15
-
-        return RigidTransform(p_Wo_L)
+        X_LW = RigidTransform(p_Wo_L)
+        return X_LW.inverse()
 
     def calc_X_B0B(self, initial_msg: optitrack_frame_t):
         # We marked the initial pose of the object on the table with tape.
@@ -90,7 +93,9 @@ class BoxPoseEstimator:
 
     def calc_X_WB(self, optitrack_msg: optitrack_frame_t):
         X_LB0 = self.get_X_LF_from_msg(optitrack_msg, self.box_idx)
-        return self.X_WL.multiply(X_LB0.multiply(self.X_B0B))
+        X_WB = self.X_WL.multiply(X_LB0.multiply(self.X_B0B))
+        self.lpf_SE3.update(X_WB)
+        return self.lpf_SE3.get_current_state()
 
 
 if __name__ == "__main__":
@@ -98,5 +103,3 @@ if __name__ == "__main__":
                                lcm_type=optitrack_frame_t,
                                is_message_good=is_optitrack_message_good)
     bpe = BoxPoseEstimator(initial_msg)
-
-

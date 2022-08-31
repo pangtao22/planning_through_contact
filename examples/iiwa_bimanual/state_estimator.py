@@ -89,7 +89,7 @@ if __name__ == "__main__":
         lcm=drake_lcm,
         signal=state_estimator.q_estimated_output_port,
         channel=kQEstimatedChannelName,
-        publish_period=0.01)
+        publish_period=0.005)
 
     diagram = builder.Build()
 

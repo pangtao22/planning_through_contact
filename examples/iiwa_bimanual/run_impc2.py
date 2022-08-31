@@ -21,9 +21,9 @@ from iiwa_bimanual_setup import *
 
 #%% sim setup
 h = 0.01
-T = 20  # num of time steps to simulate forward.
+T = 25  # num of time steps to simulate forward.
 duration = T * h
-max_iterations = 20
+max_iterations = 40
 
 # quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path)
@@ -96,8 +96,8 @@ q_sim_py.update_mbp_positions(q0_dict)
 q_sim_py.draw_current_configuration()
 
 #%%
-Q_WB_d = RollPitchYaw(np.pi / 6, 0, 0).ToQuaternion()
-p_WB_d = q_u0[4:] + np.array([0, 0, 0], dtype=float)
+Q_WB_d = RollPitchYaw(0, 0, -np.pi / 6).ToQuaternion()
+p_WB_d = q_u0[4:] + np.array([-0.05, -0.1, 0], dtype=float)
 q_d_dict = {idx_u: np.hstack([Q_WB_d.wxyz(), p_WB_d]),
             idx_a_l: q_a0_l,
             idx_a_r: q_a0_r}
