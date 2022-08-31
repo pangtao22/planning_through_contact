@@ -5,6 +5,8 @@ import numpy as np
 from irs_rrt.rrt_params import RrtParams
 from tqdm import tqdm
 
+from dash_vis.dash_common import trace_nodes_to_root_from
+
 
 class Node:
     """
@@ -149,20 +151,7 @@ class Rrt:
         return self.select_closest_node(self.params.goal, print_distance=True)
 
     def trace_nodes_to_root_from(self, i_node: int):
-        node_idx_path = []
-        # trace back to root to get path.
-        while True:
-            node_idx_path.append(i_node)
-
-            i_parents = list(self.graph.predecessors(i_node))
-            assert len(i_parents) <= 1
-            if len(i_parents) == 0:
-                break
-
-            i_node = i_parents[0]
-
-        node_idx_path.reverse()
-        return node_idx_path
+        return trace_nodes_to_root_from(i_node, self.graph)
 
     def extend_towards_q(self, parent_node: Node, q: np.array):
         """ Extend current node towards a specified configuration q. """

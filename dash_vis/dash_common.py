@@ -159,6 +159,23 @@ def edges_have_trj(tree: networkx.DiGraph):
     return not (tree.edges[edge]['edge'].trj is None)
 
 
+def trace_nodes_to_root_from(i_node: int, tree: networkx.DiGraph):
+    node_idx_path = []
+    # trace back to root to get path.
+    while True:
+        node_idx_path.append(i_node)
+
+        i_parents = list(tree.predecessors(i_node))
+        assert len(i_parents) <= 1
+        if len(i_parents) == 0:
+            break
+
+        i_node = i_parents[0]
+
+    node_idx_path.reverse()
+    return node_idx_path
+
+
 def trace_path_to_root_from_node(i_node: int, q_u_nodes: np.ndarray,
                                  q_nodes: np.ndarray,
                                  tree: networkx.DiGraph,
