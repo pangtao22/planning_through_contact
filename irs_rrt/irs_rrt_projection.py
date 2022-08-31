@@ -85,7 +85,7 @@ class IrsRrtProjection(IrsRrt):
 
         if regrasp:
             x_next = self.contact_sampler.sample_contact(
-                parent_node.q[self.q_dynamics.get_q_u_indices_into_x()])
+                parent_node.q)
 
         else:
             # Compute least-squares solution.
