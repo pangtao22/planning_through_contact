@@ -18,11 +18,11 @@ class IiwaBimanualContactSampler(ContactSampler):
         self.idx_a_r = self.plant.GetModelInstanceByName(iiwa_r_name)
         self.idx_u = self.plant.GetModelInstanceByName(object_name)
         self.idx_a_vec = q_dynamics.get_q_a_indices_into_x()
-        self.T = 10
+        self.T = 6
 
-        self.mu_r = 0.3 * np.array([0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-        self.mu_l = 0.3 * np.array([-0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-        self.std = np.array([0.0, 0.03, 0.02, 0.02 ,0.001, 0.001 ,0.0])
+        self.mu_r = np.array([0.3, 0.0, 0.0, -0.1,0.0, 0.1, 0.0])
+        self.mu_l = np.array([-0.3, -0.0, 0.0, -0.1, 0.0, 0.1, 0.0])
+        self.std = np.array([0.0, 0.05, 0.001, 0.1 ,0.001, 0.1 ,0.0])
 
 
     def sample_qdot(self, arm):
@@ -63,8 +63,11 @@ class IiwaBimanualContactSampler(ContactSampler):
             q_dict = self.q_dynamics.get_q_dict_from_x(x)
             q_dict_lst.append(q_dict)
 
-        #self.q_sim_py.animate_system_trajectory(
-        #    0.1, q_dict_lst)
+        if unactuated_mass_scale == 0:
+            #self.q_sim_py.animate_system_trajectory(
+            #    0.1, q_dict_lst)
+            #input()
+            pass
         return x, q_dict_lst 
 
     def get_corner(self, qu):
@@ -134,41 +137,70 @@ class IiwaBimanualContactSampler(ContactSampler):
                 qdot = np.zeros(14)
                 q0 = np.copy(q)
 
+                """
                 p_W_min = self.get_corner(q_u)
+                if (p_W_min[1] > q_u[5]):
+                    cointoss = 0.0
+                else:
+                    cointoss = 1.0
+                """                
 
+                """
                 qdot[0] = -0.1
                 xnext_r, q_dict_lst = self.simulate_qdot(
                     q0, qdot, self.T, 10)
-                qdot[0] = 0.0
                 q_next_r = xnext_r[self.q_dynamics.get_q_u_indices_into_x()]
                 diff_next_r = np.linalg.norm(q_next_r - q_u)
+                qdot[0] = 0.0
 
                 qdot[7] = 0.1
                 xnext_l, q_dict_lst = self.simulate_qdot(
                     q0, qdot, self.T, 10)    
                 q_next_l = xnext_l[self.q_dynamics.get_q_u_indices_into_x()]
                 diff_next_l = np.linalg.norm(q_next_l - q_u)
-
                 qdot = np.zeros(14)
-
-                """ based on static 2d analysis
-                if (p_W_min[1] > q_u[5]):
-                    cointoss = 0.0
-                else:
-                    cointoss = 1.0
-                """
 
                 if (diff_next_r < diff_next_l):
                     qdot[:7] = self.sample_qdot('r')
                     q0[self.q_dynamics.get_q_a_indices_into_x()[:7]] = np.array(
-                        [-np.pi/4, np.pi/2, 0, 0, 0, 0, 0])
+                        [-0.7, 1.8, 0.0, 0.0, 0, 0, 0])
 
                 else:
                     qdot[7:] = self.sample_qdot('l')
                     q0[self.q_dynamics.get_q_a_indices_into_x()[7:]] = np.array(
-                        [np.pi/4, np.pi/2, 0, 0, 0, 0, 0])
+                        [0.7, 1.8, 0., 0., 0, 0, 0])
 
-                xnext, q_dict_lst = self.simulate_qdot(q0, qdot, self.T)
+                xnext, qdict_lst = self.simulate_qdot(q0, qdot, 5)
+                """
+
+                cointoss = np.random.randint(2)
+
+                if(cointoss):
+                    qdot[:7] = self.sample_qdot('r')
+                    q0[self.q_dynamics.get_q_a_indices_into_x()[:7]] = np.array(
+                            [-0.7, 1.8, np.pi/2, -0.5, 0, 0, 0])
+                else:
+                    qdot[:7] = -self.sample_qdot('r')
+                    q0[self.q_dynamics.get_q_a_indices_into_x()[:7]] = np.array(
+                            [-0.3, 1.8, np.pi/2, -2.5, 0, 0.0, 0])
+
+                cointoss = np.random.randint(2)
+
+                if(cointoss):
+                    qdot[7:] = self.sample_qdot('l')
+                    q0[self.q_dynamics.get_q_a_indices_into_x()[7:]] = np.array(
+                            [0.7, 1.8, -np.pi/2, -0.5, 0, 0, 0])
+                else:
+                    qdot[7:] = -self.sample_qdot('l')
+                    q0[self.q_dynamics.get_q_a_indices_into_x()[7:]] = np.array(
+                            [0.3, 1.8, -np.pi/2, -2.5, 0, 0, 0])
+
+                xnext, q_dict_lst = self.simulate_qdot(q0, qdot, 2)
+
+                print(q_u)
+                if q_u[6] >= 0.23:
+                    xnext = np.copy(q)
+
                 is_success = True
             except Exception as e:
                 print(e)
