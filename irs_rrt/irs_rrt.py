@@ -64,9 +64,9 @@ class IrsRrt(Rrt):
         self.params = self.load_params(params)
         self.reachable_set = ReachableSet(self.q_dynamics, params)
         self.max_size = params.max_size
+        self.q_sim = self.q_dynamics.q_sim
 
-        self.x_lb, self.x_ub = self.joint_limit_to_x_bounds(
-            params.joint_limits)
+        self.q_lb, self.q_ub = self.get_joint_limits()
 
         # Initialize tensors for batch computation.
         self.Bhat_tensor = np.zeros((self.max_size,
@@ -118,17 +118,35 @@ class IrsRrt(Rrt):
 
         return params
 
-    def joint_limit_to_x_bounds(self, joint_limits):
+    def get_joint_limits(self, padding=0.05):
+        """
+        This function returns joint limits for the entire system as two
+            vectors of length n_q.
+        self.params.joint_limits contains joint limits for the un-actauted
+            objects, which is used for sampling subgoals for objects.
+        The robot joint limits are also used for sampling subgoals, but the
+            sample is not used in distance computation.
+        The robot joint limits are used when computing actions.
+        """
         joint_limit_ub = {}
         joint_limit_lb = {}
+        robot_joint_limits = self.q_sim.get_actuated_joint_limits()
 
-        for model_idx in joint_limits.keys():
-            joint_limit_lb[model_idx] = joint_limits[model_idx][:, 0]
-            joint_limit_ub[model_idx] = joint_limits[model_idx][:, 1]
+        for model in self.q_sim.get_unactuated_models():
+            joint_limit_lb[model] = self.params.joint_limits[model][:, 0]
+            joint_limit_ub[model] = self.params.joint_limits[model][:, 1]
 
-        x_lb = self.q_dynamics.get_x_from_q_dict(joint_limit_lb)
-        x_ub = self.q_dynamics.get_x_from_q_dict(joint_limit_ub)
-        return x_lb, x_ub
+        for model, limits in robot_joint_limits.items():
+            lower = limits['lower']
+            upper = limits['upper']
+            mid = (lower + upper) / 2
+            range = (upper - lower) * (1 - padding)
+            joint_limit_lb[model] = mid - range / 2
+            joint_limit_ub[model] = mid + range / 2
+
+        q_lb = self.q_sim.get_q_vec_from_dict(joint_limit_lb)
+        q_ub = self.q_sim.get_q_vec_from_dict(joint_limit_ub)
+        return q_lb, q_ub
 
     def populate_node_parameters(self, node: IrsNode):
         """
@@ -202,7 +220,7 @@ class IrsRrt(Rrt):
         Sample a subgoal from the configuration space.
         """
         subgoal = np.random.rand(self.q_dynamics.dim_x)
-        subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
+        subgoal = self.q_lb + (self.q_ub - self.q_lb) * subgoal
         return subgoal
 
     def extend_towards_q(self, parent_node: Node, q: np.array):

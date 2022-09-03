@@ -18,7 +18,7 @@ class IrsRrt3D(IrsRrt):
     def sample_subgoal(self):
         # Sample translation
         subgoal = np.random.rand(self.q_dynamics.dim_x)
-        subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
+        subgoal = self.q_lb + (self.q_ub - self.q_lb) * subgoal
 
         # Sample quaternion uniformly following https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.128.8767&rep=rep1&type=pdf
         quat_xyzw = R.random().as_quat()
