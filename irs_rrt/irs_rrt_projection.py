@@ -118,7 +118,7 @@ class IrsRrtProjection(IrsRrt):
         # Compute least-squares solution.
         # NOTE(terry-suh): it is important to only do this on the submatrix
         # of B that has to do with u.
-        
+
         idx_obj = self.q_sim.get_q_u_indices_into_q()
 
         du_star = np.linalg.lstsq(
@@ -147,9 +147,7 @@ class IrsRrtProjection(IrsRrt):
         regrasp = (np.random.rand() < self.params.grasp_prob)
 
         if regrasp:
-            x_next = self.contact_sampler.sample_contact(
-                parent_node.q)
-
+            x_next = self.contact_sampler.sample_contact(parent_node.q)
         else:
             du_star = self.calc_du_star_towards_q_lstsq(parent_node, q)
             u_star = parent_node.ubar + du_star

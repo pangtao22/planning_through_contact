@@ -9,6 +9,8 @@ from control.controller_system import ControllerParams
 
 
 q_model_path = os.path.join(models_dir, 'q_sys', 'iiwa_bimanual_box.yml')
+q_model_path_planar = os.path.join(
+    models_dir, 'q_sys', 'iiwa_planar_bimanual_box.yml')
 
 iiwa_l_name = "iiwa_left"
 iiwa_r_name = "iiwa_right"
