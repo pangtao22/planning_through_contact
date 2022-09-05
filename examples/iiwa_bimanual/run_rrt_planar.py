@@ -15,10 +15,7 @@ from contact_sampler_iiwa_bimanual_planar import ContactSamplerBimanualPlanar
 
 
 # %% sim setup
-
-# quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path_planar)
-
 
 q_sim = q_parser.make_simulator_cpp()
 plant = q_sim.get_plant()
@@ -49,12 +46,14 @@ joint_limits = {
         [-0.3, 0.3],
         [-np.pi - 0.1, 0.1]])}
 
+q_u_goal = np.array([0.5, 0, -np.pi])
+
 params = IrsRrtProjectionParams(q_model_path_planar, joint_limits)
 params.bundle_mode = BundleMode.kFirstAnalytic
 params.root_node = IrsNode(x0)
 params.max_size = 40000
 params.goal = np.copy(x0)
-params.goal[q_sim.get_q_u_indices_into_q()] = [0.5, 0, -np.pi]
+params.goal[q_sim.get_q_u_indices_into_q()] = q_u_goal
 
 params.termination_tolerance = 0.01
 params.goal_as_subgoal_prob = 0.2
@@ -73,27 +72,10 @@ params.h = 0.05
 
 prob_rrt = IrsRrtProjection(params, contact_sampler)
 q_sim_py = prob_rrt.q_dynamics.q_sim_py
-AddTriad(
-    vis=q_sim_py.viz.vis,
-    name='frame',
-    prefix='drake/plant/box/box',
-    length=0.4,
-    radius=0.01,
-    opacity=1)
 
-AddTriad(
-    vis=q_sim_py.viz.vis,
-    name='frame',
-    prefix='goal',
-    length=0.4,
-    radius=0.03,
-    opacity=0.5)
-
-# find the height of the planar object.
-z_height = calc_z_height(plant)
-q_sim_py.viz.vis['goal'].set_transform(
-    RigidTransform(RollPitchYaw(0, 0, np.pi),
-                   np.hstack([params.goal[:2], [z_height]])).GetAsMatrix4())
+draw_goal_and_object_triads_2d(vis=q_sim_py.viz.vis,
+                               plant=q_sim.get_plant(),
+                               q_u_goal=q_u_goal)
 #
 prob_rrt.iterate()
 prob_rrt.save_tree("bimanual_planar.pkl")

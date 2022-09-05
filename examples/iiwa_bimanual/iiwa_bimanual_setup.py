@@ -1,8 +1,11 @@
 import os
 
 import numpy as np
+import meshcat
 
-from pydrake.all import MultibodyPlant
+from pydrake.all import MultibodyPlant, RigidTransform, RollPitchYaw
+from pydrake.systems.meshcat_visualizer import AddTriad
+
 from qsim.model_paths import models_dir
 from qsim_cpp import (ForwardDynamicsMode, GradientMode)
 
@@ -37,3 +40,32 @@ def calc_z_height(plant: MultibodyPlant):
     X_WB = plant.CalcRelativeTransform(
         context_plant, plant.world_frame(), plant.GetFrameByName('box'))
     return X_WB.translation()[2]
+
+
+def draw_goal_and_object_triads_2d(vis: meshcat.Visualizer,
+                                   plant: MultibodyPlant,
+                                   q_u_goal: np.ndarray):
+    """
+    q_u_goal = [x, y, theta]
+    """
+    AddTriad(
+        vis=vis,
+        name='frame',
+        prefix='drake/plant/box/box',
+        length=0.4,
+        radius=0.005,
+        opacity=1)
+
+    AddTriad(
+        vis=vis,
+        name='frame',
+        prefix='goal',
+        length=0.4,
+        radius=0.01,
+        opacity=0.7)
+
+    z_height = calc_z_height(plant)
+    vis['goal'].set_transform(
+        RigidTransform(RollPitchYaw(0, 0, q_u_goal[2]),
+                       np.hstack([q_u_goal[:2], [z_height]])).GetAsMatrix4())
+
