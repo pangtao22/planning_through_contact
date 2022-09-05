@@ -198,9 +198,10 @@ class IrsRrt(Rrt):
             return self.chat_matrix[:n_nodes, self.q_u_indices_into_x]
         return self.chat_matrix[:n_nodes]
 
-    def add_node(self, node: IrsNode):
-        self.q_dynamics.q_sim_py.update_mbp_positions_from_vector(node.q)
-        self.q_dynamics.q_sim_py.draw_current_configuration()
+    def add_node(self, node: IrsNode, draw_node: bool = False):
+        if draw_node:
+            self.q_dynamics.q_sim_py.update_mbp_positions_from_vector(node.q)
+            self.q_dynamics.q_sim_py.draw_current_configuration()
         self.populate_node_parameters(node)  # exception may be thrown here.
 
         super().add_node(node)
