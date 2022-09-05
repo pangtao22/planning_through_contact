@@ -20,12 +20,13 @@ from pydrake.systems.meshcat_visualizer import AddTriad
 
 from irs_mpc2.irs_mpc import IrsMpcQuasistatic
 from irs_mpc2.irs_mpc_params import (SmoothingMode, IrsMpcQuasistaticParameters)
-from allegro_hand_setup import robot_name, object_name
+from iiwa_bimanual_setup import (iiwa_r_name, iiwa_l_name, object_name,
+                                 calc_z_height)
 
 #%%
 pickled_tree_path = os.path.join(
     os.path.dirname(irs_rrt.__file__), '..',
-    'examples', 'allegro_hand', "tree_1000_0.pkl")
+    'examples', 'iiwa_bimanual', "bimanual_planar.pkl")
 
 # pickled_tree_path = "ptc_data/allegro_hand/analytic/tree_1000_0.pkl"
 
@@ -35,14 +36,13 @@ with open(pickled_tree_path, 'rb') as f:
 prob_rrt = IrsRrt.make_from_pickled_tree(tree)
 q_dynamics = prob_rrt.q_dynamics
 q_dynamics.update_default_sim_params(forward_mode=ForwardDynamicsMode.kSocpMp)
+q_sim = q_dynamics.q_sim
 
 q_vis = QuasistaticVisualizer(q_sim=q_dynamics.q_sim,
                               q_sim_py=q_dynamics.q_sim_py)
 
 # get goal and some problem data from RRT parameters.
-q_u_goal = prob_rrt.params.goal[q_dynamics.get_q_u_indices_into_x()]
-Q_WB_d = Quaternion(q_u_goal[:4])
-p_WB_d = q_u_goal[4:]
+q_u_goal = prob_rrt.params.goal[q_sim.get_q_u_indices_into_q()]
 dim_q = prob_rrt.dim_q
 dim_u = dim_q - prob_rrt.dim_q_u
 
@@ -50,23 +50,23 @@ dim_u = dim_q - prob_rrt.dim_q_u
 AddTriad(
     vis=q_dynamics.q_sim_py.viz.vis,
     name='frame',
-    prefix='drake/plant/sphere/sphere',
-    length=0.1,
-    radius=0.001,
+    prefix='drake/plant/box/box',
+    length=0.4,
+    radius=0.005,
     opacity=1)
 
 AddTriad(
     vis=q_dynamics.q_sim_py.viz.vis,
     name='frame',
     prefix='goal',
-    length=0.1,
-    radius=0.005,
+    length=0.4,
+    radius=0.01,
     opacity=0.7)
 
+z_height = calc_z_height(q_sim.get_plant())
 q_dynamics.q_sim_py.viz.vis['goal'].set_transform(
-    RigidTransform(Q_WB_d, p_WB_d).GetAsMatrix4())
-q_sim = q_dynamics.q_sim
-
+    RigidTransform(RollPitchYaw(0, 0, q_u_goal[2]),
+                   np.hstack([q_u_goal[:2], [0.203]])).GetAsMatrix4())
 
 #%%
 # get trimmed path to goal.
@@ -92,11 +92,7 @@ def calc_q_u_diff(q_u_0, q_u_1):
      quaternion and the last three a position.
     Returns (angle_diff_in_radians, position_diff_norm)
     """
-    Q_U0 = Quaternion(q_u_0[:4])
-    Q_U1 = Quaternion(q_u_1[:4])
-    aa = AngleAxis(Q_U0.multiply(Q_U1.inverse()))
-
-    return aa.angle(), np.linalg.norm(q_u_0[4:] - q_u_1[4:])
+    return abs(q_u_0[2] - q_u_1[2]), np.linalg.norm(q_u_0[:2] - q_u_1[:2])
 
 
 for t_start, t_end in segments:
@@ -116,25 +112,27 @@ h_small = 0.01
 q_parser = q_dynamics.parser
 plant = q_sim.get_plant()
 
-idx_a = plant.GetModelInstanceByName(robot_name)
+idx_a_l = plant.GetModelInstanceByName(iiwa_l_name)
+idx_a_r = plant.GetModelInstanceByName(iiwa_r_name)
 idx_u = plant.GetModelInstanceByName(object_name)
 
 # traj-opt parameters
 params = IrsMpcQuasistaticParameters()
 params.h = h_small
 params.Q_dict = {
-    idx_u: np.array([10, 10, 10, 10, 50, 50, 50.]),
-    idx_a: np.ones(dim_u) * 1e-3}
+    idx_u: np.array([1, 1, 1]),
+    idx_a_l: np.ones(3) * 1e-3,
+    idx_a_r: np.ones(3) * 1e-3}
 
 params.Qd_dict = {}
 for model in q_sim.get_actuated_models():
     params.Qd_dict[model] = params.Q_dict[model]
 for model in q_sim.get_unactuated_models():
-    params.Qd_dict[model] = params.Q_dict[model] * 200
+    params.Qd_dict[model] = params.Q_dict[model] * 100
 
-params.R_dict = {idx_a: 10 * np.ones(dim_u)}
+params.R_dict = {idx_a_l: 10 * np.ones(3), idx_a_r: 10 * np.ones(3)}
 
-u_size = 5.0
+u_size = 2.0
 params.u_bounds_abs = np.array([
     -np.ones(dim_u) * u_size * params.h, np.ones(dim_u) * u_size * params.h])
 
@@ -168,12 +166,10 @@ def run_traj_opt_on_rrt_segment(n_steps_per_h: int,
                                 q0: np.ndarray,
                                 q_final: np.ndarray,
                                 u_trj: np.ndarray):
-    q_a0 = q0[q_sim.get_q_a_indices_into_q()]
-
     # q_goal (end of segment)
     q_u_d = q_final[q_sim.get_q_u_indices_into_q()]
-    q_d_dict = {idx_u: q_u_d, idx_a: q_a0}
-    q_d = q_sim.get_q_vec_from_dict(q_d_dict)
+    q_d = np.copy(q0)
+    q_d[indices_q_u_into_x] = q_u_d
 
     T = len(u_trj) * n_steps_per_h
     q_trj_d = np.tile(q_d, (T + 1, 1))
@@ -183,7 +179,7 @@ def run_traj_opt_on_rrt_segment(n_steps_per_h: int,
 
     prob_mpc.initialize_problem(x0=q0, x_trj_d=q_trj_d, u_trj_0=u_trj_small)
     prob_mpc.iterate(max_iterations=max_iterations, cost_Qu_f_threshold=0)
-
+    print(f"Best trajectory iteration index: {prob_mpc.idx_best}")
     return np.array(prob_mpc.x_trj_best), np.array(prob_mpc.u_trj_best)
 
 
@@ -200,7 +196,7 @@ u_trj_optimized_list = []
 
 
 sub_segments = segments[0:]
-# time_start = time.time()
+input("Starting refinement...")
 for i_s, (t_start, t_end) in enumerate(sub_segments):
     u_trj = u_knots_trimmed[t_start: t_end]
     q_trj = q_knots_trimmed[t_start: t_end + 1]
@@ -216,15 +212,12 @@ for i_s, (t_start, t_end) in enumerate(sub_segments):
 
     input("Original trajectory segment shown. Press any key to optimize...")
 
-    if len(u_trj) < 3:
-        n_steps_per_h = 5
-    else:
-        n_steps_per_h = 1
-
     q_final = np.array(q_trj[-1])
     if i_s == len(sub_segments) - 1:
         q_final[indices_q_u_into_x] = q_u_goal
 
+    # choose n_steps_per_h so that each segment has at least 10 knot points.
+    n_steps_per_h = max(2, int(np.ceil(10 / len(u_trj))))
     q_trj_optimized, u_trj_optimized = run_traj_opt_on_rrt_segment(
         n_steps_per_h=n_steps_per_h, q0=q0, q_final=q_final, u_trj=u_trj)
 
@@ -235,8 +228,6 @@ for i_s, (t_start, t_end) in enumerate(sub_segments):
     prob_mpc.q_vis.publish_trajectory(q_trj_optimized, h_small)
     input("Optimized trajectory shown. Press any key to go to the next segment")
 
-# time_end = time.time()
-# print(f"Refinement took {time_end - time_start} seconds.")
 
 #%%
 def concatenate_traj_list(q_trj_list: List[np.ndarray]):
@@ -303,19 +294,3 @@ with open("hand_optimized_q_and_u_trj.pkl", 'wb') as f:
     pickle.dump({"q_trj_list": q_trj_optimized_trimmed_list,
                  "u_trj_list": u_trj_optimized_trimmed_list,
                  "h_small": h_small}, f)
-
-
-#%%
-prob_mpc.q_vis.meshcat_vis['/Cameras/default'].set_transform(
-    RigidTransform(RollPitchYaw(0, 0, 0), [-0.25, 0.2, 0.25]).GetAsMatrix4())
-prob_mpc.q_vis.meshcat_vis['/Cameras/default/rotated/<object>'].set_property(
-    "position", [-0.05, 0, 0.05])
-prob_mpc.q_vis.meshcat_vis['/Grid'].delete()
-prob_mpc.q_vis.meshcat_vis['/Axes'].delete()
-
-
-#%%
-res = prob_mpc.q_vis.meshcat_vis.static_html()
-# save to a file
-with open("allegro_hand.html", "w") as f:
-    f.write(res)

@@ -54,7 +54,7 @@ params.bundle_mode = BundleMode.kFirstAnalytic
 params.root_node = IrsNode(x0)
 params.max_size = 40000
 params.goal = np.copy(x0)
-params.goal[q_sim.get_q_u_indices_into_q()] = [0.3, 0, -np.pi]
+params.goal[q_sim.get_q_u_indices_into_q()] = [0.5, 0, -np.pi]
 
 params.termination_tolerance = 0.01
 params.goal_as_subgoal_prob = 0.2
@@ -65,11 +65,11 @@ std_u = 0.2 * np.ones(6)
 params.regularization = 1e-3
 # params.log_barrier_weight_for_bundling = 1000
 params.std_u = std_u
-params.stepsize = 0.3
+params.stepsize = 0.1
 params.rewire = False
 params.distance_metric = 'local_u'
-params.grasp_prob = 0.5
-params.h = 0.1
+params.grasp_prob = 0.3
+params.h = 0.05
 
 prob_rrt = IrsRrtProjection(params, contact_sampler)
 q_sim_py = prob_rrt.q_dynamics.q_sim_py
@@ -89,9 +89,11 @@ AddTriad(
     radius=0.03,
     opacity=0.5)
 
+# find the height of the planar object.
+z_height = calc_z_height(plant)
 q_sim_py.viz.vis['goal'].set_transform(
     RigidTransform(RollPitchYaw(0, 0, np.pi),
-                   np.hstack([params.goal[:2], [0.203]])).GetAsMatrix4())
+                   np.hstack([params.goal[:2], [z_height]])).GetAsMatrix4())
 #
 prob_rrt.iterate()
 prob_rrt.save_tree("bimanual_planar.pkl")
