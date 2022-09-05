@@ -29,6 +29,7 @@ from irs_rrt.irs_rrt import IrsRrt
 parser = argparse.ArgumentParser()
 parser.add_argument("tree_file_path", type=str)
 parser.add_argument('--two_d', default=False, action='store_true')
+parser.add_argument('--draw_ellipsoids', default=False, action='store_true')
 args = parser.parse_args()
 
 # %% Construct computational tools.
@@ -76,6 +77,38 @@ for i_node in tree.nodes:
     theta_edges += [q_u_nodes[i_node, 2], q_u_nodes[i_parent, 2], None]
 
 
+def scalar_to_rgb255(v: float):
+    """
+    v is a scalar between 0 and 1.
+    """
+    r, g, b = cm.jet(v)[:3]
+    return int(r * 255), int(g * 255), int(b * 255)
+
+
+# Draw ellipsoids.
+ellipsoid_mesh_points = []
+ellipsoid_volumes = []
+idx_q_u_into_x = q_dynamics.get_q_u_indices_into_x()
+for i in range(n_nodes):
+    node = tree.nodes[i]["node"]
+    cov_inv_u = node.covinv_u
+    p_center = node.q[idx_q_u_into_x]
+    e_points, volume = make_ellipsoid_plotly(cov_inv_u, p_center, 0.08, 10)
+    ellipsoid_mesh_points.append(e_points)
+    ellipsoid_volumes.append(volume)
+
+# compute color
+ellipsoid_volumes = np.array(ellipsoid_volumes)
+v_95 = np.percentile(ellipsoid_volumes, 95)
+v_normalized = np.minimum(ellipsoid_volumes / v_95, 1)
+e_plot_list = []
+for i, (x, v) in enumerate(zip(ellipsoid_mesh_points, v_normalized)):
+    r, g, b = scalar_to_rgb255(v)
+    e_plot_list.append(
+        go.Mesh3d(dict(x=x[0], y=x[1], z=x[2], alphahull=0, name=f"ellip{i}",
+                       color=f"rgb({r}, {g}, {b})", opacity=0.5)))
+
+
 def create_tree_plot_up_to_node(num_nodes: int):
     nodes_plot = go.Scatter3d(x=q_u_nodes[:num_nodes, 0],
                               y=q_u_nodes[:num_nodes, 1],
@@ -83,7 +116,10 @@ def create_tree_plot_up_to_node(num_nodes: int):
                               name='nodes',
                               mode='markers',
                               hovertemplate=hover_template_y_z_theta,
-                              marker=dict(size=3, color='azure'))
+                              marker=dict(size=3,
+                                          color=v_normalized,
+                                          colorscale='jet',
+                                          showscale=True))
 
     edges_plot = go.Scatter3d(x=y_edges[:(num_nodes - 1) * 3],
                               y=z_edges[:(num_nodes - 1) * 3],
@@ -108,45 +144,17 @@ def create_tree_plot_up_to_node(num_nodes: int):
 
     return [nodes_plot, edges_plot, root_plot, goal_plot, path_plot]
 
-
-def scalar_to_rgb255(v: float):
-    """
-    v is a scalar between 0 and 1.
-    """
-    r, g, b = cm.jet(v)[:3]
-    return int(r * 255), int(g * 255), int(b * 255)
-
-
-# Draw ellipsoids.
-ellipsoid_mesh_points = []
-ellipsoid_volumes = []
-idx_q_u_into_x = q_dynamics.get_q_u_indices_into_x()
-for i in range(n_nodes):
-    node = tree.nodes[i]["node"]
-    cov_inv_u = node.covinv_u
-    p_center = node.q[idx_q_u_into_x]
-    e_points, volume = make_ellipsoid_plotly(cov_inv_u, p_center, 0.08, 10)
-    ellipsoid_mesh_points.append(e_points)
-    ellipsoid_volumes.append(volume)
-
-# compute color
-ellipsoid_volumes = np.array(ellipsoid_volumes)
-v_99 = np.percentile(ellipsoid_volumes, 99)
-v_normalized = np.minimum(ellipsoid_volumes / v_99, 1)
-e_plot_list = []
-for i, (x, v) in enumerate(zip(ellipsoid_mesh_points, v_normalized)):
-    r, g, b = scalar_to_rgb255(v)
-    e_plot_list.append(
-        go.Mesh3d(dict(x=x[0], y=x[1], z=x[2], alphahull=0, name=f"ellip{i}",
-                       color=f"rgb({r}, {g}, {b})", opacity=0.5)))
-
 '''
 It is important to put the ellipsoid list in the front, so that the 
 curveNumber of the first ellipsoid is 0, which can be used to index into tree 
 nodes.
 '''
-fig = go.Figure(data=e_plot_list + create_tree_plot_up_to_node(n_nodes),
-                layout=layout)
+if args.draw_ellipsoids:
+    fig = go.Figure(data=e_plot_list + create_tree_plot_up_to_node(n_nodes),
+                    layout=layout)
+else:
+    fig = go.Figure(data=create_tree_plot_up_to_node(n_nodes),
+                    layout=layout)
 
 # global variable for histrogram figure.
 fig_hist_local = {}
@@ -346,7 +354,10 @@ def click_callback(click_data, relayout_data):
 
 def slider_callback(num_nodes, metric_to_plot, relayout_data):
     # Reachability ellipsoids.
-    traces_list = e_plot_list[:num_nodes]
+    if args.draw_ellipsoids:
+        traces_list = e_plot_list[:num_nodes]
+    else:
+        traces_list = []
     # Tree nodes and edges
     traces_list += create_tree_plot_up_to_node(num_nodes)
     global fig, fig_hist_local, fig_hist_local_u, fig_hist_global
@@ -450,4 +461,7 @@ def slider_callback(num_nodes, metric_to_plot, relayout_data):
 
 
 if __name__ == '__main__':
+    plt.hist(ellipsoid_volumes, bins=50)
+    plt.title("ellipsoid_volumes")
+    plt.show()
     app.run_server(debug=False)
