@@ -20,9 +20,11 @@ from dash_vis.dash_common import (hover_template_y_z_theta,
                                   calc_X_WG,
                                   trace_path_to_root_from_node)
 from dash.exceptions import PreventUpdate
+from pydrake.all import RigidTransform, RollPitchYaw
 
 import matplotlib.pyplot as plt
 from matplotlib import cm
+from pydrake.systems.meshcat_visualizer import AddTriad
 
 from irs_rrt.irs_rrt import IrsRrt
 
@@ -42,7 +44,28 @@ q_sim_py = q_dynamics.q_sim_py
 vis = q_dynamics.q_sim_py.viz.vis
 if args.two_d:
     set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
-add_goal_meshcat(vis)
+z_height = 0.25
+q_goal = tree.graph['irs_rrt_params'].goal
+q_u_goal = q_goal[q_dynamics.get_q_u_indices_into_x()]
+AddTriad(
+    vis=vis,
+    name='frame',
+    prefix='drake/plant/box/box',
+    length=0.4,
+    radius=0.005,
+    opacity=1)
+
+AddTriad(
+    vis=vis,
+    name='frame',
+    prefix='goal',
+    length=0.4,
+    radius=0.01,
+    opacity=0.7)
+
+vis['goal'].set_transform(
+    RigidTransform(RollPitchYaw(0, 0, q_u_goal[2]),
+                    np.hstack([q_u_goal[:2], [z_height]])).GetAsMatrix4())
 
 # %%
 """
