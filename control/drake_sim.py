@@ -1,35 +1,35 @@
 import pickle
-from typing import Callable, Dict, Set
+from typing import Callable, Dict, Set, Tuple
 
 import numpy as np
 from pydrake.all import (MultibodyPlant, DiagramBuilder,
-                         ConnectMeshcatVisualizer,
                          Demultiplexer, LogVectorOutput,
                          ModelInstanceIndex)
+from pydrake.systems.framework import DiagramBuilder
+from pydrake.systems.primitives import TrajectorySource
+from pydrake.trajectories import PiecewisePolynomial
+from pydrake.systems.meshcat_visualizer import (ConnectMeshcatVisualizer,
+                                                MeshcatContactVisualizer)
+
 from qsim.parser import QuasistaticParser
 from qsim.simulator import QuasistaticSimulator
 from qsim_cpp import QuasistaticSimulatorCpp
 from robotics_utilities.iiwa_controller.robot_internal_controller import (
     RobotInternalController)
 
-from .controller_system import (add_controller_system_to_diagram,
-                                ControllerParams)
-
+from .controller_system import (ControllerParams, ControllerSystem)
+from .controller_planar_iiwa_bimanual import IiwaBimanualPlanarControllerSystem
 CreateControllerPlantFunction = Callable[[np.ndarray], MultibodyPlant]
 
 
-def load_ref_trajectories(file_path: str, h_ref_knot: float,
-                          q_sim: QuasistaticSimulatorCpp):
+def calc_q_and_u_extended_and_t_knots(
+        q_knots_ref: np.ndarray, u_knots_ref: np.ndarray, h_ref_knot: float,
+        q_sim: QuasistaticSimulatorCpp):
     """
-    If u_knots_nominal has length T, then q_knots_nominal has length T + 1.
-    During execution, u_knots_nominal is prepended with q_knots_nominal[0],
+    If u_knots_ref has length T, then q_knots_ref has length T + 1.
+    In this function, u_knots_ref is prepended with q_knots_ref[0],
     so that they have the same length.
     """
-    with open(file_path, "rb") as f:
-        trj_dict = pickle.load(f)
-    q_knots_ref = trj_dict["x_trj"]
-    u_knots_ref = trj_dict["u_trj"]
-
     idx_qa_into_q = q_sim.get_q_a_indices_into_q()
     T = len(u_knots_ref)
     t_knots = np.linspace(0, T, T + 1) * h_ref_knot
@@ -38,6 +38,17 @@ def load_ref_trajectories(file_path: str, h_ref_knot: float,
         [q_knots_ref[0, idx_qa_into_q], u_knots_ref])
 
     return q_knots_ref, u_knots_ref_extended, t_knots
+
+
+def load_ref_trajectories(file_path: str, h_ref_knot: float,
+                          q_sim: QuasistaticSimulatorCpp):
+    with open(file_path, "rb") as f:
+        trj_dict = pickle.load(f)
+    q_knots_ref = trj_dict["x_trj"]
+    u_knots_ref = trj_dict["u_trj"]
+
+    return calc_q_and_u_extended_and_t_knots(
+        q_knots_ref, u_knots_ref, h_ref_knot, q_sim)
 
 
 def add_mbp_scene_graph(q_parser: QuasistaticParser, builder: DiagramBuilder,
@@ -86,16 +97,16 @@ def add_internal_controllers(
     return robot_internal_controllers
 
 
-def make_controller_mbp_diagram(
-        q_parser: QuasistaticParser,
-        q_sim: QuasistaticSimulatorCpp,
-        t_knots: np.ndarray,
-        u_knots_ref: np.ndarray,
-        q_knots_ref: np.ndarray,
-        controller_params: ControllerParams,
-        create_controller_plant_functions: Dict[str,
-                                                CreateControllerPlantFunction],
-        closed_loop: bool):
+def make_controller_mbp_diagram(q_parser_mbp: QuasistaticParser,
+                                q_sim_mbp: QuasistaticSimulatorCpp,
+                                q_sim_q_control: QuasistaticSimulatorCpp,
+                                t_knots: np.ndarray,
+                                u_knots_ref: np.ndarray,
+                                q_knots_ref: np.ndarray,
+                                controller_params: ControllerParams,
+                                create_controller_plant_functions: Dict[
+                                    str, CreateControllerPlantFunction],
+                                closed_loop: bool):
     """
     @param: h_ref_knot: the duration (in seconds) between adjacent know
         points in the reference trajectory stored in plan_path.
@@ -104,16 +115,16 @@ def make_controller_mbp_diagram(
 
     # MBP and SceneGraph.
     plant, scene_graph, robot_models, object_models = add_mbp_scene_graph(
-        q_parser, builder)
+        q_parser_mbp, builder)
 
     # Add visualizer.
     meshcat_vis = ConnectMeshcatVisualizer(builder, scene_graph)
 
     # Impedance (PD) controller for robots, with gravity compensation.
-    models_actuated = q_sim.get_actuated_models()
+    models_actuated = q_sim_mbp.get_actuated_models()
     robot_internal_controllers = add_internal_controllers(
         models_actuated=models_actuated,
-        q_parser=q_parser,
+        q_parser=q_parser_mbp,
         plant=plant,
         builder=builder,
         controller_plant_makers=create_controller_plant_functions)
@@ -125,7 +136,8 @@ def make_controller_mbp_diagram(
         u_knots_ref=u_knots_ref,
         q_knots_ref=q_knots_ref,
         controller_params=controller_params,
-        q_sim=q_sim,
+        q_sim_mbp=q_sim_mbp,
+        q_sim_q_control=q_sim_q_control,
         closed_loop=closed_loop)
 
     # Demux the MBP state x := [q, v] into q and v.
@@ -141,6 +153,13 @@ def make_controller_mbp_diagram(
             controller_robots.position_cmd_output_ports[model_a],
             robot_internal_controllers[
                 model_a].joint_angle_commanded_input_port)
+
+    # Contact Viusalizer
+
+    contact_viz = MeshcatContactVisualizer(meshcat_vis, plant=plant)
+    builder.AddSystem(contact_viz)
+    builder.Connect(plant.get_contact_results_output_port(),
+                    contact_viz.GetInputPort("contact_results"))
 
     # Logging
     h_ctrl = controller_params.control_period
@@ -167,3 +186,59 @@ def make_controller_mbp_diagram(
             'q_ref_trj': q_ref_trj,
             'u_ref_trj': u_ref_trj,
             'loggers_contact_torque': loggers_contact_torque}
+
+
+def add_controller_system_to_diagram(
+        builder: DiagramBuilder,
+        t_knots: np.ndarray,
+        u_knots_ref: np.ndarray,
+        q_knots_ref: np.ndarray,
+        controller_params: ControllerParams,
+        q_sim_mbp: QuasistaticSimulatorCpp,
+        q_sim_q_control: QuasistaticSimulatorCpp,
+        closed_loop: bool) -> Tuple[ControllerSystem, PiecewisePolynomial,
+                                    PiecewisePolynomial]:
+    """
+    Adds the following three system to the diagram, and makes the following
+     two connections.
+    |trj_src_q| ---> |                  |
+                     | ControllerSystem |
+    |trj_src_u| ---> |                  |
+    """
+    # Create trajectory sources.
+    u_ref_trj = PiecewisePolynomial.FirstOrderHold(
+        t_knots, u_knots_ref.T)
+    q_ref_trj = PiecewisePolynomial.FirstOrderHold(
+        t_knots, q_knots_ref.T)
+    trj_src_u = TrajectorySource(u_ref_trj)
+    trj_src_q = TrajectorySource(q_ref_trj)
+    trj_src_u.set_name("u_src")
+    trj_src_q.set_name("q_src")
+
+    # Allegro controller system.
+    if q_sim_mbp == q_sim_q_control:
+        q_controller = ControllerSystem(
+            q_sim_mbp=q_sim_mbp,
+            q_sim_q_control=q_sim_q_control,
+            controller_params=controller_params,
+            closed_loop=closed_loop)
+    else:
+        # q_sim_mbp and q_sim_q_control are different, i.e. for the planar
+        # iiwa bimanual system.
+        q_controller = IiwaBimanualPlanarControllerSystem(
+            q_sim_2d=q_sim_q_control,
+            q_sim_3d=q_sim_mbp,
+            controller_params=controller_params,
+            closed_loop=closed_loop)
+
+    builder.AddSystem(trj_src_u)
+    builder.AddSystem(trj_src_q)
+    builder.AddSystem(q_controller)
+
+    # Make connections.
+    builder.Connect(trj_src_q.get_output_port(),
+                    q_controller.q_ref_input_port)
+    builder.Connect(trj_src_u.get_output_port(),
+                    q_controller.u_ref_input_port)
+
+    return q_controller, q_ref_trj, u_ref_trj

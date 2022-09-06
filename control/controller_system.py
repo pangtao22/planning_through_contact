@@ -1,16 +1,12 @@
-import time
-from typing import Tuple
 import copy
 import numpy as np
 
-from pydrake.all import (LeafSystem, AbstractValue, PortDataType, BasicVector,
-                         GurobiSolver, DiagramBuilder, TrajectorySource,
-                         PiecewisePolynomial)
+from pydrake.all import (LeafSystem, PortDataType, BasicVector,
+                         GurobiSolver)
 import pydrake.solvers.mathematicalprogram as mp
-from drake import lcmt_allegro_status, lcmt_allegro_command
 
 from qsim_cpp import (ForwardDynamicsMode, GradientMode,
-                      QuasistaticSimulatorCpp, QuasistaticSimParameters)
+                      QuasistaticSimulatorCpp)
 
 
 class ControllerParams:
@@ -35,6 +31,7 @@ class Controller:
     def __init__(self, q_sim: QuasistaticSimulatorCpp,
                  controller_params: ControllerParams):
         self.q_sim = q_sim
+        self.plant = q_sim.get_plant()
         self.solver = GurobiSolver()
 
         # TODO: do not hardcode these parameters. They need to be consistent
@@ -58,11 +55,11 @@ class Controller:
         Padding \in [0, 1]. (1 - padding) of the joint limits are used.
         """
         joint_limits = self.q_sim.get_actuated_joint_limits()
-        n_qa = self.q_sim.num_actuated_dofs()
+        n_q = self.plant.num_positions()
         model_to_idx_map = self.q_sim.get_position_indices()
 
-        lower_limits = np.zeros(n_qa)
-        upper_limits = np.zeros(n_qa)
+        lower_limits = np.zeros(n_q)
+        upper_limits = np.zeros(n_q)
         for model in self.q_sim.get_actuated_models():
             indices = model_to_idx_map[model]
             lower_original = joint_limits[model]["lower"]
@@ -71,6 +68,10 @@ class Controller:
             joint_range = (upper_original - lower_original) * (1 - padding)
             lower_limits[indices] = joint_midpoint - joint_range / 2
             upper_limits[indices] = joint_midpoint + joint_range / 2
+
+        indices_q_a_into_q = self.q_sim.get_q_a_indices_into_q()
+        lower_limits = lower_limits[indices_q_a_into_q]
+        upper_limits = upper_limits[indices_q_a_into_q]
 
         return lower_limits, upper_limits
 
@@ -124,34 +125,35 @@ class Controller:
 
 class ControllerSystem(LeafSystem):
     def __init__(self,
-                 x0_nominal: np.ndarray,
-                 q_sim: QuasistaticSimulatorCpp,
+                 q_sim_mbp: QuasistaticSimulatorCpp,
+                 q_sim_q_control: QuasistaticSimulatorCpp,
                  controller_params: ControllerParams,
                  closed_loop: bool):
         super().__init__()
+        self.q_sim = q_sim_mbp
+        self.plant = self.q_sim.get_plant()
+
         self.set_name("quasistatic_controller")
         # Periodic state update
         self.control_period = controller_params.control_period
         self.closed_loop = closed_loop
         self.DeclarePeriodicDiscreteUpdate(self.control_period)
+
         # The object configuration is declared as part of the state, but not
         # used, so that indexing becomes easier.
-        self.DeclareDiscreteState(x0_nominal)
-
+        self.DeclareDiscreteState(BasicVector(self.plant.num_positions()))
         self.controller = Controller(
-            q_sim=q_sim, controller_params=controller_params)
-        self.q_sim = self.controller.q_sim
-        self.plant = self.q_sim.get_plant()
+            q_sim=q_sim_q_control, controller_params=controller_params)
 
         self.q_ref_input_port = self.DeclareInputPort(
             "q_ref",
             PortDataType.kVectorValued,
-            self.plant.num_positions())
+            q_sim_q_control.get_plant().num_positions())
 
         self.u_ref_input_port = self.DeclareInputPort(
             "u_ref",
             PortDataType.kVectorValued,
-            self.q_sim.num_actuated_dofs())
+            q_sim_q_control.num_actuated_dofs())
 
         self.q_input_port = self.DeclareInputPort(
             "q", PortDataType.kVectorValued, self.plant.num_positions())
@@ -188,45 +190,3 @@ class ControllerSystem(LeafSystem):
         discrete_state.set_value(q_nominal)
 
 
-def add_controller_system_to_diagram(
-        builder: DiagramBuilder,
-        t_knots: np.ndarray,
-        u_knots_ref: np.ndarray,
-        q_knots_ref: np.ndarray,
-        controller_params: ControllerParams,
-        q_sim: QuasistaticSimulatorCpp,
-        closed_loop: bool) -> Tuple[ControllerSystem, PiecewisePolynomial,
-                                    PiecewisePolynomial]:
-    """
-    Adds the following three system to the diagram, and makes the following
-     two connections.
-    |trj_src_q| ---> |                  |
-                     | ControllerSystem |
-    |trj_src_u| ---> |                  |
-    """
-    # Create trajectory sources.
-    u_ref_trj = PiecewisePolynomial.CubicWithContinuousSecondDerivatives(
-        t_knots, u_knots_ref.T)
-    q_ref_trj = PiecewisePolynomial.CubicWithContinuousSecondDerivatives(
-        t_knots, q_knots_ref.T)
-    trj_src_u = TrajectorySource(u_ref_trj)
-    trj_src_q = TrajectorySource(q_ref_trj)
-    trj_src_u.set_name("u_src")
-    trj_src_q.set_name("q_src")
-
-    # Allegro controller system.
-    ctrller_allegro = ControllerSystem(controller_params=controller_params,
-                                       x0_nominal=q_knots_ref[0],
-                                       q_sim=q_sim,
-                                       closed_loop=closed_loop)
-    builder.AddSystem(trj_src_u)
-    builder.AddSystem(trj_src_q)
-    builder.AddSystem(ctrller_allegro)
-
-    # Make connections.
-    builder.Connect(trj_src_q.get_output_port(),
-                    ctrller_allegro.q_ref_input_port)
-    builder.Connect(trj_src_u.get_output_port(),
-                    ctrller_allegro.u_ref_input_port)
-
-    return ctrller_allegro, q_ref_trj, u_ref_trj

@@ -1,31 +1,26 @@
-import os
 import copy
 
-import numpy as np
 import matplotlib.pyplot as plt
-from pydrake.all import (MultibodyPlant, Parser, ProcessModelDirectives,
-                         LoadModelDirectives,  Quaternion, AngleAxis,
+import numpy as np
+from pydrake.all import (Quaternion, AngleAxis,
                          Simulator, AddTriad)
-
 from qsim.parser import QuasistaticParser
-from qsim.model_paths import models_dir, add_package_paths_local
 from robotics_utilities.iiwa_controller.utils import (
     create_iiwa_controller_plant)
 
-from iiwa_bimanual_setup import (q_model_path, iiwa_l_name, iiwa_r_name,
-                                 controller_params)
 from control.drake_sim import load_ref_trajectories, make_controller_mbp_diagram
-
 from control.systems_utils import render_system_with_graphviz
+from iiwa_bimanual_setup import (q_model_path, iiwa_l_name, iiwa_r_name,
+                                 controller_params_3d)
 
-#%%
+# %%
 h_ref_knot = 0.2
 h_ctrl = 0.005
 R_diag = np.zeros(14)
 R_diag[:7] = [1, 1, 0.5, 0.5, 0.5, 0.5, 0.2]
 R_diag[7:] = R_diag[:7]
-controller_params.R = np.diag(5 * R_diag)
-controller_params.control_period = h_ctrl
+controller_params_3d.R = np.diag(5 * R_diag)
+controller_params_3d.control_period = h_ctrl
 
 q_parser = QuasistaticParser(q_model_path)
 q_sim = q_parser.make_simulator_cpp()
@@ -38,14 +33,15 @@ controller_plant_makers = {
 controller_plant_makers[iiwa_l_name] = controller_plant_makers[iiwa_r_name]
 
 diagram_and_contents = make_controller_mbp_diagram(
-    q_parser=q_parser,
-    q_sim=q_sim,
+    q_parser_mbp=q_parser,
+    q_sim_mbp=q_sim,
+    q_sim_q_control=q_sim,
     t_knots=t_knots,
     u_knots_ref=u_knots_ref,
     q_knots_ref=q_knots_ref,
-    controller_params=controller_params,
+    controller_params=controller_params_3d,
     create_controller_plant_functions=controller_plant_makers,
-    closed_loop=False)
+    closed_loop=True)
 
 # unpack return values.
 diagram = diagram_and_contents['diagram']
@@ -63,8 +59,7 @@ render_system_with_graphviz(diagram)
 model_a_l = plant.GetModelInstanceByName(iiwa_l_name)
 model_a_r = plant.GetModelInstanceByName(iiwa_r_name)
 
-
-#%% Run sim.
+# %% Run sim.
 sim = Simulator(diagram)
 context = sim.get_context()
 
@@ -77,6 +72,9 @@ for model_a in q_sim.get_actuated_models():
 context_plant = plant.GetMyContextFromRoot(context)
 q0 = copy.copy(q_knots_ref[0])
 plant.SetPositions(context_plant, q0)
+
+context_controller = controller_robots.GetMyContextFromRoot(context)
+context_controller.SetDiscreteState(q0)
 
 sim.Initialize()
 
@@ -94,7 +92,7 @@ meshcat_vis.start_recording()
 sim.AdvanceTo(t_knots[-1] + 1.0)
 meshcat_vis.publish_recording()
 
-#%% plots
+# %% plots
 # 1. cmd vs nominal u.
 u_logs = {model_a: loggers_cmd[model_a].FindLog(context)
           for model_a in q_sim.get_actuated_models()}
@@ -116,7 +114,7 @@ u_refs = np.array(
 
 u_diff = np.linalg.norm(u_refs[:-1] - u_logged[1:], axis=1)
 
-#%% 2. q_u_nominal vs q_u.
+# %% 2. q_u_nominal vs q_u.
 x_log = logger_x.FindLog(context)
 q_log = x_log.data()[:plant.num_positions()].T
 q_u_log = q_log[:, q_sim.get_q_u_indices_into_q()]
@@ -137,7 +135,6 @@ for i, t in enumerate(x_log.sample_times()):
     angle_error.append(AngleAxis(Q_WB.inverse().multiply(Q_WB_ref)).angle())
     position_error.append(np.linalg.norm(q_u_ref[4:] - q_u[4:]))
 
-
 fig, axes = plt.subplots(1, 2, figsize=(8, 4))
 x_axis_label = "Time steps"
 axes[0].plot(u_diff)
@@ -153,8 +150,7 @@ axes[1].set_xlabel(x_axis_label)
 axes[1].legend()
 plt.show()
 
-
-#%% 3. joint torque due to contact.
+# %% 3. joint torque due to contact.
 contact_torque_logs = {
     model_a: loggers_contact_torque[model_a].FindLog(context)
     for model_a in q_sim.get_actuated_models()}

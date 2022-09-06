@@ -11,7 +11,7 @@ from qsim.parser import QuasistaticParser
 from control.drake_sim import load_ref_trajectories
 from control.systems_utils import wait_for_msg
 
-from iiwa_bimanual_setup import q_model_path, controller_params
+from iiwa_bimanual_setup import q_model_path, controller_params_3d
 from state_estimator import kQEstimatedChannelName
 
 from control.controller_system import Controller
@@ -38,12 +38,12 @@ u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
 q_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
 
 # Controller
-controller_params.control_period = 0.005
+controller_params_3d.control_period = 0.005
 R_diag = np.zeros(14)
 R_diag[:7] = [1, 1, 0.5, 0.5, 0.5, 0.5, 0.2]
 R_diag[7:] = R_diag[:7]
-controller_params.R = np.diag(5 * R_diag)
-controller = Controller(q_sim=q_sim, controller_params=controller_params)
+controller_params_3d.R = np.diag(5 * R_diag)
+controller = Controller(q_sim=q_sim, controller_params=controller_params_3d)
 
 
 # LCM callback.

@@ -42,16 +42,17 @@ q_sim = q_parser.make_simulator_cpp()
 q_knots_ref, u_knots_ref, t_knots = load_ref_trajectories(
     file_path="hand_trj.pkl", h_ref_knot=h_ref_knot, q_sim=q_sim)
 
-diagram_and_contents = make_controller_mbp_diagram(
-    q_parser=q_parser,
-    q_sim=q_sim,
-    t_knots=t_knots,
-    u_knots_ref=u_knots_ref,
-    q_knots_ref=q_knots_ref,
-    controller_params=controller_params,
-    create_controller_plant_functions={robot_name:
-                                       create_allegro_controller_plant},
-    closed_loop=True)
+diagram_and_contents = make_controller_mbp_diagram(q_parser_mbp=q_parser,
+                                                   q_sim_mbp=q_sim,
+                                                   q_sim_q_control=None,
+                                                   t_knots=t_knots,
+                                                   u_knots_ref=u_knots_ref,
+                                                   q_knots_ref=q_knots_ref,
+                                                   controller_params=controller_params,
+                                                   create_controller_plant_functions={
+                                                       robot_name:
+                                                           create_allegro_controller_plant},
+                                                   closed_loop=True)
 
 # unpack return values.
 diagram = diagram_and_contents['diagram']

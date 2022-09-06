@@ -13,7 +13,7 @@ from qsim_cpp import QuasistaticSimulatorCpp
 
 from allegro_hand_setup import (robot_name, q_model_path_hardware,
                                 controller_params)
-from control.controller_system import add_controller_system_to_diagram
+from control.drake_sim import add_controller_system_to_diagram
 
 from sliders_passive import kQEstimatedChannelName
 from control.systems_utils import render_system_with_graphviz, QReceiver
