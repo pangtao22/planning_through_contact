@@ -14,6 +14,7 @@ class RrtParams:
         self.goal_as_subgoal_prob = 0.5
         self.termination_tolerance = 0.1
         self.rewire = False
+        self.stepsize = 0.1
 
 
 class IrsRrtParams(RrtParams):
