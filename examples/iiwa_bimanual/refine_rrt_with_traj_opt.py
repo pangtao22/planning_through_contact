@@ -25,7 +25,7 @@ from iiwa_bimanual_setup import (iiwa_r_name, iiwa_l_name, object_name,
 #%%
 pickled_tree_path = os.path.join(
     os.path.dirname(irs_rrt.__file__), '..',
-    'examples', 'iiwa_bimanual', "bimanual_planar_cylinder_good.pkl")
+    'examples', 'iiwa_bimanual', "bimanual_planar.pkl")
 
 # pickled_tree_path = "ptc_data/allegro_hand/analytic/tree_1000_0.pkl"
 
@@ -189,6 +189,8 @@ u_trj_optimized_trimmed_list = []
 for q_trj, u_trj in zip(q_trj_optimized_list, u_trj_optimized_list):
     t = prob_rrt.trim_trajectory(q_trj)
     print(f"{t} / {len(q_trj)}")
+    if t == 0:
+        continue
     q_trj_optimized_trimmed_list.append(q_trj[:t + 1])
     u_trj_optimized_trimmed_list.append(u_trj[:t])
 

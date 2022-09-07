@@ -6,8 +6,8 @@ from optitrack import optitrack_frame_t
 from control.systems_utils import wait_for_msg
 from control.low_pass_filter_SE3 import LowPassFilterSe3
 
-kBoxName = "box"
-kRightBaseName = "right_base"
+kObjName = "box"
+kBaseName = "base"
 kInchM = 0.0254
 
 
@@ -15,7 +15,7 @@ def is_optitrack_message_good(msg: optitrack_frame_t):
     if msg.num_marker_sets == 0:
         return False
 
-    non_empty_set_names = [kBoxName, kRightBaseName]
+    non_empty_set_names = [kObjName, kBaseName]
     is_good = {name: False for name in non_empty_set_names}
     for marker_set in msg.marker_sets:
         if marker_set.name in non_empty_set_names:
@@ -38,13 +38,23 @@ def get_marker_set_points(marker_set_name: str,
             return np.array(marker_set.xyz), i
 
 
-class BoxPoseEstimator:
+class PoseEstimatorBase:
     def __init__(self, initial_msg: optitrack_frame_t):
         self.X_WL = self.calc_X_WL(initial_msg)
-        self.box_idx = self.get_index_from_optitrack_msg(kBoxName, initial_msg)
-        self.X_B0B = self.calc_X_B0B(initial_msg)
 
-        self.lpf_SE3 = LowPassFilterSe3(h=0.005, w_cutoff=4 * 2 * np.pi)
+    @staticmethod
+    def calc_X_WL(initial_msg: optitrack_frame_t):
+        """
+        The center of the markers in right_base is 15/16 inches above the
+        table surface.
+        """
+        # right_base points in Lab frame.
+        p_b_L, _ = get_marker_set_points(kBaseName, initial_msg)
+        # R: right base frame.
+        p_Wo_L = np.mean(p_b_L, axis=0)
+        p_Wo_L[2] -= kInchM / 16 * 15
+        X_LW = RigidTransform(p_Wo_L)
+        return X_LW.inverse()
 
     @staticmethod
     def get_X_LF_from_msg(optitrack_msg: optitrack_frame_t,
@@ -64,21 +74,17 @@ class BoxPoseEstimator:
             if marker_set.name == name:
                 return i
 
-    def calc_X_WL(self, initial_msg: optitrack_frame_t):
-        """
-        The center of the markers in right_base is 15/16 inches above the
-        table surface.
-        """
-        # right_base points in Lab frame.
-        p_rb_L, _ = get_marker_set_points(kRightBaseName, initial_msg)
-        # R: right base frame.
-        p_Ro_L = np.mean(p_rb_L, axis=0)
-        p_Wo_L = np.zeros(3)
-        p_Wo_L[0] = p_Ro_L[0]
-        p_Wo_L[1] = p_Ro_L[1] + kInchM * 16  # Wo is 16 inches away.
-        p_Wo_L[2] = p_Ro_L[2] - kInchM / 16 * 15
-        X_LW = RigidTransform(p_Wo_L)
-        return X_LW.inverse()
+    def calc_X_WB(self, optitrack_msg: optitrack_frame_t) -> RigidTransform:
+        raise NotImplementedError
+        pass
+
+
+class BoxPoseEstimator(PoseEstimatorBase):
+    def __init__(self, initial_msg: optitrack_frame_t):
+        super().__init__(initial_msg)
+        self.box_idx = self.get_index_from_optitrack_msg(kObjName, initial_msg)
+        self.X_B0B = self.calc_X_B0B(initial_msg)
+        self.lpf_SE3 = LowPassFilterSe3(h=0.005, w_cutoff=4 * 2 * np.pi)
 
     def calc_X_B0B(self, initial_msg: optitrack_frame_t):
         # We marked the initial pose of the object on the table with tape.

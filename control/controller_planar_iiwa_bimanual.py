@@ -3,7 +3,7 @@ from pydrake.all import RollPitchYaw, Quaternion, AngleAxis
 from control.controller_system import *
 
 kIndices3Into7 = [0, 3, 5]
-kQIiwa0 = np.array([0, np.pi / 2, np.pi / 2, 0, 0, 0, 0])
+kQIiwa0 = np.array([0, np.pi / 2, np.pi / 2, 0, 0, 0, np.pi / 4 * 3])
 kObjZ = 0.25  # z-height of the cylinder.
 
 iiwa_l_name = "iiwa_left"

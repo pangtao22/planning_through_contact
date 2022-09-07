@@ -101,7 +101,7 @@ class StatusVec2LcmSystem(LeafSystem):
 
 #%%
 q_parser = QuasistaticParser(q_model_path)
-has_objects = True
+has_objects = False
 q_sim = q_parser.make_simulator_cpp(has_objects)
 model_l_iiwa = q_sim.get_plant().GetModelInstanceByName(iiwa_l_name)
 model_r_iiwa = q_sim.get_plant().GetModelInstanceByName(iiwa_r_name)
@@ -171,16 +171,16 @@ builder.Connect(
     status_2_lcm.iiwa_cmd_input_port)
 
 # Publish q on lcm_scope.
-demux_mbp = Demultiplexer([plant.num_positions(), plant.num_velocities()])
-builder.AddSystem(demux_mbp)
-builder.Connect(plant.get_state_output_port(),
-                demux_mbp.get_input_port(0))
-LcmScopeSystem.AddToBuilder(
-    builder=builder,
-    lcm=drake_lcm,
-    signal=demux_mbp.get_output_port(0),
-    channel=kQEstimatedChannelName,
-    publish_period=0.01)
+# demux_mbp = Demultiplexer([plant.num_positions(), plant.num_velocities()])
+# builder.AddSystem(demux_mbp)
+# builder.Connect(plant.get_state_output_port(),
+#                 demux_mbp.get_input_port(0))
+# LcmScopeSystem.AddToBuilder(
+#     builder=builder,
+#     lcm=drake_lcm,
+#     signal=demux_mbp.get_output_port(0),
+#     channel=kQEstimatedChannelName,
+#     publish_period=0.01)
 
 diagram = builder.Build()
 render_system_with_graphviz(diagram, "mock_station.gz")
@@ -200,6 +200,7 @@ for model_a in q_sim.get_actuated_models():
 # Initial state for plants.
 q_a0 = np.zeros(14)
 q_a0[:7] = [0, 0, 0, -1.75, 0, 1.0, 0]
+# q_a0[:7] = [0, np.pi / 2, np.pi / 2, 0, 0, 0, 0]
 q_a0[7:] = q_a0[:7]
 
 q0 = np.zeros(plant.num_positions())

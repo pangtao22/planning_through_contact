@@ -13,7 +13,8 @@ from qsim.parser import QuasistaticParser
 from control.systems_utils import wait_for_msg
 
 from iiwa_bimanual_setup import q_model_path
-from box_pose_estimator import BoxPoseEstimator, is_optitrack_message_good
+from pose_estimator_box import PoseEstimatorBase, is_optitrack_message_good
+from pose_estimator_cylinder import CylinderPoseEstimator
 
 kOptitrackChannelName = "OPTITRACK_FRAMES"
 kQEstimatedChannelName = "Q_SYSTEM_ESTIMATED"
@@ -21,7 +22,7 @@ kIiwaStatusChannelName = "IIWA_STATUS"
 
 
 class BimanualStateEstimator(LeafSystem):
-    def __init__(self, bpe: BoxPoseEstimator):
+    def __init__(self, bpe: PoseEstimatorBase):
         LeafSystem.__init__(self)
         parser = QuasistaticParser(q_model_path)
         self.q_sim = parser.make_simulator_cpp()
@@ -62,7 +63,8 @@ if __name__ == "__main__":
                                lcm_type=optitrack_frame_t,
                                is_message_good=is_optitrack_message_good)
 
-    state_estimator = BimanualStateEstimator(BoxPoseEstimator(initial_msg))
+    state_estimator = BimanualStateEstimator(
+        CylinderPoseEstimator(initial_msg))
 
     builder = DiagramBuilder()
     builder.AddSystem(state_estimator)
