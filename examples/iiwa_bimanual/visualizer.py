@@ -1,5 +1,7 @@
 import time
 import pickle
+import os
+import pathlib
 import numpy as np
 
 from pydrake.all import (LeafSystem, Meshcat, DrakeLcm, RigidTransform,
@@ -9,8 +11,6 @@ from pydrake.all import (LeafSystem, Meshcat, DrakeLcm, RigidTransform,
                          LcmScopeSystem, MeshcatVisualizerCpp, Quaternion)
 
 from drake import lcmt_scope
-
-from manipulation.meshcat_cpp_utils import AddMeshcatTriad
 
 from qsim.parser import QuasistaticParser
 
@@ -43,7 +43,10 @@ context_vis = visualizer.GetMyContextFromRoot(context)
 context_plant = plant.GetMyContextFromRoot(context)
 
 # Draw frames for box and goal.
-file_path = "./hand_optimized_q_and_u_trj.pkl"
+file_path = os.path.join(
+    str(pathlib.Path(__file__).parent.resolve()),
+    "./hand_optimized_q_and_u_trj.pkl")
+
 with open(file_path, "rb") as f:
     trj_dict = pickle.load(f)
 
