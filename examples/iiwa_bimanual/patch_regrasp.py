@@ -56,19 +56,17 @@ for n in range(n_segment - 1):
     qu_start = q_knots_ref_list[n][-1, q_dynamics.get_q_u_indices_into_x()]
     qu_end = q_knots_ref_list[n + 1][0, q_dynamics.get_q_u_indices_into_x()]
 
-    """
     q_dynamics.q_sim_py.update_mbp_positions_from_vector(q_knots_ref_list[n][-1])
     q_dynamics.q_sim_py.draw_current_configuration()
     input()
     q_dynamics.q_sim_py.update_mbp_positions_from_vector(q_knots_ref_list[n+1][0])
     q_dynamics.q_sim_py.draw_current_configuration()
     input()
-    """
 
     cf_params = RrtParams()
     cf_params.goal = qa_end
     cf_params.root_node = Node(qa_start)
-    cf_params.termination_tolerance = 1e-2
+    cf_params.termination_tolerance = 1e-3
     cf_params.goal_as_subgoal_prob = 0.1
     cf_params.stepsize = 0.1
     cf_params.max_size = 20000
@@ -89,13 +87,15 @@ for n in range(n_segment - 1):
         prob_rrt.q_ub[q_dynamics.get_q_a_indices_into_x()])
 
     cf_rrt.iterate()
-    patch_trj = cf_rrt.get_final_path_q()
+    patch_trj = cf_rrt.shortcut_path(cf_rrt.get_final_path_q())
 
     q_dict_lst = []
     for t in range(patch_trj.shape[0]):
         q_dict_lst.append(
             q_dynamics.get_q_dict_from_x(patch_trj[t])
         )
+    q_dynamics.q_sim_py.animate_system_trajectory(0.1, q_dict_lst)
+    input()
 
     q_knots_total = np.vstack((q_knots_total, q_knots_ref_list[n]))
     q_knots_total = np.vstack((q_knots_total, patch_trj))

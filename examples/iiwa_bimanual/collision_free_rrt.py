@@ -55,6 +55,9 @@ class CollisionFreeRRT(Rrt):
         sg = self.q_sim_py.get_scene_graph()
         query_object = sg.GetOutputPort("query").Eval(
             self.q_sim_py.context_sg)
+        #collision_pairs = \
+        #    query_object.ComputeSignedDistancePairwiseClosestPoints(
+        #    0.01)
         collision_pairs = query_object.ComputePointPairPenetration()
 
         return len(collision_pairs) > 0
@@ -100,7 +103,7 @@ class CollisionFreeRRT(Rrt):
             xnext = q_start + self.params.stepsize * direction
 
         collision = True
-        if not self.is_collision(self.map_qa_to_q(xnext)):
+        if self.segment_has_no_collision(q_start, xnext, 10):
             collision = False
 
         child_node = Node(xnext)
@@ -201,7 +204,40 @@ class CollisionFreeRRT(Rrt):
             self.get_node_from_id(path[path_T - 1]).q)
         x_trj[path_T - 1, self.q_dynamics.get_q_u_indices_into_x()] = self.qu
 
-        return x_trj        
+        return x_trj     
+
+    def interpolate_traj(self, q_start, q_end, T):
+        return np.linspace(q_start, q_end, T)
+
+    def segment_has_no_collision(self, q_start, q_end, T):
+        q_trj = self.interpolate_traj(q_start, q_end, T)
+        has_collision = False
+        for t in range(q_trj.shape[0]):
+            if self.is_collision(self.map_qa_to_q(q_trj[t])):
+                has_collision = True
+        return not has_collision
+
+    def shortcut_path(self, x_trj, num_tries=100):
+        x_trj_shortcut = np.copy(x_trj)
+        T = x_trj_shortcut.shape[0]        
+        for _ in range(num_tries):
+            # choose two random points on the path.
+            ind_a, ind_b = np.sort(
+                np.random.choice(
+                    T, 2, replace=False))
+
+            x_a = x_trj_shortcut[
+                ind_a, self.q_dynamics.get_q_a_indices_into_x()]
+            x_b = x_trj_shortcut[
+                ind_b, self.q_dynamics.get_q_a_indices_into_x()]
+
+            if self.segment_has_no_collision(x_a, x_b, 100):
+                x_trj_shortcut[ind_a:ind_b,
+                    self.q_dynamics.get_q_a_indices_into_x()
+                    ] = self.interpolate_traj(
+                    x_a, x_b, ind_b - ind_a)
+
+        return x_trj_shortcut
 
 def find_collision_free_path(irs_rrt, qa_start, qa_end, qu):
     params = RrtParams()
