@@ -6,11 +6,11 @@ import numpy as np
 
 from pydrake.all import (LeafSystem, Meshcat, DrakeLcm, RigidTransform,
                          BasicVector, StartMeshcat, DiagramBuilder,
-                         RollPitchYaw,
+                         RollPitchYaw, RotationMatrix,
                          Simulator, LcmInterfaceSystem, LcmSubscriberSystem,
                          LcmScopeSystem, MeshcatVisualizerCpp, Quaternion)
 
-from drake import lcmt_scope
+from drake import lcmt_scope, lcmt_robot_state
 
 from qsim.parser import QuasistaticParser
 
@@ -22,6 +22,10 @@ from iiwa_bimanual_setup import q_model_path_planar, q_model_path_cylinder
 from state_estimator import kQEstimatedChannelName
 
 import lcm
+
+kZHeight = 0.25
+kGoalPoseChannel = "GOAL_POSE"
+kStartPoseChannel = "START_POSE"
 
 parser = QuasistaticParser(q_model_path_cylinder)
 parser_2d = QuasistaticParser(q_model_path_planar)
@@ -42,36 +46,19 @@ context = diagram.CreateDefaultContext()
 context_vis = visualizer.GetMyContextFromRoot(context)
 context_plant = plant.GetMyContextFromRoot(context)
 
-# Draw frames for box and goal.
-file_path = os.path.join(
-    str(pathlib.Path(__file__).parent.resolve()),
-    "./hand_optimized_q_and_u_trj.pkl")
-
-with open(file_path, "rb") as f:
-    trj_dict = pickle.load(f)
-
-q_knots_ref_list = trj_dict['q_trj_list']
-u_knots_ref_list = trj_dict['u_trj_list']
-idx_trj_segment = 0
-q_knots_ref = q_knots_ref_list[idx_trj_segment]
-
-z_height = 0.25
-q_u_goal = q_knots_ref[-1, q_sim_2d.get_q_u_indices_into_q()]
-X_WG = RigidTransform(RollPitchYaw(0, 0, q_u_goal[2]),
-                      [q_u_goal[0], q_u_goal[1], z_height])
-add_triad(meshcat, name='frame', prefix="goal", length=0.4, radius=0.03,
+add_triad(meshcat, name='frame', prefix="goal", length=0.35, radius=0.03,
           opacity=0.5)
-meshcat.SetTransform("goal", X_WG)
 
-q_u_start = q_knots_ref[0, q_sim_2d.get_q_u_indices_into_q()]
-X_WS = RigidTransform(RollPitchYaw(0, 0, q_u_start[2]),
-                      [q_u_start[0], q_u_start[1], z_height])
-add_triad(meshcat, name='frame', prefix="start", length=0.6, radius=0.02,
+add_triad(meshcat, name='frame', prefix="start", length=0.6, radius=0.005,
           opacity=0.7)
-meshcat.SetTransform("start", X_WS)
 
 add_triad(meshcat, name='frame', prefix='plant/box/box',
           length=0.4, radius=0.01, opacity=1)
+
+# 2D rendering camera
+R_WC = RotationMatrix(np.array([[0, -1, 0], [0, 0, 1], [-1, 0, 0]]).T)
+X_WC = RigidTransform(R_WC, [0, 0, 1])
+meshcat.Set2dRenderMode(X_WC)
 
 
 def draw_q(channel, data):
@@ -85,9 +72,32 @@ def draw_q(channel, data):
     time.sleep(0.03)
 
 
+def transform_from_xy_theta(x: float, y: float, theta: float):
+    return RigidTransform(RollPitchYaw(0, 0, theta), [x, y, kZHeight])
+
+
+def draw_start_pose(channel, data):
+    msg = lcmt_robot_state.decode(data)
+    x = msg.joint_position[0]
+    y = msg.joint_position[1]
+    theta = msg.joint_position[2]
+    meshcat.SetTransform("start", transform_from_xy_theta(x, y, theta))
+
+
+def draw_goal_pose(channel, data):
+    msg = lcmt_robot_state.decode(data)
+    x = msg.joint_position[0]
+    y = msg.joint_position[1]
+    theta = msg.joint_position[2]
+    meshcat.SetTransform("goal", transform_from_xy_theta(x, y, theta))
+
+
 lc = lcm.LCM()
 subscription = lc.subscribe(kQEstimatedChannelName, draw_q)
 subscription.set_queue_capacity(1)
+
+lc.subscribe(kStartPoseChannel, draw_start_pose)
+lc.subscribe(kGoalPoseChannel, draw_goal_pose)
 
 try:
     while True:

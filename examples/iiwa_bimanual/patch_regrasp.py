@@ -62,10 +62,10 @@ for n in range(n_segment - 1):
 
     q_dynamics.q_sim_py.update_mbp_positions_from_vector(q_knots_ref_list[n][-1])
     q_dynamics.q_sim_py.draw_current_configuration()
-    input()
+    # input()
     q_dynamics.q_sim_py.update_mbp_positions_from_vector(q_knots_ref_list[n+1][0])
     q_dynamics.q_sim_py.draw_current_configuration()
-    input()
+    # input()
 
     cf_params = RrtParams()
     cf_params.goal = qa_end
@@ -98,20 +98,22 @@ for n in range(n_segment - 1):
         q_dict_lst.append(
             q_dynamics.get_q_dict_from_x(patch_trj[t]))
     q_dynamics.q_sim_py.animate_system_trajectory(0.1, q_dict_lst)
-    input()
+    # input()
 
     q_knots_total = np.vstack((q_knots_total, q_knots_ref_list[n]))
     q_knots_total = np.vstack((q_knots_total, patch_trj))
 
     q_knots_patched_list.append(q_knots_ref_list[n])
-    q_knots_patched_list.append(patch_trj[n])
+    q_knots_patched_list.append(patch_trj)
 
     u_knots_patched_list.append(u_knots_ref_list[n])
     u_knots_patched_list.append(patch_trj[1:,
                                 q_dynamics.get_q_a_indices_into_x()])
 
-q_knots_total = np.vstack((q_knots_total, q_knots_ref_list[n_segment-1]))
-
+q_knots_total = np.vstack((q_knots_total, q_knots_ref_list[-1]))
+q_knots_patched_list.append(q_knots_ref_list[-1])
+u_knots_patched_list.append(u_knots_ref_list[-1])
+#%%
 q_dict_lst = []
 for t in range(q_knots_total.shape[0]):
     q_dict_lst.append(

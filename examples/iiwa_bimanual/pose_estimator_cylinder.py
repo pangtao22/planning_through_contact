@@ -7,7 +7,7 @@ from control.systems_utils import wait_for_msg
 from control.low_pass_filter_SE3 import LowPassFilterSe3
 
 from pose_estimator_box import (kInchM, is_optitrack_message_good,
-                                PoseEstimatorBase)
+                                PoseEstimatorBase, get_marker_set_points)
 
 kObjName = "cylinder"
 
@@ -16,8 +16,21 @@ class CylinderPoseEstimator(PoseEstimatorBase):
     def __init__(self, initial_msg: optitrack_frame_t):
         super().__init__(initial_msg)
         self.obj_id = self.get_index_from_optitrack_msg(kObjName, initial_msg)
-        self.X_B0B = RigidTransform([0, 0, -0.25])
+        self.X_B0B = self.calc_X_B0B(initial_msg)
         self.lpf_SE3 = LowPassFilterSe3(h=0.005, w_cutoff=4 * 2 * np.pi)
+
+    def calc_X_B0B(self, initial_msg: optitrack_frame_t):
+        X_LB0 = self.get_X_LF_from_msg(initial_msg, self.obj_id)
+
+        points, _ = get_marker_set_points(kObjName, initial_msg)
+        # Find the marker with the smallest z
+        idx_side = np.argmin(points[:, 2])
+        indices = np.arange(len(points)).tolist()
+        indices.remove(idx_side)
+        p_LBo = np.mean(points[indices], axis=0)
+        p_LBo[2] -= 0.25
+        X_LB = RigidTransform(X_LB0.rotation(), p_LBo)
+        return X_LB0.inverse().multiply(X_LB)
 
     def calc_X_WB(self, optitrack_msg: optitrack_frame_t):
         X_LB0 = self.get_X_LF_from_msg(optitrack_msg, self.obj_id)
