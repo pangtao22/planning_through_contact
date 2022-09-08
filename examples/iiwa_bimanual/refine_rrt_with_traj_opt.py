@@ -101,7 +101,7 @@ params.num_samples = 100
 # analytic bundling
 params.log_barrier_weight_initial = 100
 log_barrier_weight_final = 6000
-max_iterations = 10
+max_iterations = 20
 
 base = np.log(
     log_barrier_weight_final / params.log_barrier_weight_initial) \
@@ -200,7 +200,7 @@ q_trj_optimized_trimmed_all = prob_rrt.concatenate_traj_list(
 prob_mpc.q_vis.publish_trajectory(q_trj_optimized_trimmed_all, 0.1)
 
 #%%
-with open("hand_optimized_q_and_u_trj.pkl", 'wb') as f:
+with open("bimanual_optimized_q_and_u_trj.pkl", 'wb') as f:
     pickle.dump({"q_trj_list": q_trj_optimized_trimmed_list,
                  "u_trj_list": u_trj_optimized_trimmed_list,
                  "h_small": h_small}, f)
