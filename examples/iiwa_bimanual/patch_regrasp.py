@@ -31,7 +31,7 @@ from irs_rrt.rrt_params import RrtParams
 from collision_free_rrt import find_collision_free_path, CollisionFreeRRT
 
 pickled_tree_path = "./bimanual_planar.pkl"
-qu_trj_path = "./hand_optimized_q_and_u_trj.pkl"
+qu_trj_path = "./bimanual_optimized_q_and_u_trj.pkl"
 
 with open(pickled_tree_path, 'rb') as f:
     tree = pickle.load(f)

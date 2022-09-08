@@ -23,7 +23,7 @@ from control.systems_utils import render_system_with_graphviz
 
 
 #%%
-h_ref_knot = 0.5
+h_ref_knot = 1.0
 h_ctrl = 0.005
 controller_params_2d.control_period = h_ctrl
 
@@ -33,7 +33,7 @@ q_sim_2d = q_parser_2d.make_simulator_cpp()
 q_sim_3d = q_parser_3d.make_simulator_cpp()
 
 #%% Trajectory.
-file_path = "./hand_optimized_q_and_u_trj.pkl"
+file_path = "./bimanual_optimized_q_and_u_trj.pkl"
 with open(file_path, "rb") as f:
     trj_dict = pickle.load(f)
 
@@ -41,7 +41,7 @@ q_knots_ref_list = trj_dict['q_trj_list']
 u_knots_ref_list = trj_dict['u_trj_list']
 
 # pick one segment for now.
-idx_trj_segment = 0
+idx_trj_segment = 1
 q_knots_ref, u_knots_ref, t_knots = calc_q_and_u_extended_and_t_knots(
     q_knots_ref=q_knots_ref_list[idx_trj_segment],
     u_knots_ref=u_knots_ref_list[idx_trj_segment],

@@ -39,7 +39,7 @@ q_parser_2d = QuasistaticParser(q_model_path_planar)
 q_parser_3d = QuasistaticParser(q_model_path_cylinder)
 q_sim_2d = q_parser_2d.make_simulator_cpp()
 q_sim_3d = q_parser_3d.make_simulator_cpp()
-h_ref_knot = 0.6
+h_ref_knot = 1.0
 
 file_path = "./bimanual_patched_q_and_u_trj.pkl"
 with open(file_path, "rb") as f:
@@ -59,6 +59,7 @@ t_transition = 10.0
 indices_q_u_into_q = q_sim_2d.get_q_u_indices_into_q()
 
 for i in range(len(u_knots_ref_list)):
+    print(f"================= {i} ==================")
     q_knots_ref, u_knots_ref_2d, _ = calc_q_and_u_extended_and_t_knots(
         q_knots_ref=q_knots_ref_list[i],
         u_knots_ref=u_knots_ref_list[i],

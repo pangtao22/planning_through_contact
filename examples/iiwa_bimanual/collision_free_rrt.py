@@ -49,6 +49,9 @@ class CollisionFreeRRT(Rrt):
         """
         Checks if given configuration vector x is in collision.
         """
+        q_a = x[self.q_sim.get_q_a_indices_into_q()]
+        if np.linalg.norm(q_a - self.root_node.q) < 1e-6:
+            return False
         self.q_sim_py.update_mbp_positions_from_vector(x)
         #self.q_sim_py.draw_current_configuration()
 

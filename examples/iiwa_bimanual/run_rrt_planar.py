@@ -67,7 +67,7 @@ params.std_u = std_u
 params.stepsize = 0.1
 params.rewire = False
 params.distance_metric = 'local_u'
-params.grasp_prob = 0.3
+params.grasp_prob = 0.5
 params.h = 0.05
 
 prob_rrt = IrsRrtProjection(params, contact_sampler)
