@@ -1,5 +1,5 @@
 import pickle
-from typing import Callable, Dict, Set, Tuple
+from typing import Callable, Dict, Set, Tuple, Union
 
 import numpy as np
 from pydrake.all import (MultibodyPlant, DiagramBuilder,
@@ -22,22 +22,34 @@ from .controller_planar_iiwa_bimanual import IiwaBimanualPlanarControllerSystem
 CreateControllerPlantFunction = Callable[[np.ndarray], MultibodyPlant]
 
 
-def calc_q_and_u_extended_and_t_knots(
-        q_knots_ref: np.ndarray, u_knots_ref: np.ndarray, h_ref_knot: float,
-        q_sim: QuasistaticSimulatorCpp):
+def calc_u_extended_and_t_knots(
+        u_knots_ref: np.ndarray,
+        u_knot_ref_start: Union[np.ndarray, None],
+        v_limit: float):
     """
     If u_knots_ref has length T, then q_knots_ref has length T + 1.
     In this function, u_knots_ref is prepended with q_knots_ref[0],
     so that they have the same length.
     """
-    idx_qa_into_q = q_sim.get_q_a_indices_into_q()
-    T = len(u_knots_ref)
-    t_knots = np.linspace(0, T, T + 1) * h_ref_knot
-    # Extends u_knots_ref so that it has the same length (T + 1) as q_knots_ref.
-    u_knots_ref_extended = np.vstack(
-        [q_knots_ref[0, idx_qa_into_q], u_knots_ref])
+    if u_knot_ref_start is not None:
+        u_knots_ref_extended = np.vstack(
+            [u_knot_ref_start, u_knots_ref])
+    else:
+        u_knots_ref_extended = u_knots_ref
 
-    return q_knots_ref, u_knots_ref_extended, t_knots
+    delta_u_knots_ref = u_knots_ref_extended[1:] - u_knots_ref_extended[:-1]
+    du_norms = np.linalg.norm(delta_u_knots_ref, axis=1)
+    dt = du_norms / v_limit
+
+    indices_to_keep = []
+    for i in range(len(dt)):
+        if dt[i] < 1e-6:
+            continue
+        indices_to_keep.append(i)
+    t_knots = np.hstack([[0], np.cumsum(dt[indices_to_keep]).tolist()])
+
+    indices_to_keep.append(len(u_knots_ref_extended) - 1)
+    return u_knots_ref_extended[indices_to_keep], t_knots
 
 
 def load_ref_trajectories(file_path: str, h_ref_knot: float,
@@ -47,8 +59,8 @@ def load_ref_trajectories(file_path: str, h_ref_knot: float,
     q_knots_ref = trj_dict["x_trj"]
     u_knots_ref = trj_dict["u_trj"]
 
-    return calc_q_and_u_extended_and_t_knots(
-        q_knots_ref, u_knots_ref, h_ref_knot, q_sim)
+    return calc_u_extended_and_t_knots(q_knots_ref, u_knots_ref, h_ref_knot,
+                                       q_sim)
 
 
 def add_mbp_scene_graph(q_parser: QuasistaticParser, builder: DiagramBuilder,

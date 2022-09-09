@@ -9,7 +9,7 @@ from drake import lcmt_iiwa_command, lcmt_iiwa_status, lcmt_scope
 from qsim.parser import QuasistaticParser
 
 from control.drake_sim import (load_ref_trajectories,
-                               calc_q_and_u_extended_and_t_knots)
+                               calc_u_extended_and_t_knots)
 from control.systems_utils import wait_for_msg
 
 from iiwa_bimanual_setup import (q_model_path_planar, q_model_path_cylinder)
@@ -49,11 +49,9 @@ u_knots_ref_list = trj_dict['u_trj_list']
 
 # pick one segment for now.
 idx_trj_segment = 0
-q_knots_ref, u_knots_ref_2d, t_knots = calc_q_and_u_extended_and_t_knots(
+q_knots_ref, u_knots_ref_2d, t_knots = calc_u_extended_and_t_knots(
     q_knots_ref=q_knots_ref_list[idx_trj_segment],
-    u_knots_ref=u_knots_ref_list[idx_trj_segment],
-    q_sim=q_sim_2d,
-    h_ref_knot=h_ref_knot)
+    u_knots_ref=u_knots_ref_list[idx_trj_segment], u_knots_ref_start=, v_limit=)
 
 u_knots_ref = np.array([q_a_2d_to_q_a_3d(u) for u in u_knots_ref_2d])
 

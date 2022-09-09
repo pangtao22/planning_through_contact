@@ -17,7 +17,7 @@ from iiwa_bimanual_setup import (
     controller_params_2d, draw_goal_and_object_triads_2d)
 from control.drake_sim import (load_ref_trajectories,
                                make_controller_mbp_diagram,
-                               calc_q_and_u_extended_and_t_knots)
+                               calc_u_extended_and_t_knots)
 from control.controller_planar_iiwa_bimanual import kIndices3Into7
 from control.systems_utils import render_system_with_graphviz
 
@@ -42,11 +42,9 @@ u_knots_ref_list = trj_dict['u_trj_list']
 
 # pick one segment for now.
 idx_trj_segment = 1
-q_knots_ref, u_knots_ref, t_knots = calc_q_and_u_extended_and_t_knots(
+q_knots_ref, u_knots_ref, t_knots = calc_u_extended_and_t_knots(
     q_knots_ref=q_knots_ref_list[idx_trj_segment],
-    u_knots_ref=u_knots_ref_list[idx_trj_segment],
-    q_sim=q_sim_2d,
-    h_ref_knot=h_ref_knot)
+    u_knots_ref=u_knots_ref_list[idx_trj_segment], u_knots_ref_start=, v_limit=)
 
 controller_plant_makers = {
     iiwa_r_name: lambda gravity: create_iiwa_controller_plant(gravity)[0]}

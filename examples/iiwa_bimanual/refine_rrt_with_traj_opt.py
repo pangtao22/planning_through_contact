@@ -100,7 +100,7 @@ params.std_u_initial = np.ones(dim_u) * 0.3
 params.num_samples = 100
 # analytic bundling
 params.log_barrier_weight_initial = 100
-log_barrier_weight_final = 6000
+log_barrier_weight_final = 5000
 max_iterations = 20
 
 base = np.log(
