@@ -6,7 +6,9 @@ import meshcat
 import networkx as nx
 from tqdm import tqdm
 
-from pydrake.all import MultibodyPlant, RigidTransform, RollPitchYaw
+from pydrake.all import (
+    MultibodyPlant, RigidTransform, RollPitchYaw, 
+    JacobianWrtVariable)
 from pydrake.systems.meshcat_visualizer import AddTriad
 
 from qsim.parser import QuasistaticParser
@@ -55,15 +57,27 @@ class CollisionFreeRRT(Rrt):
         self.q_sim_py.update_mbp_positions_from_vector(x)
         #self.q_sim_py.draw_current_configuration()
 
+        plant = self.q_sim_py.get_plant()
         sg = self.q_sim_py.get_scene_graph()
         query_object = sg.GetOutputPort("query").Eval(
             self.q_sim_py.context_sg)
-        #collision_pairs = \
-        #    query_object.ComputeSignedDistancePairwiseClosestPoints(
-        #    0.01)
-        collision_pairs = query_object.ComputePointPairPenetration()
+        collision_pairs = \
+            query_object.ComputeSignedDistancePairwiseClosestPoints(
+            0.04)
+        inspector = query_object.inspector()
 
-        return len(collision_pairs) > 0
+        # 1. Compute closest distance pairs and normals.
+        for collision in collision_pairs:
+            f_id = inspector.GetFrameId(collision.id_A)
+            body_A = plant.GetBodyFromFrameId(f_id)
+            f_id = inspector.GetFrameId(collision.id_B)
+            body_B = plant.GetBodyFromFrameId(f_id)
+
+            # left arm collision
+            if (body_A.model_instance() == 2):
+                return True
+        
+        return False
 
     def sample_subgoal(self):
         while(True):
@@ -241,6 +255,89 @@ class CollisionFreeRRT(Rrt):
                     x_a, x_b, ind_b - ind_a)
 
         return x_trj_shortcut
+
+def step_out(q_dynamics, x, scale = 0.06, num_iters = 3):
+    """
+    Given a near-contact configuration, give a trajectory that steps out.
+    """
+    q_sim_py = q_dynamics.q_sim_py
+    q_sim_py.update_mbp_positions_from_vector(x)
+    idx_qa = q_dynamics.get_q_a_indices_into_x()
+    idx_qu = q_dynamics.get_q_u_indices_into_x()
+
+    plant = q_sim_py.get_plant()
+    sg = q_sim_py.get_scene_graph()
+    query_object = sg.GetOutputPort("query").Eval(q_sim_py.context_sg)
+    collision_pairs = \
+        query_object.ComputeSignedDistancePairwiseClosestPoints(
+        0.3)
+
+    inspector = query_object.inspector()
+
+    # 1. Compute closest distance pairs and normals.
+
+    min_dist_left = np.inf
+    min_dist_right = np.inf
+
+    min_body_left = None
+    min_body_right = None
+    min_normal_left = None
+    min_normal_right = None
+
+    for collision in collision_pairs:
+        f_id = inspector.GetFrameId(collision.id_A)
+        body_A = plant.GetBodyFromFrameId(f_id)
+        f_id = inspector.GetFrameId(collision.id_B)
+        body_B = plant.GetBodyFromFrameId(f_id)
+
+        # left arm collision
+        if (body_A.model_instance() == 2) and (body_B.model_instance() == 3):
+            #print("left: " + body_B.name())
+            if (collision.distance < min_dist_left):
+                min_dist_left = collision.distance
+                min_body_left = body_B
+                min_normal_left = -collision.nhat_BA_W
+
+        # right arm collision
+        if (body_A.model_instance() == 2) and (body_B.model_instance() == 4):
+            #print("right: " + body_B.name())
+            if (collision.distance < min_dist_right):
+                min_dist_right = collision.distance
+                min_body_right = body_B
+                min_normal_right = -collision.nhat_BA_W
+
+    # 2. Compute Jacobians and qdot.
+
+    left_iiwa = plant.GetModelInstanceByName("iiwa_left")
+    left_iiwa_base_frame = plant.GetFrameByName("iiwa_link_0", left_iiwa)
+
+    J_L = plant.CalcJacobianTranslationalVelocity(
+        q_sim_py.context_plant, JacobianWrtVariable.kV,
+        min_body_left.body_frame(), np.array([0, 0, 0]),
+        left_iiwa_base_frame, left_iiwa_base_frame)
+
+    J_La = J_L[:2,3:6]
+
+    right_iiwa = plant.GetModelInstanceByName("iiwa_right")
+    right_iiwa_base_frame = plant.GetFrameByName("iiwa_link_0", right_iiwa)
+
+    J_R = plant.CalcJacobianTranslationalVelocity(
+        q_sim_py.context_plant, JacobianWrtVariable.kV,
+        min_body_right.body_frame(), np.array([0, 0, 0]),
+        right_iiwa_base_frame, right_iiwa_base_frame)
+
+    J_Ra = J_R[:2,6:9]
+
+    qdot_La = np.linalg.pinv(J_La).dot(scale * min_normal_left[:2])
+    qdot_Ra = np.linalg.pinv(J_Ra).dot(scale * min_normal_right[:2])
+
+    qdot = np.zeros(9)
+    qdot[0:3] = np.zeros(3)
+    qdot[3:6] = qdot_La
+    qdot[6:9] = qdot_Ra
+    qnext = x + qdot
+
+    return qnext
 
 def find_collision_free_path(irs_rrt, qa_start, qa_end, qu):
     params = RrtParams()
