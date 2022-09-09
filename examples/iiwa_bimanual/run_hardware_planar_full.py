@@ -87,7 +87,7 @@ for i in range(len(u_knots_ref_list)):
     if i % 2 == 0:
         v_limit = 0.1
     else:
-        v_limit = 0.4
+        v_limit = 0.2
 
     q_knots_ref_2d = q_knots_ref_list[i]
     u_knots_ref_2d, t_knots = calc_u_extended_and_t_knots(

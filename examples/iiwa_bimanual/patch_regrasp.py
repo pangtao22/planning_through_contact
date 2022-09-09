@@ -1,3 +1,5 @@
+import os
+import pathlib
 from calendar import c
 import os
 
@@ -31,8 +33,9 @@ from irs_rrt.rrt_params import RrtParams
 from collision_free_rrt import (
     find_collision_free_path, CollisionFreeRRT, step_out)
 
-pickled_tree_path = "examples/iiwa_bimanual/bimanual_planar.pkl"
-qu_trj_path = "examples/iiwa_bimanual/bimanual_optimized_q_and_u_trj.pkl"
+folder_path = str(pathlib.Path(__file__).parent.resolve())
+pickled_tree_path = os.path.join(folder_path, "bimanual_planar.pkl")
+qu_trj_path = os.path.join(folder_path, "bimanual_optimized_q_and_u_trj.pkl")
 
 with open(pickled_tree_path, 'rb') as f:
     tree = pickle.load(f)
@@ -101,13 +104,13 @@ for n in range(n_segment - 1):
 
     cf_rrt.iterate()
     cf_rrt_trj = cf_rrt.shortcut_path(cf_rrt.get_final_path_q())
-    patch_trj = np.zeros((0,9))
+    patch_trj = np.zeros((0, 9))
 
     patch_trj = np.vstack((patch_trj, np.linspace(
-        q_knots_ref_list[n][-1], qin, 15)))
+        q_knots_ref_list[n][-1], qin, 20)))
     patch_trj = np.vstack((patch_trj, cf_rrt_trj))
     patch_trj = np.vstack((patch_trj, np.linspace(
-        qout, q_knots_ref_list[n+1][0], 15)))
+        qout, q_knots_ref_list[n+1][0], 20)))
 
     q_dict_lst = []
     for t in range(patch_trj.shape[0]):

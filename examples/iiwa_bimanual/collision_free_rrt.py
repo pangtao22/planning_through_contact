@@ -33,6 +33,7 @@ from irs_rrt.rrt_params import RrtParams
 
 q_parser = QuasistaticParser(q_model_path_planar)
 
+
 class CollisionFreeRRT(Rrt):
     def __init__(self, irs_rrt, rrt_params, qu):
         self.irs_rrt = irs_rrt
@@ -63,7 +64,7 @@ class CollisionFreeRRT(Rrt):
             self.q_sim_py.context_sg)
         collision_pairs = \
             query_object.ComputeSignedDistancePairwiseClosestPoints(
-            0.04)
+            0.02)
         inspector = query_object.inspector()
 
         # 1. Compute closest distance pairs and normals.
@@ -256,7 +257,8 @@ class CollisionFreeRRT(Rrt):
 
         return x_trj_shortcut
 
-def step_out(q_dynamics, x, scale = 0.06, num_iters = 3):
+
+def step_out(q_dynamics, x, scale=0.06, num_iters = 3):
     """
     Given a near-contact configuration, give a trajectory that steps out.
     """
@@ -270,7 +272,7 @@ def step_out(q_dynamics, x, scale = 0.06, num_iters = 3):
     query_object = sg.GetOutputPort("query").Eval(q_sim_py.context_sg)
     collision_pairs = \
         query_object.ComputeSignedDistancePairwiseClosestPoints(
-        0.3)
+        0.2)
 
     inspector = query_object.inspector()
 

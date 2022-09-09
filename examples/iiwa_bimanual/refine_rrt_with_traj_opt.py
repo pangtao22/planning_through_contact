@@ -25,7 +25,7 @@ from iiwa_bimanual_setup import (iiwa_r_name, iiwa_l_name, object_name,
 #%%
 pickled_tree_path = os.path.join(
     os.path.dirname(irs_rrt.__file__), '..',
-    'examples', 'iiwa_bimanual', "bimanual_planar.pkl")
+    'examples', 'iiwa_bimanual', "bimanual_planar_3_segments.pkl")
 
 # pickled_tree_path = "ptc_data/allegro_hand/analytic/tree_1000_0.pkl"
 
@@ -85,7 +85,7 @@ params.Qd_dict = {}
 for model in q_sim.get_actuated_models():
     params.Qd_dict[model] = params.Q_dict[model]
 for model in q_sim.get_unactuated_models():
-    params.Qd_dict[model] = params.Q_dict[model] * 100
+    params.Qd_dict[model] = params.Q_dict[model] * 200
 
 params.R_dict = {idx_a_l: 10 * np.ones(3), idx_a_r: 10 * np.ones(3)}
 
@@ -151,7 +151,7 @@ for i_s, (t_start, t_end) in enumerate(sub_segments):
         q_final[indices_q_u_into_x] = q_u_goal
 
     # choose n_steps_per_h so that each segment has at least 10 knot points.
-    n_steps_per_h = max(2, int(np.ceil(10 / len(u_trj))))
+    n_steps_per_h = max(3, int(np.ceil(10 / len(u_trj))))
     (q_trj_optimized, u_trj_optimized, idx_best
      ) = prob_mpc.run_traj_opt_on_rrt_segment(
         n_steps_per_h=n_steps_per_h,
