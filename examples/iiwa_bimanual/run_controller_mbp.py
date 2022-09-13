@@ -1,4 +1,5 @@
 import copy
+import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,7 +9,7 @@ from qsim.parser import QuasistaticParser
 from robotics_utilities.iiwa_controller.utils import (
     create_iiwa_controller_plant)
 
-from control.drake_sim import load_ref_trajectories, make_controller_mbp_diagram
+from control.drake_sim import calc_u_extended_and_t_knots, make_controller_mbp_diagram
 from control.systems_utils import render_system_with_graphviz
 from iiwa_bimanual_setup import (q_model_path, iiwa_l_name, iiwa_r_name,
                                  controller_params_3d)
@@ -19,14 +20,19 @@ h_ctrl = 0.005
 R_diag = np.zeros(14)
 R_diag[:7] = [1, 1, 0.5, 0.5, 0.5, 0.5, 0.2]
 R_diag[7:] = R_diag[:7]
-controller_params_3d.R = np.diag(5 * R_diag)
+controller_params_3d.R = np.diag(0.1 * R_diag)
 controller_params_3d.control_period = h_ctrl
 
 q_parser = QuasistaticParser(q_model_path)
 q_sim = q_parser.make_simulator_cpp()
 
-q_knots_ref, u_knots_ref, t_knots = load_ref_trajectories(
-    file_path="hand_trj.pkl", h_ref_knot=h_ref_knot, q_sim=q_sim)
+with open("box_flipping_trj.pkl", "rb") as f:
+    trj_dict = pickle.load(f)
+q_knots_ref = trj_dict["x_trj"]
+u_knots_ref, t_knots = calc_u_extended_and_t_knots(
+    u_knots_ref=trj_dict["u_trj"],
+    u_knot_ref_start=q_knots_ref[0, q_sim.get_q_a_indices_into_q()],
+    v_limit=0.1)
 
 controller_plant_makers = {
     iiwa_r_name: lambda gravity: create_iiwa_controller_plant(gravity)[0]}

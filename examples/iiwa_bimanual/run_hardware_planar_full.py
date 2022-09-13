@@ -85,9 +85,11 @@ for i in range(len(u_knots_ref_list)):
         u_knot_ref_start = u_knots_ref_list[i - 1][-1]
 
     if i % 2 == 0:
+        # A contact segment.
         v_limit = 0.1
     else:
-        v_limit = 0.2
+        # A collision-free segment.
+        v_limit = 0.4
 
     q_knots_ref_2d = q_knots_ref_list[i]
     u_knots_ref_2d, t_knots = calc_u_extended_and_t_knots(
@@ -121,6 +123,4 @@ for i in range(len(u_knots_ref_list)):
     plan_msg = calc_joint_space_plan_msg(t_knots, u_knots_ref_extended)
     zmq_client.send_plan(plan_msg)
     zmq_client.wait_for_plan_to_finish()
-
-
 

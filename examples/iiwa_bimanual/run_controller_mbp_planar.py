@@ -42,9 +42,11 @@ u_knots_ref_list = trj_dict['u_trj_list']
 
 # pick one segment for now.
 idx_trj_segment = 1
-q_knots_ref, u_knots_ref, t_knots = calc_u_extended_and_t_knots(
-    q_knots_ref=q_knots_ref_list[idx_trj_segment],
-    u_knots_ref=u_knots_ref_list[idx_trj_segment], u_knots_ref_start=, v_limit=)
+q_knots_ref = q_knots_ref_list[idx_trj_segment]
+u_knots_ref, t_knots = calc_u_extended_and_t_knots(
+    u_knots_ref=u_knots_ref_list[idx_trj_segment],
+    u_knot_ref_start=q_knots_ref[0, q_sim_2d.get_q_a_indices_into_q()],
+    v_limit=0.1)
 
 controller_plant_makers = {
     iiwa_r_name: lambda gravity: create_iiwa_controller_plant(gravity)[0]}

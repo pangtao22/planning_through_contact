@@ -2,7 +2,7 @@ import copy
 import numpy as np
 
 from pydrake.all import (LeafSystem, PortDataType, BasicVector,
-                         GurobiSolver)
+                         GurobiSolver, eq)
 import pydrake.solvers.mathematicalprogram as mp
 
 from qsim_cpp import (ForwardDynamicsMode, GradientMode,
@@ -28,11 +28,18 @@ class ControllerParams:
 
 
 class Controller:
-    def __init__(self, q_sim: QuasistaticSimulatorCpp,
+    def __init__(self,
+                 q_nominal: np.ndarray,
+                 u_nominal: np.ndarray,
+                 q_sim: QuasistaticSimulatorCpp,
                  controller_params: ControllerParams):
         self.q_sim = q_sim
         self.plant = q_sim.get_plant()
         self.solver = GurobiSolver()
+        self.n_q = self.plant.num_positions()
+
+        self.q_nominal = q_nominal
+        self.u_nominal = u_nominal
 
         # TODO: do not hardcode these parameters. They need to be consistent
         #  with the trajectory optimizer that generates these trajectories.
@@ -75,6 +82,34 @@ class Controller:
 
         return lower_limits, upper_limits
 
+    def find_closest_on_nominal_path(self, q: np.ndarray):
+        distances = np.linalg.norm(q - self.q_nominal, axis=1)
+        distances_and_indices = sorted(
+            [(d, i) for i, d in enumerate(distances)])
+        indices_closest = [distances_and_indices[0][1],
+                           distances_and_indices[1][1]]
+
+        prog = mp.MathematicalProgram()
+        t = prog.NewContinuousVariables(1, 't')[0]
+        q_t = prog.NewContinuousVariables(self.n_q, 'q_t')
+        q0 = self.q_nominal[indices_closest[0]]
+        q1 = self.q_nominal[indices_closest[1]]
+
+        prog.AddBoundingBoxConstraint(0, 1, t)
+        prog.AddLinearConstraint(eq(t * q0 + (1 - t) * q1, q_t))
+        prog.AddQuadraticErrorCost(np.eye(self.n_q), q, q_t)
+
+        result = self.solver.Solve(prog)
+
+        t_value = result.GetSolution(t)
+        q_t_value = result.GetSolution(q_t)
+
+        u0 = self.u_nominal[indices_closest[0]]
+        u1 = self.u_nominal[indices_closest[1]]
+        u_t_value = t_value * u0 + (1 - t_value) * u1
+
+        return q_t_value, u_t_value
+
     def calc_linearization(self,
                            q_nominal: np.ndarray,
                            u_nominal: np.ndarray):
@@ -91,10 +126,9 @@ class Controller:
         return Au, Bu, cu
 
     def calc_u(self, q_nominal: np.ndarray, u_nominal: np.ndarray,
-               q: np.ndarray):
+               q: np.ndarray, q_goal: np.ndarray, u_goal: np.ndarray):
         idx_q_u_into_q = self.q_sim.get_q_u_indices_into_q()
-        q_u_nominal = q_nominal[idx_q_u_into_q]
-        q_u_nominal[:4] /= np.linalg.norm(q_u_nominal[:4])
+        q_u_goal = q_goal[idx_q_u_into_q]
         q_u = q[idx_q_u_into_q]
         q_a = q[self.q_sim.get_q_a_indices_into_q()]
         Au, Bu, cu = self.calc_linearization(q_nominal, u_nominal)
@@ -110,8 +144,9 @@ class Controller:
         prog.AddBoundingBoxConstraint(self.lower_limits, self.upper_limits, u)
 
         # TODO: q_u_ref should be q_u_nominal_+?
-        prog.AddQuadraticErrorCost(self.Qu, q_u_nominal, q_u_next)
-        prog.AddQuadraticErrorCost(self.R, u_nominal, u)
+        prog.AddQuadraticErrorCost(self.Qu, q_u_goal, q_u_next)
+        prog.AddQuadraticErrorCost(self.R, u_goal, u)
+        prog.AddQuadraticErrorCost(self.R * 0.1, q_a, u)
         prog.AddLinearEqualityConstraint(
             np.hstack([-np.eye(n_u), Bu]), -(q_u + cu),
             np.hstack([q_u_next, u]))
@@ -125,6 +160,8 @@ class Controller:
 
 class ControllerSystem(LeafSystem):
     def __init__(self,
+                 q_nominal: np.ndarray,
+                 u_nominal: np.ndarray,
                  q_sim_mbp: QuasistaticSimulatorCpp,
                  q_sim_q_control: QuasistaticSimulatorCpp,
                  controller_params: ControllerParams,
@@ -143,6 +180,7 @@ class ControllerSystem(LeafSystem):
         # used, so that indexing becomes easier.
         self.DeclareDiscreteState(BasicVector(self.plant.num_positions()))
         self.controller = Controller(
+            q_nominal=q_nominal, u_nominal=u_nominal,
             q_sim=q_sim_q_control, controller_params=controller_params)
 
         self.q_ref_input_port = self.DeclareInputPort(
@@ -176,15 +214,17 @@ class ControllerSystem(LeafSystem):
 
     def DoCalcDiscreteVariableUpdates(self, context, events, discrete_state):
         super().DoCalcDiscreteVariableUpdates(context, events, discrete_state)
-        q_nominal = self.q_ref_input_port.Eval(context)
-        u_nominal = self.u_ref_input_port.Eval(context)
+        q_goal = self.q_ref_input_port.Eval(context)
+        u_goal = self.u_ref_input_port.Eval(context)
         q = self.q_input_port.Eval(context)
+        q_nominal, u_nominal = self.controller.find_closest_on_nominal_path(q)
 
         if self.closed_loop:
             u = self.controller.calc_u(
-                q_nominal=q_nominal, u_nominal=u_nominal, q=q)
+                q_nominal=q_nominal, u_nominal=u_nominal, q=q,
+                q_goal=q_goal, u_goal=u_goal)
         else:
-            u = u_nominal
+            u = u_goal
 
         q_nominal[self.q_sim.get_q_a_indices_into_q()] = u
         discrete_state.set_value(q_nominal)

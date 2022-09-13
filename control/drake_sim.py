@@ -52,15 +52,13 @@ def calc_u_extended_and_t_knots(
     return u_knots_ref_extended[indices_to_keep], t_knots
 
 
-def load_ref_trajectories(file_path: str, h_ref_knot: float,
-                          q_sim: QuasistaticSimulatorCpp):
+def load_ref_trajectories(file_path: str, v_limit: float):
     with open(file_path, "rb") as f:
         trj_dict = pickle.load(f)
     q_knots_ref = trj_dict["x_trj"]
     u_knots_ref = trj_dict["u_trj"]
 
-    return calc_u_extended_and_t_knots(q_knots_ref, u_knots_ref, h_ref_knot,
-                                       q_sim)
+    return calc_u_extended_and_t_knots(q_knots_ref, u_knots_ref, v_limit)
 
 
 def add_mbp_scene_graph(q_parser: QuasistaticParser, builder: DiagramBuilder,
@@ -230,6 +228,8 @@ def add_controller_system_to_diagram(
     # Allegro controller system.
     if q_sim_mbp == q_sim_q_control:
         q_controller = ControllerSystem(
+            q_nominal=q_knots_ref,
+            u_nominal=u_knots_ref,
             q_sim_mbp=q_sim_mbp,
             q_sim_q_control=q_sim_q_control,
             controller_params=controller_params,
@@ -238,6 +238,8 @@ def add_controller_system_to_diagram(
         # q_sim_mbp and q_sim_q_control are different, i.e. for the planar
         # iiwa bimanual system.
         q_controller = IiwaBimanualPlanarControllerSystem(
+            q_nominal=q_knots_ref,
+            u_nominal=u_knots_ref,
             q_sim_2d=q_sim_q_control,
             q_sim_3d=q_sim_mbp,
             controller_params=controller_params,

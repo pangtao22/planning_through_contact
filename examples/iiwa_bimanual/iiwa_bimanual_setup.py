@@ -44,7 +44,7 @@ controller_params_2d = ControllerParams(
     log_barrier_weight=5000,
     control_period=None,
     Qu=np.diag([1, 1, 1]),
-    R=np.diag(10 * np.ones(6)),
+    R=np.diag(1 * np.ones(6)),
     joint_limit_padding=0.05)
 
 

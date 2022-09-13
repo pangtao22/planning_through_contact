@@ -96,8 +96,8 @@ q_sim_py.update_mbp_positions(q0_dict)
 q_sim_py.draw_current_configuration()
 
 #%%
-Q_WB_d = RollPitchYaw(np.pi/3, 0, -np.pi / 6).ToQuaternion()
-p_WB_d = q_u0[4:] + np.array([-0.05, -0.1, 0.4], dtype=float)
+Q_WB_d = RollPitchYaw(np.pi / 4, 0, 0).ToQuaternion()
+p_WB_d = q_u0[4:] + np.array([0, 0, 0], dtype=float)
 q_d_dict = {idx_u: np.hstack([Q_WB_d.wxyz(), p_WB_d]),
             idx_a_l: q_a0_l,
             idx_a_r: q_a0_r}
@@ -157,6 +157,6 @@ prob_mpc.q_vis.publish_trajectory(prob_mpc.x_trj_best, h)
 
 #%% save trajectories
 things_to_save = {"x_trj": prob_mpc.x_trj_best, "u_trj": prob_mpc.u_trj_best}
-with open("hand_trj.pkl", "wb") as f:
+with open("box_flipping_trj.pkl", "wb") as f:
     pickle.dump(things_to_save, f)
 

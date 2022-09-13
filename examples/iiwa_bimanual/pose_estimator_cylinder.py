@@ -22,14 +22,14 @@ class CylinderPoseEstimator(PoseEstimatorBase):
     def calc_X_B0B(self, initial_msg: optitrack_frame_t):
         X_LB0 = self.get_X_LF_from_msg(initial_msg, self.obj_id)
 
+        # Two markers are lower than the three that form an equilateral
+        # triangle whose center is the center of the cylinder.
         points, _ = get_marker_set_points(kObjName, initial_msg)
-        # Find the marker with the smallest z
-        idx_side = np.argmin(points[:, 2])
-        indices = np.arange(len(points)).tolist()
-        indices.remove(idx_side)
+        z_indices = sorted([(z, i) for i, z in enumerate(points[:, 2])])
+        indices = [z_indices[i][1] for i in range(2, 5)]
         p_LBo = np.mean(points[indices], axis=0)
         p_LBo[2] -= 0.25
-        X_LB = RigidTransform(X_LB0.rotation(), p_LBo)
+        X_LB = RigidTransform(p_LBo)
         return X_LB0.inverse().multiply(X_LB)
 
     def calc_X_WB(self, optitrack_msg: optitrack_frame_t):

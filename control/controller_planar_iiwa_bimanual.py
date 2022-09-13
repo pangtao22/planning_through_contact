@@ -13,11 +13,15 @@ object_name = "box"
 
 class IiwaBimanualPlanarControllerSystem(ControllerSystem):
     def __init__(self,
+                 q_nominal: np.ndarray,
+                 u_nominal: np.ndarray,
                  q_sim_2d: QuasistaticSimulatorCpp,
                  q_sim_3d: QuasistaticSimulatorCpp,
                  controller_params: ControllerParams,
                  closed_loop: bool):
         super().__init__(
+            q_nominal=q_nominal,
+            u_nominal=u_nominal,
             q_sim_mbp=q_sim_3d,
             q_sim_q_control=q_sim_2d,
             controller_params=controller_params,
@@ -76,15 +80,19 @@ class IiwaBimanualPlanarControllerSystem(ControllerSystem):
         return self.q_sim.get_q_vec_from_dict(q_3d_dict)
 
     def DoCalcDiscreteVariableUpdates(self, context, events, discrete_state):
-        q_nominal_2d = self.q_ref_input_port.Eval(context)
-        u_nominal_2d = self.u_ref_input_port.Eval(context)
+        q_goal_2d = self.q_ref_input_port.Eval(context)
+        u_goal_2d = self.u_ref_input_port.Eval(context)
         q_3d = self.q_input_port.Eval(context)
         q_2d = self.calc_q_2d_from_q_3d(q_3d)
+        q_nominal_2d, u_nominal_2d = \
+            self.controller.find_closest_on_nominal_path(q_2d)
+
         if self.closed_loop:
             u_2d = self.controller.calc_u(
-                q_nominal=q_nominal_2d, u_nominal=u_nominal_2d, q=q_2d)
+                q_nominal=q_nominal_2d, u_nominal=u_nominal_2d, q=q_2d,
+                q_goal=q_goal_2d, u_goal=u_goal_2d)
         else:
-            u_2d = u_nominal_2d
+            u_2d = u_goal_2d
 
         q_2d[self.q_sim_2d.get_q_a_indices_into_q()] = u_2d
         q_3d_with_cmd = self.calc_q_3d_from_q_2d(q_2d)
