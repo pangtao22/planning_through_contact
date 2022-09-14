@@ -69,6 +69,18 @@ class PoseEstimatorBase:
             optitrack_msg.rigid_bodies[idx_rigid_body].xyz)
 
     @staticmethod
+    def get_q_and_p_from_msg(optitrack_msg: optitrack_frame_t,
+                          idx_rigid_body: int):
+        """
+        F is the frame of the rigid body indexed by idx_rigid_body in
+         optitrack_msg.
+        """
+        q = optitrack_msg.rigid_bodies[idx_rigid_body].quat
+        q = np.array([q[3], q[0], q[1], q[2]])
+        p = np.array(optitrack_msg.rigid_bodies[idx_rigid_body].xyz)
+        return q, p
+
+    @staticmethod
     def get_index_from_optitrack_msg(name: str, msg: optitrack_frame_t):
         for i, marker_set in enumerate(msg.marker_sets):
             if marker_set.name == name:

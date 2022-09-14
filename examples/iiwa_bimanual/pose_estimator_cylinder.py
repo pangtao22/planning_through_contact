@@ -6,6 +6,8 @@ from optitrack import optitrack_frame_t
 from control.systems_utils import wait_for_msg
 from control.low_pass_filter_SE3 import LowPassFilterSe3
 
+from robotics_utilities.primitives.low_pass_filter import LowPassFilter
+
 from pose_estimator_box import (kInchM, is_optitrack_message_good,
                                 PoseEstimatorBase, get_marker_set_points)
 
@@ -17,7 +19,13 @@ class CylinderPoseEstimator(PoseEstimatorBase):
         super().__init__(initial_msg)
         self.obj_id = self.get_index_from_optitrack_msg(kObjName, initial_msg)
         self.X_B0B = self.calc_X_B0B(initial_msg)
-        self.lpf_SE3 = LowPassFilterSe3(h=0.005, w_cutoff=4 * 2 * np.pi)
+
+        h = 0.005
+        w_cutoff = 4 * 2 * np.pi
+        # position filter
+        self.p_lpf = LowPassFilter(dimension=3, h=h, w_cutoff=w_cutoff)
+        # quaternion filter.
+        self.q_lpf = LowPassFilter(dimension=4, h=h, w_cutoff=w_cutoff)
 
     def calc_X_B0B(self, initial_msg: optitrack_frame_t):
         X_LB0 = self.get_X_LF_from_msg(initial_msg, self.obj_id)
@@ -33,10 +41,16 @@ class CylinderPoseEstimator(PoseEstimatorBase):
         return X_LB0.inverse().multiply(X_LB)
 
     def calc_X_WB(self, optitrack_msg: optitrack_frame_t):
-        X_LB0 = self.get_X_LF_from_msg(optitrack_msg, self.obj_id)
+        q_LB0, p_lB0 = self.get_q_and_p_from_msg(optitrack_msg, self.obj_id)
+        self.p_lpf.update(p_lB0)
+        self.q_lpf.update(q_LB0)
+        self.q_lpf.x /= np.linalg.norm(self.q_lpf.x)
+
+        X_LB0 = RigidTransform(Quaternion(self.q_lpf.get_current_state()),
+            self.p_lpf.get_current_state())
         X_WB = self.X_WL.multiply(X_LB0.multiply(self.X_B0B))
-        self.lpf_SE3.update(X_WB)
-        return self.lpf_SE3.get_current_state()
+
+        return X_WB
 
 
 if __name__ == "__main__":

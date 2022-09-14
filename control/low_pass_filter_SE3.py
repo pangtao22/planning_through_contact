@@ -15,8 +15,6 @@ class LowPassFilterSe3:
     def update(self, X: RigidTransform):
         p_new = X.translation()
         q_new = X.rotation().ToQuaternion().wxyz()
-        if q_new[0] < 0:
-            q_new *= -1
         self.p_lpf.update(p_new)
         self.q_lpf.update(q_new)
         self.q_lpf.x /= np.linalg.norm(self.q_lpf.x)
