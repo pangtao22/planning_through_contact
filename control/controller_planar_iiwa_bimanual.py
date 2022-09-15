@@ -46,10 +46,9 @@ class IiwaBimanualPlanarControllerSystem(ControllerSystem):
         p_WBo = q_u_3d[4:]
         q_u_2d = np.zeros(3)
         q_u_2d[:2] = p_WBo[:2]
-        angle_axis = AngleAxis(Q_WB)
-        yaw_angle = angle_axis.angle()
-        if angle_axis.axis()[2] < 0:
-            yaw_angle *= -1
+        yaw_angle = RollPitchYaw(Q_WB).yaw_angle()
+        if yaw_angle > np.pi / 2:
+            yaw_angle -= 2 * np.pi
         q_u_2d[2] = yaw_angle
 
         q_a_l_2d = q_3d[self.indices_map_3d[self.idx_a_l_3d]][kIndices3Into7]

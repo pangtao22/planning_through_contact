@@ -57,6 +57,8 @@ class Controller:
         self.lower_limits, self.upper_limits = self.get_joint_limits_vec(
             controller_params.joint_limit_padding)
 
+        self.u_prev = None
+
     def get_joint_limits_vec(self, padding: float):
         """
         Padding \in [0, 1]. (1 - padding) of the joint limits are used.
@@ -142,11 +144,14 @@ class Controller:
 
         # joint limits
         prog.AddBoundingBoxConstraint(self.lower_limits, self.upper_limits, u)
+        if self.u_prev is not None:
+            prog.AddQuadraticErrorCost(self.R * 0.2, self.u_prev, u)
+        else:
+            prog.AddQuadraticErrorCost(self.R * 0.2, q_a, u)
 
         # TODO: q_u_ref should be q_u_nominal_+?
         prog.AddQuadraticErrorCost(self.Qu, q_u_goal, q_u_next)
         prog.AddQuadraticErrorCost(self.R, u_goal, u)
-        prog.AddQuadraticErrorCost(self.R * 0.1, q_a, u)
         prog.AddLinearEqualityConstraint(
             np.hstack([-np.eye(n_u), Bu]), -(q_u + cu),
             np.hstack([q_u_next, u]))
@@ -154,8 +159,9 @@ class Controller:
         result = self.solver.Solve(prog)
         if not result.is_success():
             raise RuntimeError("QP controller failed.")
-
-        return result.GetSolution(u)
+        u_value = result.GetSolution(u)
+        self.u_prev = u_value
+        return u_value
 
 
 class ControllerSystem(LeafSystem):

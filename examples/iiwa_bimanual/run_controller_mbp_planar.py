@@ -61,7 +61,7 @@ diagram_and_contents = make_controller_mbp_diagram(
     q_knots_ref=q_knots_ref,
     controller_params=controller_params_2d,
     create_controller_plant_functions=controller_plant_makers,
-    closed_loop=False)
+    closed_loop=True)
 
 # unpack return values.
 diagram = diagram_and_contents['diagram']

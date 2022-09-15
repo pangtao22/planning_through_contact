@@ -43,7 +43,8 @@ R_diag = np.zeros(14)
 R_diag[:7] = [1, 1, 0.5, 0.5, 0.5, 0.5, 0.2]
 R_diag[7:] = R_diag[:7]
 controller_params_3d.R = np.diag(5 * R_diag)
-controller = Controller(q_sim=q_sim, controller_params=controller_params_3d)
+controller = Controller(
+    q_sim=q_sim, controller_params=controller_params_3d)
 
 
 # LCM callback.
@@ -62,9 +63,12 @@ def calc_iiwa_command(channel, data):
     if t < t_transition:
         u = u_nominal
     else:
-        q_nominal = q_ref_trj.value(t).squeeze()
+        q_goal = q_ref_trj.value(t).squeeze()
+        u_goal = u_ref_trj.value(t).squeeze()
         q = np.array(q_msg.value)
-        u = controller.calc_u(q_nominal, u_nominal, q)
+        q_nominal, u_nominal = controller.find_closest_on_nominal_path(q)
+        u = controller.calc_u(
+            q_nominal, u_nominal, q)
         # u = u_nominal
 
     cmd_msg = lcmt_iiwa_command()

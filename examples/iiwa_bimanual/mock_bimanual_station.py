@@ -19,7 +19,8 @@ from robotics_utilities.iiwa_controller.utils import (
 from control.drake_sim import add_mbp_scene_graph, add_internal_controllers
 from control.systems_utils import render_system_with_graphviz
 
-from iiwa_bimanual_setup import q_model_path, iiwa_l_name, iiwa_r_name
+from iiwa_bimanual_setup import (q_model_path, iiwa_l_name, iiwa_r_name,
+                                 q_model_path_cylinder)
 from state_estimator import kQEstimatedChannelName
 
 
@@ -100,8 +101,8 @@ class StatusVec2LcmSystem(LeafSystem):
 
 
 #%%
-q_parser = QuasistaticParser(q_model_path)
-has_objects = False
+q_parser = QuasistaticParser(q_model_path_cylinder)
+has_objects = True
 q_sim = q_parser.make_simulator_cpp(has_objects)
 model_l_iiwa = q_sim.get_plant().GetModelInstanceByName(iiwa_l_name)
 model_r_iiwa = q_sim.get_plant().GetModelInstanceByName(iiwa_r_name)
@@ -171,16 +172,16 @@ builder.Connect(
     status_2_lcm.iiwa_cmd_input_port)
 
 # Publish q on lcm_scope.
-# demux_mbp = Demultiplexer([plant.num_positions(), plant.num_velocities()])
-# builder.AddSystem(demux_mbp)
-# builder.Connect(plant.get_state_output_port(),
-#                 demux_mbp.get_input_port(0))
-# LcmScopeSystem.AddToBuilder(
-#     builder=builder,
-#     lcm=drake_lcm,
-#     signal=demux_mbp.get_output_port(0),
-#     channel=kQEstimatedChannelName,
-#     publish_period=0.01)
+demux_mbp = Demultiplexer([plant.num_positions(), plant.num_velocities()])
+builder.AddSystem(demux_mbp)
+builder.Connect(plant.get_state_output_port(),
+                demux_mbp.get_input_port(0))
+LcmScopeSystem.AddToBuilder(
+    builder=builder,
+    lcm=drake_lcm,
+    signal=demux_mbp.get_output_port(0),
+    channel=kQEstimatedChannelName,
+    publish_period=0.005)
 
 diagram = builder.Build()
 render_system_with_graphviz(diagram, "mock_station.gz")
@@ -199,15 +200,17 @@ for model_a in q_sim.get_actuated_models():
 
 # Initial state for plants.
 q_a0 = np.zeros(14)
-q_a0[:7] = [0, 0, 0, -1.75, 0, 1.0, 0]
+
+q_a0[:7] = [0.393, np.pi / 2, np.pi / 2, 1.258, 0, -0.327, np.pi / 4 * 3]
 # q_a0[:7] = [0, np.pi / 2, np.pi / 2, 0, 0, 0, 0]
-q_a0[7:] = q_a0[:7]
+q_a0[7:] = [-0.353, np.pi / 2, np.pi / 2, -1.569, 0, 1.462, np.pi / 4 * 3]
 
 q0 = np.zeros(plant.num_positions())
 q_a0[q_sim.get_q_a_indices_into_q()] = q_a0
 
 if has_objects:
-    q_u0 = np.array([1, 0, 0, 0, 0.55, 0, 0.315])
+    q_u0 = np.array([0.676, 0,  0, -0.736,  0.528, 0.045, 0.25])
+    q_u0[:4] /= np.linalg.norm(q_u0[:4])
     q0[q_sim.get_q_u_indices_into_q()] = q_u0
 
 # Set initial positions for plant.
