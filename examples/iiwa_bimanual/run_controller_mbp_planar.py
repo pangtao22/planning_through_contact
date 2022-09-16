@@ -159,15 +159,15 @@ for i, t in enumerate(x_log.sample_times()):
 
 fig, axes = plt.subplots(1, 2, figsize=(8, 4))
 x_axis_label = "Time steps"
-axes[0].plot(u_diff)
+axes[0].plot(x_log.sample_times()[1:], u_diff)
 axes[0].grid(True)
 axes[0].set_title("||u - u_ref||")
 axes[0].set_xlabel(x_axis_label)
 
 axes[1].set_title("||q_u - q_u_ref||")
 axes[1].grid(True)
-axes[1].plot(angle_error, label="angle")
-axes[1].plot(position_error, label="pos")
+axes[1].plot(x_log.sample_times(), angle_error, label="angle")
+axes[1].plot(x_log.sample_times(), position_error, label="pos")
 axes[1].set_xlabel(x_axis_label)
 axes[1].legend()
 plt.show()
@@ -195,5 +195,10 @@ for i_axes, model in enumerate(sorted(q_sim_3d.get_actuated_models())):
 
 plt.show()
 
+#%%
+t, indices = controller_robots.controller.calc_t_and_indices_for_q(
+    q_knots_ref[-1])
 
+s = controller_robots.controller.calc_arc_length(t, indices)
 
+controller_robots.controller.calc_q_and_u_from_arc_length(s + 0.1)

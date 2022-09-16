@@ -40,6 +40,10 @@ class Controller:
 
         self.q_nominal = q_nominal
         self.u_nominal = u_nominal
+        self.q_segment_lengths = np.linalg.norm(q_nominal[1:] - q_nominal[:-1],
+                                                axis=1)
+        self.q_segment_lengths_cumsum_normalized = (
+            np.cumsum(self.q_segment_lengths) / np.sum(self.q_segment_lengths))
 
         # TODO: do not hardcode these parameters. They need to be consistent
         #  with the trajectory optimizer that generates these trajectories.
@@ -85,11 +89,42 @@ class Controller:
         return lower_limits, upper_limits
 
     def find_closest_on_nominal_path(self, q: np.ndarray):
+        t, indices = self.calc_t_and_indices_for_q(q)
+        q_t, u_t = self.calc_q_and_u_on_arc(t, indices)
+        return q_t, u_t, t, indices
+
+    def calc_arc_length(self, t, indices):
+        idx0, idx1 = indices
+        q_t = t * self.q_nominal[idx0] + (1 - t) * self.q_nominal[idx1]
+        l = np.sum(self.q_segment_lengths[:idx0])
+        l += np.linalg.norm(q_t - self.q_nominal[idx0])
+
+        return l / np.sum(self.q_segment_lengths)
+
+    def calc_q_and_u_from_arc_length(self, s: float):
+        idx = 0
+        n_segments = len(self.q_segment_lengths_cumsum_normalized)
+        while (idx < n_segments
+               and self.q_segment_lengths_cumsum_normalized[idx] < s):
+            idx += 1
+        if idx == n_segments:
+            return self.q_nominal[-1], self.u_nominal[-1]
+
+        if idx > 0:
+            fraction = s - self.q_segment_lengths_cumsum_normalized[idx - 1]
+        else:
+            fraction = s
+
+        l = np.linalg.norm(self.q_nominal[idx + 1] - self.q_nominal[idx])
+        t = fraction / l  # 0 and 1.
+        return self.calc_q_and_u_on_arc(t, (idx, idx + 1))
+
+    def calc_t_and_indices_for_q(self, q):
         distances = np.linalg.norm(q - self.q_nominal, axis=1)
         distances_and_indices = sorted(
             [(d, i) for i, d in enumerate(distances)])
-        indices_closest = [distances_and_indices[0][1],
-                           distances_and_indices[1][1]]
+        indices_closest = sorted([distances_and_indices[0][1],
+                                  distances_and_indices[1][1]])
 
         prog = mp.MathematicalProgram()
         t = prog.NewContinuousVariables(1, 't')[0]
@@ -104,13 +139,25 @@ class Controller:
         result = self.solver.Solve(prog)
 
         t_value = result.GetSolution(t)
-        q_t_value = result.GetSolution(q_t)
 
-        u0 = self.u_nominal[indices_closest[0]]
-        u1 = self.u_nominal[indices_closest[1]]
-        u_t_value = t_value * u0 + (1 - t_value) * u1
+        return t_value, indices_closest
 
-        return q_t_value, u_t_value
+    def calc_q_and_u_on_arc(self, t: float, indices):
+        """
+        t \in [0, 1] describes the convex combination of two points:
+         t * self.q_nominal[indices[0]] + (1 - t) * self.q_nominal[indices[1]].
+        delta_t > 0.
+        """
+        q0 = self.q_nominal[indices[0]]
+        q1 = self.q_nominal[indices[1]]
+
+        u0 = self.u_nominal[indices[0]]
+        u1 = self.u_nominal[indices[1]]
+
+        q_t = t * q0 + (1 - t) * q1
+        u_t = t * u0 + (1 - t) * u1
+
+        return q_t, u_t
 
     def calc_linearization(self,
                            q_nominal: np.ndarray,
@@ -145,9 +192,9 @@ class Controller:
         # joint limits
         prog.AddBoundingBoxConstraint(self.lower_limits, self.upper_limits, u)
         if self.u_prev is not None:
-            prog.AddQuadraticErrorCost(self.R * 0.2, self.u_prev, u)
+            prog.AddQuadraticErrorCost(self.R * 0.5, self.u_prev, u)
         else:
-            prog.AddQuadraticErrorCost(self.R * 0.2, q_a, u)
+            prog.AddQuadraticErrorCost(self.R * 0.5, q_a, u)
 
         # TODO: q_u_ref should be q_u_nominal_+?
         prog.AddQuadraticErrorCost(self.Qu, q_u_goal, q_u_next)
@@ -223,7 +270,11 @@ class ControllerSystem(LeafSystem):
         q_goal = self.q_ref_input_port.Eval(context)
         u_goal = self.u_ref_input_port.Eval(context)
         q = self.q_input_port.Eval(context)
-        q_nominal, u_nominal = self.controller.find_closest_on_nominal_path(q)
+        (q_nominal, u_nominal, t_value, indices_closest
+         ) = self.controller.find_closest_on_nominal_path(q)
+
+        q_goal, u_goal = self.calc_along_arc(t_value, indices_closest,
+                                             0.05)
 
         if self.closed_loop:
             u = self.controller.calc_u(

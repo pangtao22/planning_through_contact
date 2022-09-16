@@ -1,6 +1,7 @@
 import pickle
 import time
 
+import matplotlib.pyplot as plt
 import lcm
 import numpy as np
 from drake import lcmt_iiwa_command, lcmt_scope, lcmt_robot_state
@@ -88,6 +89,8 @@ u_ref_3d_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref_3d.T)
 
 # LCM callback.
 first_status_msg_time = None
+arc_length_list = []
+oh_no_times = []
 
 
 def calc_iiwa_command(channel, data):
@@ -104,10 +107,24 @@ def calc_iiwa_command(channel, data):
         t = t - t_transition * 2
         q_goal_2d = q_ref_2d_trj.value(t).squeeze()
         u_goal_2d = u_ref_2d_trj.value(t).squeeze()
+
         q_3d = np.array(q_msg.value)
         q_2d = control_sys.calc_q_2d_from_q_3d(q_3d)
-        q_nominal_2d, u_nominal_2d = \
-            controller.find_closest_on_nominal_path(q_2d)
+
+        (q_nominal_2d, u_nominal_2d, t_value, indices
+         ) = controller.find_closest_on_nominal_path(q_2d)
+        s = controller.calc_arc_length(t_value, indices)
+        q_goal_2d_arc, u_goal_2d_arc = controller.calc_q_and_u_from_arc_length(
+           s + 0.03)
+        arc_length_list.append(s)
+        print(f"s = {s}")
+        if np.linalg.norm(q_goal_2d_arc - q_2d) < np.linalg.norm(q_goal_2d -
+                                                                 q_2d):
+            q_goal_2d = q_goal_2d_arc
+            u_goal_2d = u_goal_2d_arc
+            oh_no_times.append(t)
+            print('===========================oh no!==========================')
+
         u_2d = controller.calc_u(
             q_nominal=q_nominal_2d, u_nominal=u_nominal_2d, q=q_2d,
             q_goal=q_goal_2d, u_goal=u_goal_2d)

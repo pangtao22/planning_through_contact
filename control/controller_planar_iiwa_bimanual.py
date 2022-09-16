@@ -47,6 +47,7 @@ class IiwaBimanualPlanarControllerSystem(ControllerSystem):
         q_u_2d = np.zeros(3)
         q_u_2d[:2] = p_WBo[:2]
         yaw_angle = RollPitchYaw(Q_WB).yaw_angle()
+        # So that yaw angle \in [- 3 / 2 * M_PI, M_PI / 2].
         if yaw_angle > np.pi / 2:
             yaw_angle -= 2 * np.pi
         q_u_2d[2] = yaw_angle
@@ -83,8 +84,18 @@ class IiwaBimanualPlanarControllerSystem(ControllerSystem):
         u_goal_2d = self.u_ref_input_port.Eval(context)
         q_3d = self.q_input_port.Eval(context)
         q_2d = self.calc_q_2d_from_q_3d(q_3d)
-        q_nominal_2d, u_nominal_2d = \
-            self.controller.find_closest_on_nominal_path(q_2d)
+        (q_nominal_2d, u_nominal_2d, t_value, indices
+         ) = self.controller.find_closest_on_nominal_path(q_2d)
+
+        s = self.controller.calc_arc_length(t_value, indices)
+        q_goal_2d_arc, u_goal_2d_arc = self.controller.calc_q_and_u_from_arc_length(
+           s + 0.05)
+        print(f"s = {s}")
+        if np.linalg.norm(q_goal_2d_arc - q_2d) < np.linalg.norm(q_goal_2d -
+                                                                 q_2d):
+            q_goal_2d = q_goal_2d_arc
+            u_goal_2d = u_goal_2d_arc
+            print('oh no!')
 
         if self.closed_loop:
             u_2d = self.controller.calc_u(
