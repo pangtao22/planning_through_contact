@@ -282,7 +282,7 @@ class QuasistaticDynamicsParallel:
             sim_params.gradient_mode = GradientMode.kBOnly
             (A_trj, B_trj, c_trj
              ) = self.q_sim_batch.calc_bundled_ABc_trj(
-                x_trj, u_trj, std_u, sim_params, n_samples, None)
+                x_trj[:T], u_trj, std_u, sim_params, n_samples, None)
             Bt[:] = B_trj
 
         return At, Bt
