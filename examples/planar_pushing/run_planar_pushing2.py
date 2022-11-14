@@ -1,13 +1,8 @@
-import os.path
-import time
-import matplotlib.pyplot as plt
 import numpy as np
-
-from pydrake.all import PiecewisePolynomial
+import time
 
 from qsim.parser import QuasistaticParser
-from qsim.simulator import QuasistaticSimulator, GradientMode
-from qsim_cpp import QuasistaticSimulatorCpp, GradientMode, ForwardDynamicsMode
+from qsim_cpp import ForwardDynamicsMode
 
 
 from irs_mpc2.irs_mpc import IrsMpcQuasistatic
@@ -41,6 +36,7 @@ q0_dict = {idx_u: q_u0,
 
 #%%
 params = IrsMpcQuasistaticParameters()
+params.h = h
 params.Q_dict = {
     idx_u: np.array([20, 20, 30]),
     idx_a: np.array([1e-3, 1e-3])}
@@ -102,6 +98,6 @@ prob_mpc.plot_costs()
 
 #%%
 x_traj_to_publish = prob_mpc.x_trj_best
-prob_mpc.q_vis.publish_trajectory(x_traj_to_publish)
+prob_mpc.q_vis.publish_trajectory(x_traj_to_publish, h)
 print('x_goal:', xd)
 print('x_final:', x_traj_to_publish[-1])
