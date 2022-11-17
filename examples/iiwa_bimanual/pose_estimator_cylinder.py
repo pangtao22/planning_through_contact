@@ -8,10 +8,26 @@ from control.low_pass_filter_SE3 import LowPassFilterSe3
 
 from robotics_utilities.primitives.low_pass_filter import LowPassFilter
 
-from pose_estimator_box import (kInchM, is_optitrack_message_good,
+from pose_estimator_box import (kInchM, kBaseName,
                                 PoseEstimatorBase, get_marker_set_points)
 
 kObjName = "cylinder"
+
+
+def is_optitrack_message_good(msg: optitrack_frame_t):
+    if msg.num_marker_sets == 0:
+        return False
+
+    non_empty_set_names = [kObjName, kBaseName]
+    is_good = {name: False for name in non_empty_set_names}
+    for marker_set in msg.marker_sets:
+        if marker_set.name in non_empty_set_names:
+            for p in marker_set.xyz:
+                if np.linalg.norm(p) < 1e-3:
+                    return False
+            is_good[marker_set.name] = True
+
+    return all(is_good.values())
 
 
 class CylinderPoseEstimator(PoseEstimatorBase):

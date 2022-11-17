@@ -13,8 +13,9 @@ from qsim.parser import QuasistaticParser
 from control.systems_utils import wait_for_msg
 
 from iiwa_bimanual_setup import q_model_path
-from pose_estimator_box import PoseEstimatorBase, is_optitrack_message_good
-from pose_estimator_cylinder import CylinderPoseEstimator
+from pose_estimator_box import PoseEstimatorBase
+from pose_estimator_cylinder import (CylinderPoseEstimator,
+                                     is_optitrack_message_good)
 
 kOptitrackChannelName = "OPTITRACK_FRAMES"
 kQEstimatedChannelName = "Q_SYSTEM_ESTIMATED"

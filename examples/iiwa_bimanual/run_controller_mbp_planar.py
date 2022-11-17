@@ -61,7 +61,7 @@ diagram_and_contents = make_controller_mbp_diagram(
     q_knots_ref=q_knots_ref,
     controller_params=controller_params_2d,
     create_controller_plant_functions=controller_plant_makers,
-    closed_loop=True)
+    closed_loop=False)
 
 # unpack return values.
 diagram = diagram_and_contents['diagram']
@@ -158,7 +158,7 @@ for i, t in enumerate(x_log.sample_times()):
     position_error.append(np.linalg.norm(q_u_2d_ref[:2] - q_u_2d[:2]))
 
 fig, axes = plt.subplots(1, 2, figsize=(8, 4))
-x_axis_label = "Time steps"
+x_axis_label = "Time [s]"
 axes[0].plot(x_log.sample_times()[1:], u_diff)
 axes[0].grid(True)
 axes[0].set_title("||u - u_ref||")
