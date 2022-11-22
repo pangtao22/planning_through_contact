@@ -1,9 +1,10 @@
-from typing import List
+from typing import List, Tuple
 import copy
 import pickle
 
 import networkx
 import numpy as np
+from pydrake.all import Quaternion, AngleAxis
 
 from qsim_cpp import ForwardDynamicsMode
 
@@ -64,9 +65,9 @@ class IrsRrt(Rrt):
         self.params = self.load_params(params)
         self.reachable_set = ReachableSet(self.q_dynamics, params)
         self.max_size = params.max_size
+        self.q_sim = self.q_dynamics.q_sim
 
-        self.x_lb, self.x_ub = self.joint_limit_to_x_bounds(
-            params.joint_limits)
+        self.q_lb, self.q_ub = self.get_joint_limits()
 
         # Initialize tensors for batch computation.
         self.Bhat_tensor = np.zeros((self.max_size,
@@ -82,7 +83,10 @@ class IrsRrt(Rrt):
         self.covinv_u_tensor = np.zeros((self.max_size,
                                          self.dim_q_u, self.dim_q_u))
 
-        self.q_u_indices_into_x = self.q_dynamics.get_q_u_indices_into_x()
+        self.q_u_indices_into_x = self.q_sim.get_q_u_indices_into_q()
+        self.q_a_indices_into_x = self.q_sim.get_q_a_indices_into_q()
+
+        self.calc_q_u_diff = self.get_calc_q_u_diff()
 
         super().__init__(params)
 
@@ -118,17 +122,35 @@ class IrsRrt(Rrt):
 
         return params
 
-    def joint_limit_to_x_bounds(self, joint_limits):
+    def get_joint_limits(self, padding=0.05):
+        """
+        This function returns joint limits for the entire system as two
+            vectors of length n_q.
+        self.params.joint_limits contains joint limits for the un-actauted
+            objects, which is used for sampling subgoals for objects.
+        The robot joint limits are also used for sampling subgoals, but the
+            sample is not used in distance computation.
+        The robot joint limits are used when computing actions.
+        """
         joint_limit_ub = {}
         joint_limit_lb = {}
+        robot_joint_limits = self.q_sim.get_actuated_joint_limits()
 
-        for model_idx in joint_limits.keys():
-            joint_limit_lb[model_idx] = joint_limits[model_idx][:, 0]
-            joint_limit_ub[model_idx] = joint_limits[model_idx][:, 1]
+        for model in self.q_sim.get_unactuated_models():
+            joint_limit_lb[model] = self.params.joint_limits[model][:, 0]
+            joint_limit_ub[model] = self.params.joint_limits[model][:, 1]
 
-        x_lb = self.q_dynamics.get_x_from_q_dict(joint_limit_lb)
-        x_ub = self.q_dynamics.get_x_from_q_dict(joint_limit_ub)
-        return x_lb, x_ub
+        for model, limits in robot_joint_limits.items():
+            lower = limits['lower']
+            upper = limits['upper']
+            mid = (lower + upper) / 2
+            range = (upper - lower) * (1 - padding)
+            joint_limit_lb[model] = mid - range / 2
+            joint_limit_ub[model] = mid + range / 2
+
+        q_lb = self.q_sim.get_q_vec_from_dict(joint_limit_lb)
+        q_ub = self.q_sim.get_q_vec_from_dict(joint_limit_ub)
+        return q_lb, q_ub
 
     def populate_node_parameters(self, node: IrsNode):
         """
@@ -180,9 +202,10 @@ class IrsRrt(Rrt):
             return self.chat_matrix[:n_nodes, self.q_u_indices_into_x]
         return self.chat_matrix[:n_nodes]
 
-    def add_node(self, node: IrsNode):
-        self.q_dynamics.q_sim_py.update_mbp_positions_from_vector(node.q)
-        self.q_dynamics.q_sim_py.draw_current_configuration()
+    def add_node(self, node: IrsNode, draw_node: bool = False):
+        if draw_node:
+            self.q_dynamics.q_sim_py.update_mbp_positions_from_vector(node.q)
+            self.q_dynamics.q_sim_py.draw_current_configuration()
         self.populate_node_parameters(node)  # exception may be thrown here.
 
         super().add_node(node)
@@ -202,7 +225,7 @@ class IrsRrt(Rrt):
         Sample a subgoal from the configuration space.
         """
         subgoal = np.random.rand(self.q_dynamics.dim_x)
-        subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
+        subgoal = self.q_lb + (self.q_ub - self.q_lb) * subgoal
         return subgoal
 
     def extend_towards_q(self, parent_node: Node, q: np.array):
@@ -436,7 +459,7 @@ class IrsRrt(Rrt):
     def get_regrasp_segments(u_knots_trimmed: np.ndarray):
         """
         @param u_knots_trimmed: (T, dim_u) is a 2D array punctuated by rows
-         of nans, which indicate regrasps.
+         of nans, which indicate re-grasps.
         Returns a list of 2-tuples. Both integers in a tuple are indices into
          q_knots_trimmed. The first and second integer in each tuple are the
          indices of the first and last element in a segment of q.
@@ -452,5 +475,83 @@ class IrsRrt(Rrt):
             if t == T - 1:
                 segments.append((t_start, t + 1))
 
+        if segments[0][0] == 0 and segments[0][1] == 0:
+            segments.pop(0)
+
         return segments
 
+    @staticmethod
+    def calc_q_u_diff_2d(q_u_0, q_u_1):
+        """
+        q_u := [x, y, theta].
+        """
+        return abs(q_u_0[2] - q_u_1[2]), np.linalg.norm(q_u_0[:2] - q_u_1[:2])
+
+    @staticmethod
+    def calc_q_u_diff_3d(q_u_0, q_u_1):
+        """
+        q_u_0 and q_u_1 are 7-vectors. The first 4 elements represent a
+         quaternion and the last three a position.
+        Returns (angle_diff_in_radians, position_diff_norm)
+        """
+        Q_U0 = Quaternion(q_u_0[:4])
+        Q_U1 = Quaternion(q_u_1[:4])
+        aa = AngleAxis(Q_U0.multiply(Q_U1.inverse()))
+
+        return aa.angle(), np.linalg.norm(q_u_0[4:] - q_u_1[4:])
+
+    def get_calc_q_u_diff(self):
+        if self.dim_q_u == 3:
+            return self.calc_q_u_diff_2d
+        elif self.dim_q_u == 7:
+            return self.calc_q_u_diff_3d
+        else:
+            raise RuntimeError("dim_q_u needs to equal 3 (2D) or 7 (3D).")
+
+    def print_segments_displacements(self,
+                                     q_knots_trimmed: np.ndarray,
+                                     segments: List[Tuple[int, int]]):
+        """
+        Prints the angular and translational displacements for each segment
+        in segments.
+        """
+        print("======== Displacement for RRT trajectory segments ==========")
+        for t_start, t_end in segments:
+            q_u_start = q_knots_trimmed[t_start][self.q_u_indices_into_x]
+            q_u_end = q_knots_trimmed[t_end][self.q_u_indices_into_x]
+
+            angle_diff, position_diff = self.calc_q_u_diff(q_u_start, q_u_end)
+            print("angle diff", angle_diff,
+                  "position diff", position_diff)
+
+        print("============================================================")
+
+    def trim_trajectory(self,
+                        q_trj: np.ndarray,
+                        angle_threshold: float = 1e-3,
+                        pos_threshold: float = 1e-3):
+        q_u_final = q_trj[-1, self.q_u_indices_into_x]
+        for t, q in enumerate(q_trj):
+            q_u = q[self.q_u_indices_into_x]
+            angle_diff, pos_diff = self.calc_q_u_diff(q_u, q_u_final)
+            if angle_diff < angle_threshold and pos_diff < pos_threshold:
+                break
+
+        return t
+
+    @staticmethod
+    def concatenate_traj_list(q_trj_list: List[np.ndarray]):
+        """
+        Concatenates a list of trajectories into a single trajectory.
+        q_trj_list[i] has shape (T_i, n_q)
+        """
+        q_trj_sizes = np.array([len(q_trj) for q_trj in q_trj_list])
+        dim_q = q_trj_list[0].shape[1]
+        q_trj_all = np.zeros((q_trj_sizes.sum(), dim_q))
+
+        t_start = 0
+        for q_trj_size, q_trj in zip(q_trj_sizes, q_trj_list):
+            q_trj_all[t_start: t_start + q_trj_size] = q_trj
+            t_start += q_trj_size
+
+        return q_trj_all

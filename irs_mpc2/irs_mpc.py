@@ -489,3 +489,38 @@ class IrsMpcQuasistatic:
             x_trj, u_trj = self.local_descent(x_trj)
             self.current_iter += 1
 
+    def run_traj_opt_on_rrt_segment(
+            self, n_steps_per_h: int,
+            h_small: float,
+            q0: np.ndarray,
+            q_final: np.ndarray,
+            u_trj: np.ndarray,
+            max_iterations: int):
+        """
+        T0 = len(u_trj). This function constructs a new trajectory where each
+         knot in the original u_trj is expanded into n_steps_per_h knots.
+        Each new knot corresponds to a the new, smaller time step h_small,
+         which reduces the effect of "hydroplaning" in Anitescu's model.
+        """
+        indices_q_u_into_x = self.q_sim.get_q_u_indices_into_q()
+        q_u_d = q_final[indices_q_u_into_x]
+        q_d = np.copy(q0)
+        q_d[indices_q_u_into_x] = q_u_d
+
+        T = len(u_trj) * n_steps_per_h
+        q_trj_d = np.tile(q_d, (T + 1, 1))
+
+        u_trj_small = IrsMpcQuasistatic.calc_u_trj_small(
+            u_trj, h_small, n_steps_per_h)
+
+        self.initialize_problem(x0=q0, x_trj_d=q_trj_d,
+                                u_trj_0=u_trj_small)
+        self.iterate(max_iterations=max_iterations,
+                     cost_Qu_f_threshold=0)
+
+        return (np.array(self.x_trj_best), np.array(self.u_trj_best),
+                self.idx_best)
+
+
+
+

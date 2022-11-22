@@ -26,10 +26,7 @@ q0_dict = contact_sampler.calc_enveloping_grasp(q_u0)
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 
 joint_limits = {
-    idx_u: np.array([[-0.3, 0.3], [0.3, 0.5], [-0.01, np.pi]]),
-    idx_a_l: np.array([[-np.pi / 2, np.pi / 2], [-np.pi / 2, 0]]),
-    idx_a_r: np.array([[-np.pi / 2, np.pi / 2], [0, np.pi / 2]])
-}
+    idx_u: np.array([[-0.3, 0.3], [0.3, 0.5], [-0.01, np.pi]])}
 
 # %% RRT testing
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
@@ -60,13 +57,12 @@ print("minimum distance: ", d_batch.min())
 #%%
 node_id_closest = np.argmin(d_batch)
 
-
-
 # %%
-prob_rrt.save_tree(os.path.join(
-    data_folder,
-    "randomized",
-    f"tree_{params.max_size}_{i}.pkl"))
+prob_rrt.save_tree(f"tree_{params.max_size}_{0}.pkl")
+# prob_rrt.save_tree(os.path.join(
+#     data_folder,
+#     "randomized",
+#     f"tree_{params.max_size}_{0}.pkl"))
 
 
 

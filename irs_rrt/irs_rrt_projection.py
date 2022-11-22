@@ -1,4 +1,8 @@
 import numpy as np
+from pydrake.solvers.gurobi import GurobiSolver
+import pydrake.solvers.mathematicalprogram as mp
+
+
 from irs_rrt.irs_rrt import IrsRrtParams, IrsRrt, IrsNode, IrsEdge
 from irs_rrt.rrt_base import Node
 from tqdm import tqdm
@@ -8,6 +12,7 @@ class IrsRrtProjection(IrsRrt):
     def __init__(self, params: IrsRrtParams, contact_sampler):
         self.contact_sampler = contact_sampler
         super().__init__(params)
+        self.solver = GurobiSolver()
 
     def select_closest_node(self, subgoal: np.array,
                             d_threshold: float = np.inf,
@@ -50,7 +55,10 @@ class IrsRrtProjection(IrsRrt):
             # update progress only if a valid parent_node is chosen.
 
             # 3. Extend to subgoal.
-            child_node, edge = self.extend(parent_node, subgoal)
+            try:
+                child_node, edge = self.extend(parent_node, subgoal)
+            except RuntimeError:
+                continue
 
             # 4. Attempt to rewire a candidate child node.
             if self.params.rewire:
@@ -59,7 +67,9 @@ class IrsRrtProjection(IrsRrt):
 
             # 5. Register the new node to the graph.
             try:
-                self.add_node(child_node)
+                # Drawing every new node in meshcat seems to slow down
+                #  tree building by quite a bit.
+                self.add_node(child_node, draw_node=self.size % 50 == 0)
             except RuntimeError as e:
                 print(e)
                 continue
@@ -74,7 +84,62 @@ class IrsRrtProjection(IrsRrt):
                 print("FOUND A PATH TO GOAL!!!!!")
                 break
 
-        pbar.close()        
+        pbar.close()
+
+    def calc_du_star_towards_q_qp(self, parent_node: Node, q: np.ndarray):
+        prog = mp.MathematicalProgram()
+        n_a = self.q_dynamics.dim_u
+        du = prog.NewContinuousVariables(n_a)
+        idx_obj = self.q_sim.get_q_u_indices_into_q()
+        idx_robot = self.q_sim.get_q_a_indices_into_q()
+        q_a_lb = self.q_lb[idx_robot]
+        q_a_ub = self.q_ub[idx_robot]
+        B_obj = parent_node.Bhat[idx_obj, :]
+
+        # We need |A * x - b| ^2 + epsilon * |x|^2, but MathematicalProgram
+        # requires every term in the quadratic cost to be PD.
+        Q = B_obj.T @ B_obj + 1e-2 * np.eye(n_a)
+        b = (q - parent_node.chat)[idx_obj]
+        b_combined = - B_obj.T @ b
+        prog.AddQuadraticCost(Q, b_combined, du)
+        prog.AddBoundingBoxConstraint(-self.params.stepsize,
+                                      self.params.stepsize,
+                                      du)
+        prog.AddBoundingBoxConstraint(q_a_lb - parent_node.ubar,
+                                      q_a_ub - parent_node.ubar,
+                                      du)
+
+        result = self.solver.Solve(prog)
+        if not result.is_success():
+            raise RuntimeError
+
+        du_star = result.GetSolution(du)
+        return du_star
+
+    def calc_du_star_towards_q_lstsq(self, parent_node: Node, q: np.ndarray):
+        # Compute least-squares solution.
+        # NOTE(terry-suh): it is important to only do this on the submatrix
+        # of B that has to do with u.
+
+        idx_obj = self.q_sim.get_q_u_indices_into_q()
+
+        du_star = np.linalg.lstsq(
+            parent_node.Bhat[idx_obj, :],
+            (q - parent_node.chat)[idx_obj],
+            rcond=None)[0]
+
+        # Normalize least-squares solution.
+        du_norm = np.linalg.norm(du_star)
+        step_size = min(du_norm, self.params.stepsize)
+        du_star = du_star / du_norm
+        u_star = parent_node.ubar + step_size * du_star
+
+        idx_robot = self.q_sim.get_q_a_indices_into_q()
+        q_a_lb = self.q_lb[idx_robot]
+        q_a_ub = self.q_ub[idx_robot]
+
+        u_star = np.clip(u_star, q_a_lb, q_a_ub)
+        return u_star - parent_node.ubar
 
     def extend_towards_q(self, parent_node: Node, q: np.array):
         """
@@ -84,28 +149,11 @@ class IrsRrtProjection(IrsRrt):
         regrasp = (np.random.rand() < self.params.grasp_prob)
 
         if regrasp:
-            x_next = self.contact_sampler.sample_contact(
-                parent_node.q[self.q_dynamics.get_q_u_indices_into_x()])
-
+            x_next = self.contact_sampler.sample_contact(parent_node.q)
         else:
-            # Compute least-squares solution.
-            # NOTE(terry-suh): it is important to only do this on the submatrix
-            # of B that has to do with u.
-
-            du = np.linalg.lstsq(
-                parent_node.Bhat[
-                    self.q_dynamics.get_q_u_indices_into_x(), :],
-                (q - parent_node.chat)[
-                    self.q_dynamics.get_q_u_indices_into_x()],
-                rcond=None)[0]
-
-            # Normalize least-squares solution.
-            du_norm = np.linalg.norm(du)
-            step_size = min(du_norm, self.params.stepsize)
-            du = du / du_norm
-            ustar = parent_node.ubar + step_size * du
-
-            x_next = self.q_dynamics.dynamics(parent_node.q, ustar)
+            du_star = self.calc_du_star_towards_q_lstsq(parent_node, q)
+            u_star = parent_node.ubar + du_star
+            x_next = self.q_dynamics.dynamics(parent_node.q, u_star)
 
         cost = 0.0
 
@@ -121,7 +169,7 @@ class IrsRrtProjection(IrsRrt):
             edge.du = np.nan
             edge.u = np.nan
         else:
-            edge.du = self.params.stepsize * du
-            edge.u = ustar
+            edge.du = du_star
+            edge.u = u_star
 
         return child_node, edge

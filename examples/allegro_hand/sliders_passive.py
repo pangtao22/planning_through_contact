@@ -1,23 +1,18 @@
-import os
-import time
 import pickle
 
 import numpy as np
 
-from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
-                         AddMultibodyPlantSceneGraph, MeshcatVisualizerCpp,
-                         MeshcatVisualizerParams, JointIndex, Role, Meshcat,
+from pydrake.all import (LeafSystem, DiagramBuilder, MeshcatVisualizerParams,
+                         Role, Meshcat,
                          StartMeshcat, DrakeLcm, AbstractValue, Sphere,
                          LcmSubscriberSystem, LcmInterfaceSystem, Simulator,
-                         RigidTransform, RotationMatrix, Rgba, Cylinder,
-                         AngleAxis, Quaternion, PortDataType, BasicVector,
+                         RigidTransform, Quaternion, BasicVector,
                          LcmScopeSystem)
 
 from drake import lcmt_allegro_status, lcmt_allegro_command
 from optitrack import optitrack_frame_t
 
 from qsim.parser import QuasistaticParser
-from qsim.model_paths import models_dir
 
 from sliders_active import (wait_for_msg, wait_for_status_msg,
                             kAllegroStatusChannel,
@@ -27,43 +22,11 @@ from optitrack_pose_estimator import (OptitrackPoseEstimator,
                                       is_optitrack_message_good, kBallName,
                                       kAllegroPalmName, kMarkerRadius)
 
-from systems_utils import render_system_with_graphviz
+from control.systems_utils import render_system_with_graphviz, add_triad
 from allegro_hand_setup import q_model_path_hardware
 
 kOptitrackChannelName = "OPTITRACK_FRAMES"
 kQEstimatedChannelName = "Q_SYSTEM_ESTIMATED"
-
-
-def add_triad(vis: Meshcat,
-              name: str, prefix: str, length=1., radius=0.04, opacity=1.):
-    """
-    Initializes coordinate axes of a frame T. The x-axis is drawn red,
-    y-axis green and z-axis blue. The axes point in +x, +y and +z directions,
-    respectively.
-    Args:
-        vis: a meshcat.Visualizer object.
-        name: (string) the name of the triad in meshcat.
-        prefix: (string) name of the node in the meshcat tree to which this
-            triad is added.
-        length: the length of each axis in meters.
-        radius: the radius of each axis in meters.
-        opacity: the opacity of the coordinate axes, between 0 and 1.
-    """
-    delta_xyz = np.array([[length / 2, 0, 0],
-                          [0, length / 2, 0],
-                          [0, 0, length / 2]])
-
-    axes_name = ['x', 'y', 'z']
-    axes_color = [Rgba(1, 0, 0, opacity),
-                  Rgba(0, 1, 0, opacity),
-                  Rgba(0, 0, 1, opacity)]
-    rotation_axes = [[0, 1, 0], [1, 0, 0], [0, 0, 1]]
-
-    for i in range(3):
-        path = f"{prefix}/{name}/{axes_name[i]}"
-        vis.SetObject(path, Cylinder(radius, length), axes_color[i])
-        X = RigidTransform(AngleAxis(np.pi / 2, rotation_axes[i]), delta_xyz[i])
-        vis.SetTransform(path, X)
 
 
 class MeshcatAllegroBallVisualizer(LeafSystem):

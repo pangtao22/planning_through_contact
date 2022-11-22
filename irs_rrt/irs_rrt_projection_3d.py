@@ -14,7 +14,7 @@ class IrsRrtProjection3D(IrsRrtProjection):
     def sample_subgoal(self):
         # Sample translation
         subgoal = np.random.rand(self.q_dynamics.dim_x)
-        subgoal = self.x_lb + (self.x_ub - self.x_lb) * subgoal
+        subgoal = self.q_lb + (self.q_ub - self.q_lb) * subgoal
 
         rpy = RollPitchYaw(subgoal[self.irs_rrt_3d.quat_ind][0:3])
         subgoal[self.irs_rrt_3d.quat_ind] = rpy.ToQuaternion().wxyz()

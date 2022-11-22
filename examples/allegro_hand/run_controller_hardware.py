@@ -4,19 +4,47 @@ import numpy as np
 from examples.allegro_hand.sliders_active import (wait_for_status_msg,
     wait_for_msg, kAllegroCommandChannel, kAllegroStatusChannel)
 
-from pydrake.all import (PiecewisePolynomial, DiagramBuilder,
+from pydrake.all import (DiagramBuilder, LeafSystem, PortDataType,
                          LcmSubscriberSystem, LcmPublisherSystem, DrakeLcm,
-                         Simulator, LcmInterfaceSystem)
+                         Simulator, LcmInterfaceSystem, AbstractValue)
 from drake import lcmt_allegro_status, lcmt_allegro_command, lcmt_scope
 from qsim.parser import QuasistaticParser
+from qsim_cpp import QuasistaticSimulatorCpp
 
-from allegro_hand_setup import robot_name, q_model_path_hardware
-from allegro_controller_system import (
-    add_controller_system_to_diagram, ControllerSystem, CommandVec2LcmSystem)
+from allegro_hand_setup import (robot_name, q_model_path_hardware,
+                                controller_params)
+from control.drake_sim import add_controller_system_to_diagram
 
 from sliders_passive import kQEstimatedChannelName
-from systems_utils import render_system_with_graphviz, QReceiver
+from control.systems_utils import render_system_with_graphviz, QReceiver
 
+
+#%%
+class CommandVec2LcmSystem(LeafSystem):
+    def __init__(self, q_sim: QuasistaticSimulatorCpp):
+        super().__init__()
+        self.set_name("command_vec_to_lcm")
+        self.q_sim = q_sim
+        self.q_cmd_input_port = self.DeclareInputPort(
+            "q_a_cmd",
+            PortDataType.kVectorValued,
+            self.q_sim.num_actuated_dofs())
+
+        self.status_input_port = self.DeclareAbstractInputPort(
+            "allegro_status",
+            AbstractValue.Make(lcmt_allegro_status()))
+
+        self.cmd_output_port = self.DeclareAbstractOutputPort(
+            "allegro_cmd", lambda: AbstractValue.Make(lcmt_allegro_command()),
+            self.copy_allegro_cmd_out)
+
+    def copy_allegro_cmd_out(self, context, output):
+        msg = output.get_value()
+        allegro_staus_msg = self.status_input_port.Eval(context)
+        q_a_cmd = self.q_cmd_input_port.Eval(context)
+        msg.utime = allegro_staus_msg.utime
+        msg.num_joints = len(q_a_cmd)
+        msg.joint_position = q_a_cmd
 
 #%%
 q_parser = QuasistaticParser(q_model_path_hardware)
@@ -54,6 +82,8 @@ t_knots = np.hstack([0, t_knots])
 
 # Diagram
 h_ctrl = 0.02
+controller_params.control_period = h_ctrl
+
 drake_lcm = DrakeLcm()
 builder = DiagramBuilder()
 ctrller_allegro, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
@@ -61,7 +91,7 @@ ctrller_allegro, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
     t_knots=t_knots,
     u_knots_ref=u_knots_ref,
     q_knots_ref=q_knots_ref,
-    h_ctrl=h_ctrl,
+    controller_params=controller_params,
     q_sim=q_sim,
     closed_loop=True)
 

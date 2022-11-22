@@ -10,3 +10,4 @@
 *.html
 *.npy
 *.pkl
+lcmlog*

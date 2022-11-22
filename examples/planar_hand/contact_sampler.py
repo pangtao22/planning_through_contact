@@ -261,10 +261,11 @@ class PlanarHandContactSampler(ContactSampler):
     def cointoss_for_grasp(self):
         return 1 if np.random.rand() > self.pinch_prob else 0
 
-    def sample_contact(self, q_u_goal: np.ndarray):
+    def sample_contact(self, q_goal: np.ndarray):
         """
         Given a q_goal, sample a grasp using the contact sampler.
         """
+        q_u_goal = q_goal[self.q_sim.get_q_u_indices_into_q()]
         pinch_grasp = self.cointoss_for_grasp()
         if pinch_grasp:
             try:
@@ -280,7 +281,7 @@ class PlanarHandContactSampler(ContactSampler):
         else:
             q_dict = self.calc_enveloping_grasp(q_u_goal)
 
-        return self.q_dynamics.get_x_from_q_dict(q_dict)
+        return self.q_sim.get_q_vec_from_dict(q_dict)
 
 
 def sample_on_sphere(radius: float, n_samples: int):
