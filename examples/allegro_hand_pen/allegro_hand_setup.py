@@ -1,15 +1,14 @@
 import os
 
-from irs_mpc.irs_mpc_params import (BundleMode,
-                                    ParallelizationMode)
+from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
 from qsim.model_paths import models_dir
 
 
-q_model_path = os.path.join(models_dir, 'q_sys', 'allegro_hand_pen.yml')
+q_model_path = os.path.join(models_dir, "q_sys", "allegro_hand_pen.yml")
 
 # names.
-robot_name = 'allegro_hand_right'
-object_name = 'pen'
+robot_name = "allegro_hand_right"
+object_name = "pen"
 
 # environment
 h = 0.025

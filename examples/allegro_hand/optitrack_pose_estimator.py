@@ -1,6 +1,6 @@
 import numpy as np
 
-from pydrake.all import (RotationMatrix, RigidTransform, Quaternion)
+from pydrake.all import RotationMatrix, RigidTransform, Quaternion
 from optitrack import optitrack_frame_t
 from robotics_utilities.primitives.low_pass_filter import LowPassFilter
 
@@ -30,8 +30,7 @@ def is_optitrack_message_good(msg: optitrack_frame_t):
     return is_good_all
 
 
-def get_marker_set_points(marker_set_name: str,
-                          msg: optitrack_frame_t):
+def get_marker_set_points(marker_set_name: str, msg: optitrack_frame_t):
     """
     Returns None if msg does not have a marker_set with name marker_set_name.
     Otherwise, returns ((n, 3) marker coordinates, index of marker set.)
@@ -58,18 +57,19 @@ class OptitrackPoseEstimator:
         self.update_X_WB(optitrack_msg)
 
     @staticmethod
-    def get_X_LB_from_msg(optitrack_msg: optitrack_frame_t,
-                          idx_rigid_body: int):
+    def get_X_LB_from_msg(
+        optitrack_msg: optitrack_frame_t, idx_rigid_body: int
+    ):
         q = optitrack_msg.rigid_bodies[idx_rigid_body].quat
         return RigidTransform(
             Quaternion(q[3], q[0], q[1], q[2]),
-            optitrack_msg.rigid_bodies[idx_rigid_body].xyz)
+            optitrack_msg.rigid_bodies[idx_rigid_body].xyz,
+        )
 
     @staticmethod
     def calc_X_WP(optitrack_msg: optitrack_frame_t, X_WL: RigidTransform):
         _, idx_p = get_marker_set_points(kAllegroPalmName, optitrack_msg)
-        X_LP = OptitrackPoseEstimator.get_X_LB_from_msg(optitrack_msg,
-                                                        idx_p)
+        X_LP = OptitrackPoseEstimator.get_X_LB_from_msg(optitrack_msg, idx_p)
         return X_WL.multiply(X_LP)
 
     @staticmethod
@@ -109,14 +109,16 @@ class OptitrackPoseEstimator:
         p_palm_L, _ = get_marker_set_points(kAllegroPalmName, optitrack_msg)
         _, idx_rigid_body_ball = get_marker_set_points(kBallName, optitrack_msg)
         idx_A, idx_B, idx_C = OptitrackPoseEstimator.get_palm_marker_indices(
-            p_palm_L)
+            p_palm_L
+        )
         X_LB0 = OptitrackPoseEstimator.get_X_LB_from_msg(
-            optitrack_msg, idx_rigid_body_ball)
+            optitrack_msg, idx_rigid_body_ball
+        )
 
         R = 0.061  # sphere radius
         y = np.linalg.norm(p_palm_L[idx_C] - p_palm_L[idx_A])
         c = np.sqrt((R + kMarkerRadius) ** 2 - (R - kMarkerCenterToPalm) ** 2)
-        e = np.sqrt(c ** 2 - (y / 2) ** 2)
+        e = np.sqrt(c**2 - (y / 2) ** 2)
 
         n_AC = p_palm_L[idx_C] - p_palm_L[idx_A]
         n_AC /= np.linalg.norm(n_AC)
@@ -139,7 +141,8 @@ class OptitrackPoseEstimator:
 
         p_palm_L, _ = get_marker_set_points(kAllegroPalmName, optitrack_msg)
         idx_A, idx_B, idx_C = OptitrackPoseEstimator.get_palm_marker_indices(
-            p_palm_L)
+            p_palm_L
+        )
 
         # z-axis
         nz_LW = OptitrackPoseEstimator.calc_z_LW(p_palm_L)
@@ -186,10 +189,10 @@ class OptitrackPoseEstimator:
         """
         return RigidTransform(
             Quaternion(self.q_WB_lpf.get_current_state()),
-            self.p_WBo_lpf.get_current_state())
+            self.p_WBo_lpf.get_current_state(),
+        )
 
-    def get_p_ball_surface_W_and_X_WB(
-            self, optitrack_msg: optitrack_frame_t):
+    def get_p_ball_surface_W_and_X_WB(self, optitrack_msg: optitrack_frame_t):
         """
         returns (p_ball_surface_W (4, 3), X_WB)
         """

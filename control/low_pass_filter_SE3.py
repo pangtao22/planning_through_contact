@@ -22,4 +22,5 @@ class LowPassFilterSe3:
     def get_current_state(self):
         return RigidTransform(
             Quaternion(self.q_lpf.get_current_state()),
-            self.p_lpf.get_current_state())
+            self.p_lpf.get_current_state(),
+        )

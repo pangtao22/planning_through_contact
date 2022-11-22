@@ -1,4 +1,5 @@
 import sys
+
 for i, path in enumerate(sys.path):
     if "2.7" in path:
         sys.path.pop(i)
@@ -9,7 +10,7 @@ import numpy as np
 from sensor_msgs.msg import JointState
 from drake import lcmt_allegro_status
 
-JOINT_STATE_TOPIC = '/allegroHand/joint_states'
+JOINT_STATE_TOPIC = "/allegroHand/joint_states"
 
 lc = lcm.LCM()
 
@@ -18,14 +19,13 @@ class AllegroStatusSubscriber:
     def __init__(self):
         self.allegro_state = JointState()
         rospy.Subscriber(JOINT_STATE_TOPIC, JointState, self.callback)
-        rospy.init_node('allegro_status_to_lcm')
+        rospy.init_node("allegro_status_to_lcm")
 
     def callback(self, msg: JointState):
         self.allegro_state = msg
         lcm_msg = lcmt_allegro_status()
 
-        t = rospy.Time(secs=msg.header.stamp.secs,
-                       nsecs=msg.header.stamp.nsecs)
+        t = rospy.Time(secs=msg.header.stamp.secs, nsecs=msg.header.stamp.nsecs)
         lcm_msg.utime = int(t.to_nsec() / 1000)
 
         n_joints = len(msg.position)
@@ -41,4 +41,3 @@ class AllegroStatusSubscriber:
 if __name__ == "__main__":
     sub = AllegroStatusSubscriber()
     rospy.spin()
-

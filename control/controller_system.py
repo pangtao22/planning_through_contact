@@ -1,23 +1,23 @@
 import copy
 import numpy as np
 
-from pydrake.all import (LeafSystem, PortDataType, BasicVector,
-                         GurobiSolver, eq)
+from pydrake.all import LeafSystem, PortDataType, BasicVector, GurobiSolver, eq
 import pydrake.solvers.mathematicalprogram as mp
 
-from qsim_cpp import (ForwardDynamicsMode, GradientMode,
-                      QuasistaticSimulatorCpp)
+from qsim_cpp import ForwardDynamicsMode, GradientMode, QuasistaticSimulatorCpp
 
 
 class ControllerParams:
-    def __init__(self,
-                 forward_mode: ForwardDynamicsMode,
-                 gradient_mode: GradientMode,
-                 log_barrier_weight: float,
-                 Qu: np.ndarray,
-                 R: np.ndarray,
-                 control_period: float,
-                 joint_limit_padding: float = 0.):
+    def __init__(
+        self,
+        forward_mode: ForwardDynamicsMode,
+        gradient_mode: GradientMode,
+        log_barrier_weight: float,
+        Qu: np.ndarray,
+        R: np.ndarray,
+        control_period: float,
+        joint_limit_padding: float = 0.0,
+    ):
         self.forward_mode = forward_mode
         self.gradient_mode = gradient_mode
         self.log_barrier_weight = log_barrier_weight
@@ -28,11 +28,13 @@ class ControllerParams:
 
 
 class Controller:
-    def __init__(self,
-                 q_nominal: np.ndarray,
-                 u_nominal: np.ndarray,
-                 q_sim: QuasistaticSimulatorCpp,
-                 controller_params: ControllerParams):
+    def __init__(
+        self,
+        q_nominal: np.ndarray,
+        u_nominal: np.ndarray,
+        q_sim: QuasistaticSimulatorCpp,
+        controller_params: ControllerParams,
+    ):
         self.q_sim = q_sim
         self.plant = q_sim.get_plant()
         self.solver = GurobiSolver()
@@ -40,10 +42,12 @@ class Controller:
 
         self.q_nominal = q_nominal
         self.u_nominal = u_nominal
-        self.q_segment_lengths = np.linalg.norm(q_nominal[1:] - q_nominal[:-1],
-                                                axis=1)
-        self.q_segment_lengths_cumsum_normalized = (
-            np.cumsum(self.q_segment_lengths) / np.sum(self.q_segment_lengths))
+        self.q_segment_lengths = np.linalg.norm(
+            q_nominal[1:] - q_nominal[:-1], axis=1
+        )
+        self.q_segment_lengths_cumsum_normalized = np.cumsum(
+            self.q_segment_lengths
+        ) / np.sum(self.q_segment_lengths)
 
         # TODO: do not hardcode these parameters. They need to be consistent
         #  with the trajectory optimizer that generates these trajectories.
@@ -59,7 +63,8 @@ class Controller:
 
         # joint limits
         self.lower_limits, self.upper_limits = self.get_joint_limits_vec(
-            controller_params.joint_limit_padding)
+            controller_params.joint_limit_padding
+        )
 
         self.u_prev = None
 
@@ -104,8 +109,10 @@ class Controller:
     def calc_q_and_u_from_arc_length(self, s: float):
         idx = 0
         n_segments = len(self.q_segment_lengths_cumsum_normalized)
-        while (idx < n_segments
-               and self.q_segment_lengths_cumsum_normalized[idx] < s):
+        while (
+            idx < n_segments
+            and self.q_segment_lengths_cumsum_normalized[idx] < s
+        ):
             idx += 1
         if idx == n_segments:
             return self.q_nominal[-1], self.u_nominal[-1]
@@ -122,13 +129,15 @@ class Controller:
     def calc_t_and_indices_for_q(self, q):
         distances = np.linalg.norm(q - self.q_nominal, axis=1)
         distances_and_indices = sorted(
-            [(d, i) for i, d in enumerate(distances)])
-        indices_closest = sorted([distances_and_indices[0][1],
-                                  distances_and_indices[1][1]])
+            [(d, i) for i, d in enumerate(distances)]
+        )
+        indices_closest = sorted(
+            [distances_and_indices[0][1], distances_and_indices[1][1]]
+        )
 
         prog = mp.MathematicalProgram()
-        t = prog.NewContinuousVariables(1, 't')[0]
-        q_t = prog.NewContinuousVariables(self.n_q, 'q_t')
+        t = prog.NewContinuousVariables(1, "t")[0]
+        q_t = prog.NewContinuousVariables(self.n_q, "q_t")
         q0 = self.q_nominal[indices_closest[0]]
         q1 = self.q_nominal[indices_closest[1]]
 
@@ -159,23 +168,31 @@ class Controller:
 
         return q_t, u_t
 
-    def calc_linearization(self,
-                           q_nominal: np.ndarray,
-                           u_nominal: np.ndarray):
+    def calc_linearization(self, q_nominal: np.ndarray, u_nominal: np.ndarray):
         idx_q_u_into_q = self.q_sim.get_q_u_indices_into_q()
         q_next_nominal = self.q_sim.calc_dynamics(
-            q_nominal, u_nominal, self.sim_params)
+            q_nominal, u_nominal, self.sim_params
+        )
         B = self.q_sim.get_Dq_nextDqa_cmd()
         n_u = self.q_sim.num_unactuated_dofs()
         Au = np.eye(n_u)
         Bu = B[idx_q_u_into_q, :]
-        cu = (q_next_nominal[idx_q_u_into_q] - q_nominal[idx_q_u_into_q]
-              - Bu @ u_nominal)
+        cu = (
+            q_next_nominal[idx_q_u_into_q]
+            - q_nominal[idx_q_u_into_q]
+            - Bu @ u_nominal
+        )
 
         return Au, Bu, cu
 
-    def calc_u(self, q_nominal: np.ndarray, u_nominal: np.ndarray,
-               q: np.ndarray, q_goal: np.ndarray, u_goal: np.ndarray):
+    def calc_u(
+        self,
+        q_nominal: np.ndarray,
+        u_nominal: np.ndarray,
+        q: np.ndarray,
+        q_goal: np.ndarray,
+        u_goal: np.ndarray,
+    ):
         idx_q_u_into_q = self.q_sim.get_q_u_indices_into_q()
         q_u_goal = q_goal[idx_q_u_into_q]
         q_u = q[idx_q_u_into_q]
@@ -200,8 +217,8 @@ class Controller:
         prog.AddQuadraticErrorCost(self.Qu, q_u_goal, q_u_next)
         prog.AddQuadraticErrorCost(self.R, u_goal, u)
         prog.AddLinearEqualityConstraint(
-            np.hstack([-np.eye(n_u), Bu]), -(q_u + cu),
-            np.hstack([q_u_next, u]))
+            np.hstack([-np.eye(n_u), Bu]), -(q_u + cu), np.hstack([q_u_next, u])
+        )
 
         result = self.solver.Solve(prog)
         if not result.is_success():
@@ -212,13 +229,15 @@ class Controller:
 
 
 class ControllerSystem(LeafSystem):
-    def __init__(self,
-                 q_nominal: np.ndarray,
-                 u_nominal: np.ndarray,
-                 q_sim_mbp: QuasistaticSimulatorCpp,
-                 q_sim_q_control: QuasistaticSimulatorCpp,
-                 controller_params: ControllerParams,
-                 closed_loop: bool):
+    def __init__(
+        self,
+        q_nominal: np.ndarray,
+        u_nominal: np.ndarray,
+        q_sim_mbp: QuasistaticSimulatorCpp,
+        q_sim_q_control: QuasistaticSimulatorCpp,
+        controller_params: ControllerParams,
+        closed_loop: bool,
+    ):
         super().__init__()
         self.q_sim = q_sim_mbp
         self.plant = self.q_sim.get_plant()
@@ -233,21 +252,27 @@ class ControllerSystem(LeafSystem):
         # used, so that indexing becomes easier.
         self.DeclareDiscreteState(BasicVector(self.plant.num_positions()))
         self.controller = Controller(
-            q_nominal=q_nominal, u_nominal=u_nominal,
-            q_sim=q_sim_q_control, controller_params=controller_params)
+            q_nominal=q_nominal,
+            u_nominal=u_nominal,
+            q_sim=q_sim_q_control,
+            controller_params=controller_params,
+        )
 
         self.q_ref_input_port = self.DeclareInputPort(
             "q_ref",
             PortDataType.kVectorValued,
-            q_sim_q_control.get_plant().num_positions())
+            q_sim_q_control.get_plant().num_positions(),
+        )
 
         self.u_ref_input_port = self.DeclareInputPort(
             "u_ref",
             PortDataType.kVectorValued,
-            q_sim_q_control.num_actuated_dofs())
+            q_sim_q_control.num_actuated_dofs(),
+        )
 
         self.q_input_port = self.DeclareInputPort(
-            "q", PortDataType.kVectorValued, self.plant.num_positions())
+            "q", PortDataType.kVectorValued, self.plant.num_positions()
+        )
 
         self.position_cmd_output_ports = {}
         model_to_indices_map = self.q_sim.get_position_indices()
@@ -258,32 +283,41 @@ class ControllerSystem(LeafSystem):
 
             def calc_output(context, output, model=model):
                 output.SetFromVector(
-                context.get_discrete_state().value()[
-                    model_to_indices_map[model]])
+                    context.get_discrete_state().value()[
+                        model_to_indices_map[model]
+                    ]
+                )
 
-            self.position_cmd_output_ports[model] = (
-                self.DeclareVectorOutputPort(
-                    f'{name}_cmd', BasicVector(nq), calc_output))
+            self.position_cmd_output_ports[
+                model
+            ] = self.DeclareVectorOutputPort(
+                f"{name}_cmd", BasicVector(nq), calc_output
+            )
 
     def DoCalcDiscreteVariableUpdates(self, context, events, discrete_state):
         super().DoCalcDiscreteVariableUpdates(context, events, discrete_state)
         q_goal = self.q_ref_input_port.Eval(context)
         u_goal = self.u_ref_input_port.Eval(context)
         q = self.q_input_port.Eval(context)
-        (q_nominal, u_nominal, t_value, indices_closest
-         ) = self.controller.find_closest_on_nominal_path(q)
+        (
+            q_nominal,
+            u_nominal,
+            t_value,
+            indices_closest,
+        ) = self.controller.find_closest_on_nominal_path(q)
 
-        q_goal, u_goal = self.calc_along_arc(t_value, indices_closest,
-                                             0.05)
+        q_goal, u_goal = self.calc_along_arc(t_value, indices_closest, 0.05)
 
         if self.closed_loop:
             u = self.controller.calc_u(
-                q_nominal=q_nominal, u_nominal=u_nominal, q=q,
-                q_goal=q_goal, u_goal=u_goal)
+                q_nominal=q_nominal,
+                u_nominal=u_nominal,
+                q=q,
+                q_goal=q_goal,
+                u_goal=u_goal,
+            )
         else:
             u = u_goal
 
         q_nominal[self.q_sim.get_q_a_indices_into_q()] = u
         discrete_state.set_value(q_nominal)
-
-

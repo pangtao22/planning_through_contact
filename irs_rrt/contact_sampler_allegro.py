@@ -28,7 +28,8 @@ class AllegroHandContactSampler(ContactSampler):
 
         self.qdot_enveloping_flexion = np.zeros(16)
         self.qdot_enveloping_flexion[
-            [1, 2, 3, 4, 6, 7, 9, 10, 11, 13, 14, 15]] = 1.0
+            [1, 2, 3, 4, 6, 7, 9, 10, 11, 13, 14, 15]
+        ] = 1.0
 
         self.qdot_pinch_flexion = np.zeros(16)
         self.qdot_pinch_flexion[[3, 7, 11, 15]] = 1.0
@@ -53,7 +54,8 @@ class AllegroHandContactSampler(ContactSampler):
             self.q_sim.step(
                 q_a_cmd_dict=q_a_cmd_dict,
                 tau_ext_dict=tau_ext_dict,
-                sim_params=sim_params)
+                sim_params=sim_params,
+            )
 
             q_next_dict = self.q_sim.get_mbp_positions()
             x = self.q_dynamics.get_x_from_q_dict(q_next_dict)
@@ -74,9 +76,11 @@ class AllegroHandContactSampler(ContactSampler):
 
         xnext, q_dict_lst = self.simulate_qdot(
             x0,
-            w_torsion * self.qdot_torsion +
-            w_anti_torsion * self.qdot_anti_torsion +
-            w_enveloping_flexion * self.qdot_enveloping_flexion +
-            w_pinch_flexion * self.qdot_pinch_flexion, self.T)
+            w_torsion * self.qdot_torsion
+            + w_anti_torsion * self.qdot_anti_torsion
+            + w_enveloping_flexion * self.qdot_enveloping_flexion
+            + w_pinch_flexion * self.qdot_pinch_flexion,
+            self.T,
+        )
 
         return xnext

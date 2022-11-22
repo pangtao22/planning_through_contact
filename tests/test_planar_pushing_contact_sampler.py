@@ -11,18 +11,19 @@ from irs_rrt.rrt_base import Node
 
 from examples.planar_pushing.contact_sampler import PlanarPushingContactSampler
 from examples.planar_pushing.planar_pushing_setup import *
-    
+
+
 class TestPlanarPushingContactSampler(unittest.TestCase):
     """
     Test if contact sampler runs correctly for planar pushing. For visual
     inspection, turn on meshcat.
     """
+
     def setUp(self):
 
         self.q_dynamics = QuasistaticDynamics(
-            h=h,
-            q_model_path=q_model_path,
-            internal_viz=True)
+            h=h, q_model_path=q_model_path, internal_viz=True
+        )
 
         self.contact_sampler = PlanarPushingContactSampler(self.q_dynamics)
 
@@ -46,6 +47,6 @@ class TestPlanarPushingContactSampler(unittest.TestCase):
             for i, sdp_i in enumerate(sdp):
                 self.assertTrue(sdp_i.distance < 0.05)
 
-    
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

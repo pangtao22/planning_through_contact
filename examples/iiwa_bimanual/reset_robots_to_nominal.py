@@ -6,8 +6,10 @@ from pydrake.all import PiecewisePolynomial
 from drake import lcmt_iiwa_status, lcmt_iiwa_command
 from control.systems_utils import wait_for_msg
 from control.controller_planar_iiwa_bimanual import kQIiwa0
+
 q_msg = wait_for_msg(
-    "IIWA_STATUS", lcmt_iiwa_status, lambda msg: msg.num_joints == 14)
+    "IIWA_STATUS", lcmt_iiwa_status, lambda msg: msg.num_joints == 14
+)
 
 q_a_nominal = np.zeros(14)
 q_a_nominal[:7] = kQIiwa0
@@ -16,7 +18,7 @@ q_a_nominal[7:] = kQIiwa0
 q_knots = np.zeros((2, 14))
 q_knots[0] = q_msg.joint_position_measured
 q_knots[1] = q_a_nominal
-duration = 10.
+duration = 10.0
 q_trj = PiecewisePolynomial.FirstOrderHold([0, duration], q_knots.T)
 
 
@@ -56,6 +58,3 @@ try:
 
 except KeyboardInterrupt:
     pass
-
-
-

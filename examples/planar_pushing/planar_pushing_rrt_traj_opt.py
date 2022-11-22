@@ -19,9 +19,9 @@ from planar_pushing_setup import *
 from contact_sampler import PlanarPushingContactSampler
 
 #%% quasistatic dynamical system
-q_dynamics = QuasistaticDynamics(h=h,
-                                 q_model_path=q_model_path,
-                                 internal_viz=True)
+q_dynamics = QuasistaticDynamics(
+    h=h, q_model_path=q_model_path, internal_viz=True
+)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 q_sim_py = q_dynamics.q_sim_py
@@ -44,17 +44,19 @@ joint_limits = {
 mpc_params = IrsMpcQuasistaticParameters()
 mpc_params.Q_dict = {
     idx_u: np.array([20, 20, 10]),
-    idx_a: np.array([1e-3, 1e-3])}
+    idx_a: np.array([1e-3, 1e-3]),
+}
 mpc_params.Qd_dict = {
-    model: Q_i * 100 for model, Q_i in mpc_params.Q_dict.items()}
-mpc_params.R_dict = {
-    idx_a: 10 * np.array([1, 1])}
+    model: Q_i * 100 for model, Q_i in mpc_params.Q_dict.items()
+}
+mpc_params.R_dict = {idx_a: 10 * np.array([1, 1])}
 mpc_params.T = 20
 
-mpc_params.u_bounds_abs = np.array([
-    -np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
+mpc_params.u_bounds_abs = np.array(
+    [-np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h]
+)
 
-mpc_params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
+mpc_params.calc_std_u = lambda u_initial, i: u_initial / (i**0.8)
 mpc_params.std_u_initial = np.ones(dim_u) * 0.3
 
 mpc_params.decouple_AB = True
@@ -72,16 +74,16 @@ params.goal[3] = -0.5
 params.termination_tolerance = 1  # used in irs_rrt.iterate() as cost threshold.
 params.goal_as_subgoal_prob = 0.1
 params.rewire = False
-params.distance_metric = 'local_u'
+params.distance_metric = "local_u"
 params.regularization = 1e-2
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = q_dynamics.get_x_from_q_dict(mpc_params.Q_dict)
 params.distance_threshold = 50
 
 
-irs_rrt = IrsRrtTrajOpt(rrt_params=params,
-                        mpc_params=mpc_params,
-                        contact_sampler=contact_sampler)
+irs_rrt = IrsRrtTrajOpt(
+    rrt_params=params, mpc_params=mpc_params, contact_sampler=contact_sampler
+)
 irs_rrt.iterate()
 
 #%%

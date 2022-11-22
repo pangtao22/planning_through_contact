@@ -12,20 +12,23 @@ object_name = "box"
 
 
 class IiwaBimanualPlanarControllerSystem(ControllerSystem):
-    def __init__(self,
-                 q_nominal: np.ndarray,
-                 u_nominal: np.ndarray,
-                 q_sim_2d: QuasistaticSimulatorCpp,
-                 q_sim_3d: QuasistaticSimulatorCpp,
-                 controller_params: ControllerParams,
-                 closed_loop: bool):
+    def __init__(
+        self,
+        q_nominal: np.ndarray,
+        u_nominal: np.ndarray,
+        q_sim_2d: QuasistaticSimulatorCpp,
+        q_sim_3d: QuasistaticSimulatorCpp,
+        controller_params: ControllerParams,
+        closed_loop: bool,
+    ):
         super().__init__(
             q_nominal=q_nominal,
             u_nominal=u_nominal,
             q_sim_mbp=q_sim_3d,
             q_sim_q_control=q_sim_2d,
             controller_params=controller_params,
-            closed_loop=closed_loop)
+            closed_loop=closed_loop,
+        )
         self.q_sim_2d = q_sim_2d
         plant_2d = q_sim_2d.get_plant()
         plant_3d = q_sim_3d.get_plant()
@@ -57,7 +60,8 @@ class IiwaBimanualPlanarControllerSystem(ControllerSystem):
         q_dict_2d = {
             self.idx_a_l_2d: q_a_l_2d,
             self.idx_a_r_2d: q_a_r_2d,
-            self.idx_u_2d: q_u_2d}
+            self.idx_u_2d: q_u_2d,
+        }
 
         return self.q_sim_2d.get_q_vec_from_dict(q_dict_2d)
 
@@ -73,9 +77,11 @@ class IiwaBimanualPlanarControllerSystem(ControllerSystem):
         q_u_3d[:4] = Q_WB.wxyz()
         q_u_3d[4:] = [q_u_2d[0], q_u_2d[1], kObjZ]
 
-        q_3d_dict = {self.idx_u_3d: q_u_3d,  # this does not matter!
-                     self.idx_a_l_3d: q_a_l_3d,
-                     self.idx_a_r_3d: q_a_r_3d}
+        q_3d_dict = {
+            self.idx_u_3d: q_u_3d,  # this does not matter!
+            self.idx_a_l_3d: q_a_l_3d,
+            self.idx_a_r_3d: q_a_r_3d,
+        }
 
         return self.q_sim.get_q_vec_from_dict(q_3d_dict)
 
@@ -84,23 +90,34 @@ class IiwaBimanualPlanarControllerSystem(ControllerSystem):
         u_goal_2d = self.u_ref_input_port.Eval(context)
         q_3d = self.q_input_port.Eval(context)
         q_2d = self.calc_q_2d_from_q_3d(q_3d)
-        (q_nominal_2d, u_nominal_2d, t_value, indices
-         ) = self.controller.find_closest_on_nominal_path(q_2d)
+        (
+            q_nominal_2d,
+            u_nominal_2d,
+            t_value,
+            indices,
+        ) = self.controller.find_closest_on_nominal_path(q_2d)
 
         s = self.controller.calc_arc_length(t_value, indices)
-        q_goal_2d_arc, u_goal_2d_arc = self.controller.calc_q_and_u_from_arc_length(
-           s + 0.05)
+        (
+            q_goal_2d_arc,
+            u_goal_2d_arc,
+        ) = self.controller.calc_q_and_u_from_arc_length(s + 0.05)
         print(f"s = {s}")
-        if np.linalg.norm(q_goal_2d_arc - q_2d) < np.linalg.norm(q_goal_2d -
-                                                                 q_2d):
+        if np.linalg.norm(q_goal_2d_arc - q_2d) < np.linalg.norm(
+            q_goal_2d - q_2d
+        ):
             q_goal_2d = q_goal_2d_arc
             u_goal_2d = u_goal_2d_arc
-            print('oh no!')
+            print("oh no!")
 
         if self.closed_loop:
             u_2d = self.controller.calc_u(
-                q_nominal=q_nominal_2d, u_nominal=u_nominal_2d, q=q_2d,
-                q_goal=q_goal_2d, u_goal=u_goal_2d)
+                q_nominal=q_nominal_2d,
+                u_nominal=u_nominal_2d,
+                q=q_2d,
+                q_goal=q_goal_2d,
+                u_goal=u_goal_2d,
+            )
         else:
             u_2d = u_goal_2d
 
@@ -108,4 +125,3 @@ class IiwaBimanualPlanarControllerSystem(ControllerSystem):
         q_3d_with_cmd = self.calc_q_3d_from_q_2d(q_2d)
 
         discrete_state.set_value(q_3d_with_cmd)
-

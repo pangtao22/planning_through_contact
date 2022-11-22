@@ -5,12 +5,11 @@ from planar_hand_setup import q_model_path, h
 from contact_sampler import PlanarHandContactSampler
 
 #%%
-q_dynamics = QuasistaticDynamics(h=h,
-                                 q_model_path=q_model_path,
-                                 internal_viz=True)
+q_dynamics = QuasistaticDynamics(
+    h=h, q_model_path=q_model_path, internal_viz=True
+)
 q_sim_py = q_dynamics.q_sim_py
 contact_sampler = PlanarHandContactSampler(q_dynamics, 0.5)
-
 
 
 #%%

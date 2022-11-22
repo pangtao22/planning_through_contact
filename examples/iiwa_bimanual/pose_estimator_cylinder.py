@@ -1,6 +1,6 @@
 import numpy as np
 
-from pydrake.all import (RotationMatrix, RigidTransform, Quaternion)
+from pydrake.all import RotationMatrix, RigidTransform, Quaternion
 from optitrack import optitrack_frame_t
 
 from control.systems_utils import wait_for_msg
@@ -8,8 +8,12 @@ from control.low_pass_filter_SE3 import LowPassFilterSe3
 
 from robotics_utilities.primitives.low_pass_filter import LowPassFilter
 
-from pose_estimator_box import (kInchM, kBaseName,
-                                PoseEstimatorBase, get_marker_set_points)
+from pose_estimator_box import (
+    kInchM,
+    kBaseName,
+    PoseEstimatorBase,
+    get_marker_set_points,
+)
 
 kObjName = "cylinder"
 
@@ -62,15 +66,19 @@ class CylinderPoseEstimator(PoseEstimatorBase):
         self.q_lpf.update(q_LB0)
         self.q_lpf.x /= np.linalg.norm(self.q_lpf.x)
 
-        X_LB0 = RigidTransform(Quaternion(self.q_lpf.get_current_state()),
-            self.p_lpf.get_current_state())
+        X_LB0 = RigidTransform(
+            Quaternion(self.q_lpf.get_current_state()),
+            self.p_lpf.get_current_state(),
+        )
         X_WB = self.X_WL.multiply(X_LB0.multiply(self.X_B0B))
 
         return X_WB
 
 
 if __name__ == "__main__":
-    initial_msg = wait_for_msg(channel_name="OPTITRACK_FRAMES",
-                               lcm_type=optitrack_frame_t,
-                               is_message_good=is_optitrack_message_good)
+    initial_msg = wait_for_msg(
+        channel_name="OPTITRACK_FRAMES",
+        lcm_type=optitrack_frame_t,
+        is_message_good=is_optitrack_message_good,
+    )
     bpe = CylinderPoseEstimator(initial_msg)

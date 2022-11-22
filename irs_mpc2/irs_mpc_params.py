@@ -24,15 +24,18 @@ kSmoothingMode2ForwardDynamicsModeMap = {
     SmoothingMode.kFirstRandomizedPyramid: ForwardDynamicsMode.kQpMp,
     SmoothingMode.kFirstRandomizedIcecream: ForwardDynamicsMode.kSocpMp,
     SmoothingMode.kFirstAnalyticPyramid: ForwardDynamicsMode.kLogPyramidMy,
-    SmoothingMode.kFirstAnalyticIcecream: ForwardDynamicsMode.kLogIcecream}
+    SmoothingMode.kFirstAnalyticIcecream: ForwardDynamicsMode.kLogIcecream,
+}
 
 RandomizedSmoothingModes = {
     SmoothingMode.kFirstRandomizedPyramid,
-    SmoothingMode.kFirstRandomizedIcecream}
+    SmoothingMode.kFirstRandomizedIcecream,
+}
 
 AnalyticSmoothingModes = {
     SmoothingMode.kFirstAnalyticPyramid,
-    SmoothingMode.kFirstAnalyticIcecream}
+    SmoothingMode.kFirstAnalyticIcecream,
+}
 
 
 class IrsMpcQuasistaticParameters:
@@ -53,13 +56,13 @@ class IrsMpcQuasistaticParameters:
         self.smoothing_mode = SmoothingMode.kFirstAnalyticIcecream
         self.use_A = False
 
-        '''
+        """
         When self.rollout_forward_dynamics_mode is None, the c obtained from 
          computing the smoothed A and B is used as c.
         
         When not None, the c is computed separately using the 
         forward mode specified in self.rollout_forward_dynamics_mode.
-        '''
+        """
         self.rollout_forward_dynamics_mode = None
 
         # Arguments for randomized smoothing.
@@ -73,5 +76,3 @@ class IrsMpcQuasistaticParameters:
         #  (log_barrier_weight_initial, iteration)
         self.log_barrier_weight_initial = None
         self.calc_log_barrier_weight = None
-
-

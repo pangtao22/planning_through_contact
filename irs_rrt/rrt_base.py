@@ -10,7 +10,7 @@ from dash_vis.dash_common import trace_nodes_to_root_from
 
 class Node:
     """
-    Base node class. Owns all the attributes and methods related to a 
+    Base node class. Owns all the attributes and methods related to a
     single node. Add to nx.Digraph() using G.add_node(1, node=Node())
     """
 
@@ -50,7 +50,7 @@ class Rrt:
         self.dim_q = len(self.root_node.q)
 
         # We keep a matrix over node configurations for batch computation.
-        # This is a N x n matrix where N is # of nodes, and 
+        # This is a N x n matrix where N is # of nodes, and
         # n is dim(q). Used for batch computation. Note that we initialize to
         # max_size to save computation time while adding nodes, but only the
         # first N columns of this matrix are "valid".
@@ -67,27 +67,27 @@ class Rrt:
         self.goal_node_idx = None
 
     def get_node_from_id(self, id: int):
-        """ Return node from the graph given id. """
+        """Return node from the graph given id."""
         node = self.graph.nodes[id]["node"]
         return node
 
     def get_edge_from_id(self, parent_id: int, child_id: int):
-        """ Return edge from the graph given id of parent and child. """
+        """Return edge from the graph given id of parent and child."""
         edge = self.graph.edges[parent_id, child_id]["edge"]
         return edge
 
     def get_q_matrix_up_to(self, size: int = None):
-        """ Get slice of q matrix with valid components."""
+        """Get slice of q matrix with valid components."""
         if size is None:
             size = self.size
         return self.q_matrix[:size, :]
 
     def get_valid_value_lst(self):
-        """ Get slice of value_lst with valid components."""
-        return self.value_lst[:self.size]
+        """Get slice of value_lst with valid components."""
+        return self.value_lst[: self.size]
 
     def add_node(self, node: Node):
-        """ 
+        """
         Add a new node to the networkx graph and the relevant data structures
         that does batch computation. This also populates the id parameter of
         the node.
@@ -99,7 +99,7 @@ class Rrt:
 
     def replace_node(self, node: Node, id: int):
         """
-        Replaces a node in a graph with id with a new given node. Also 
+        Replaces a node in a graph with id with a new given node. Also
         changes the relevant data structures.
         """
         self.graph.remove_node(id)
@@ -115,14 +115,15 @@ class Rrt:
         if np.isnan(edge.cost):
             raise ValueError(
                 "Attempting to add edge, but the edge does not have a cost "
-                + "assigned.")
+                + "assigned."
+            )
 
         self.graph.add_edge(edge.parent.id, edge.child.id, edge=edge)
         edge.child.value = edge.parent.value + edge.cost
         self.value_lst[edge.child.id] = edge.child.value
 
     def remove_edge(self, edge: Edge):
-        """ Remove edge from the graph. """
+        """Remove edge from the graph."""
         self.graph.remove_edge(edge.parent.id, edge.child.id)
         edge.child.value = np.nan
         self.value_lst[edge.child.value] = edge.child.value
@@ -133,11 +134,12 @@ class Rrt:
         return False
 
     def sample_subgoal(self):
-        """ Provide a method to sample the a subgoal. """
+        """Provide a method to sample the a subgoal."""
         raise NotImplementedError("This method is virtual.")
 
-    def select_closest_node(self, subgoal: np.array,
-                            print_distance: bool = False):
+    def select_closest_node(
+        self, subgoal: np.array, print_distance: bool = False
+    ):
         """
         Given a subgoal, and find the node that is closest from the subgoal.
         """
@@ -154,7 +156,7 @@ class Rrt:
         return trace_nodes_to_root_from(i_node, self.graph)
 
     def extend_towards_q(self, parent_node: Node, q: np.array):
-        """ Extend current node towards a specified configuration q. """
+        """Extend current node towards a specified configuration q."""
         raise NotImplementedError("This method is virtual.")
 
     def extend(self, node: Node, subgoal: np.array):
@@ -222,7 +224,8 @@ class Rrt:
             # 4. Attempt to rewire a candidate child node.
             if self.params.rewire:
                 parent_node, child_node, edge = self.rewire(
-                    parent_node, child_node)
+                    parent_node, child_node
+                )
 
             # 5. Register the new node to the graph.
             self.add_node(child_node)
@@ -237,7 +240,7 @@ class Rrt:
         pbar.close()
 
     def save_tree(self, filename):
-        with open(filename, 'wb') as f:
+        with open(filename, "wb") as f:
             pickle.dump(self.graph, f)
 
     def save_final_path(self, filename):
@@ -246,7 +249,8 @@ class Rrt:
 
         # Find path from root to goal.
         path = nx.shortest_path(
-            self.graph, source=self.root_node.id, target=q_final.id)
+            self.graph, source=self.root_node.id, target=q_final.id
+        )
 
         dim_u = len(self.get_edge_from_id(path[0], path[1]).u)
         path_T = len(path)
@@ -259,8 +263,7 @@ class Rrt:
             u_trj[i, :] = self.get_edge_from_id(path[i], path[i + 1]).u
         x_trj[path_T - 1, :] = self.get_node_from_id(path[path_T - 1]).q
 
-        path_dict = {
-            "x_trj": x_trj, "u_trj": u_trj}
+        path_dict = {"x_trj": x_trj, "u_trj": u_trj}
 
-        with open(filename, 'wb') as f:
+        with open(filename, "wb") as f:
             pickle.dump(path_dict, f)

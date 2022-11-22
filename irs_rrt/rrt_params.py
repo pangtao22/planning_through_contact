@@ -7,6 +7,7 @@ class RrtParams:
     Base tree parameters class. Only "yaml'-able parameters should be stored
     in the parameters.
     """
+
     def __init__(self):
         self.max_size = 100
         self.goal = None  # q_goal.

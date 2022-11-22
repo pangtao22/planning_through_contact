@@ -12,12 +12,14 @@ from planar_hand_setup import *
 from .contact_sampler import sample_on_sphere, PlanarHandContactSampler
 
 import plotly.io as pio
+
 pio.renderers.default = "browser"  # see plotly charts in pycharm.
 
 
 #%% Quasistatic Dynamics
-q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
-                                 internal_viz=False)
+q_dynamics = QuasistaticDynamics(
+    h=h, q_model_path=q_model_path, internal_viz=False
+)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 q_sim_py = q_dynamics.q_sim_py
@@ -33,19 +35,22 @@ params = IrsMpcQuasistaticParameters()
 params.Q_dict = {
     model_u: np.array([10, 10, 10]),
     model_a_l: np.array([1e-3, 1e-3]),
-    model_a_r: np.array([1e-3, 1e-3])}
+    model_a_r: np.array([1e-3, 1e-3]),
+}
 params.Qd_dict = {model: Q_i * 100 for model, Q_i in params.Q_dict.items()}
 params.R_dict = {
     model_a_l: 5 * np.array([1, 1]),
-    model_a_r: 5 * np.array([1, 1])}
+    model_a_r: 5 * np.array([1, 1]),
+}
 
 T = int(round(2 / h))  # num of time steps to simulate forward.
 params.T = T
 
 params.u_bounds_abs = np.array(
-    [-np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
+    [-np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h]
+)
 
-params.calc_std_u = lambda u_initial, i: u_initial / (i ** 0.8)
+params.calc_std_u = lambda u_initial, i: u_initial / (i**0.8)
 params.std_u_initial = np.ones(dim_u) * 0.3
 
 params.decouple_AB = decouple_AB
@@ -70,9 +75,8 @@ for delta_q_u in tqdm(delta_q_u_samples):
     x_goal = np.array(x0)
     x_goal[q_sim_py.velocity_indices[model_u]] += delta_q_u
     irs_mpc.initialize_problem(
-        x0=x0,
-        x_trj_d=np.tile(x_goal, (T + 1, 1)),
-        u_trj_0=np.tile(u0, (T, 1)))
+        x0=x0, x_trj_d=np.tile(x_goal, (T + 1, 1)), u_trj_0=np.tile(u0, (T, 1))
+    )
 
     irs_mpc.iterate(max_iterations=10)
     result = irs_mpc.package_solution()
@@ -97,8 +101,8 @@ def save_x(x: np.ndarray, i: int):
 
 
 x_batch = q_dynamics_p.dynamics_batch(
-    x_batch=np.repeat(x0[None, :], n_samples, axis=0),
-    u_batch=u0 + du)
+    x_batch=np.repeat(x0[None, :], n_samples, axis=0), u_batch=u0 + du
+)
 
 for i in range(n_samples):
     save_x(x_batch[i], i)
@@ -108,23 +112,28 @@ reachability_trj_opt = dict(
     qu_0=q_u0,
     reachable_set_radius=radius,
     trj_data=trj_data,
-    reachable_set_data=dict(du=du,
-                            qa_l={'1_step': qa_l_samples},
-                            qa_r={'1_step': qa_r_samples},
-                            qu={'1_step': qu_samples}))
+    reachable_set_data=dict(
+        du=du,
+        qa_l={"1_step": qa_l_samples},
+        qa_r={"1_step": qa_r_samples},
+        qu={"1_step": qu_samples},
+    ),
+)
 
-with open("./data/reachability_trj_opt_02.pkl", 'wb') as f:
+with open("./data/reachability_trj_opt_02.pkl", "wb") as f:
     pickle.dump(reachability_trj_opt, f)
 
 
 #%%
-df = pd.DataFrame({
-    'd_qu_y': delta_q_u_samples[:, 0],
-    'd_qu_z': delta_q_u_samples[:, 1],
-    'd_qu_theta': delta_q_u_samples[:, 2],
-    'cost': [result['cost']['Qu_f'] for result in trj_data]})
+df = pd.DataFrame(
+    {
+        "d_qu_y": delta_q_u_samples[:, 0],
+        "d_qu_z": delta_q_u_samples[:, 1],
+        "d_qu_theta": delta_q_u_samples[:, 2],
+        "cost": [result["cost"]["Qu_f"] for result in trj_data],
+    }
+)
 
-fig = px.scatter_3d(df, x='d_qu_y', y='d_qu_z', z='d_qu_theta', color='cost')
-fig.update_scenes(camera_projection_type='orthographic',
-                  aspectmode='data')
+fig = px.scatter_3d(df, x="d_qu_y", y="d_qu_z", z="d_qu_theta", color="cost")
+fig.update_scenes(camera_projection_type="orthographic", aspectmode="data")
 fig.show()

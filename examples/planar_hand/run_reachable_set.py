@@ -14,12 +14,14 @@ from planar_hand_setup import *
 from contact_sampler import sample_on_sphere, PlanarHandContactSampler
 
 import plotly.io as pio
+
 pio.renderers.default = "browser"  # see plotly charts in pycharm.
 
 
 #%% Quasistatic Dynamics
-q_dynamics = QuasistaticDynamics(h=h, q_model_path=q_model_path,
-                                 internal_viz=False)
+q_dynamics = QuasistaticDynamics(
+    h=h, q_model_path=q_model_path, internal_viz=False
+)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 q_sim_py = q_dynamics.q_sim_py
@@ -58,8 +60,10 @@ for i in range(n_samples):
     x_next = q_dynamics.dynamics_py(x=x0, u=u0 + du[i])
     save_x(x_next, i)
     contact_results.append(
-        copy.deepcopy(q_dynamics.q_sim_py.serialize_my_contact_results(
-            f_threshold=0.1)))
+        copy.deepcopy(
+            q_dynamics.q_sim_py.serialize_my_contact_results(f_threshold=0.1)
+        )
+    )
 
 
 for i, my_contact_results in enumerate(contact_results):
@@ -69,6 +73,8 @@ for i, my_contact_results in enumerate(contact_results):
 #%%
 n_c = q_dynamics.q_sim_py.contact_results.num_point_pair_contacts()
 for i in range(n_c):
-    print(q_dynamics.q_sim_py.contact_results.point_pair_contact_info(
-        i).contact_force())
-
+    print(
+        q_dynamics.q_sim_py.contact_results.point_pair_contact_info(
+            i
+        ).contact_force()
+    )

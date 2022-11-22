@@ -14,9 +14,12 @@ class IrsRrtProjection(IrsRrt):
         super().__init__(params)
         self.solver = GurobiSolver()
 
-    def select_closest_node(self, subgoal: np.array,
-                            d_threshold: float = np.inf,
-                            print_distance: bool = False):
+    def select_closest_node(
+        self,
+        subgoal: np.array,
+        d_threshold: float = np.inf,
+        print_distance: bool = False,
+    ):
         """
         Given a subgoal, this function finds the node that is closest from the
          subgoal.
@@ -49,7 +52,8 @@ class IrsRrtProjection(IrsRrt):
 
             # 2. Sample closest node to subgoal
             parent_node = self.select_closest_node(
-                subgoal, d_threshold=self.params.distance_threshold)
+                subgoal, d_threshold=self.params.distance_threshold
+            )
             if parent_node is None:
                 continue
             # update progress only if a valid parent_node is chosen.
@@ -63,7 +67,8 @@ class IrsRrtProjection(IrsRrt):
             # 4. Attempt to rewire a candidate child node.
             if self.params.rewire:
                 parent_node, child_node, edge = self.rewire(
-                    parent_node, child_node)
+                    parent_node, child_node
+                )
 
             # 5. Register the new node to the graph.
             try:
@@ -100,14 +105,14 @@ class IrsRrtProjection(IrsRrt):
         # requires every term in the quadratic cost to be PD.
         Q = B_obj.T @ B_obj + 1e-2 * np.eye(n_a)
         b = (q - parent_node.chat)[idx_obj]
-        b_combined = - B_obj.T @ b
+        b_combined = -B_obj.T @ b
         prog.AddQuadraticCost(Q, b_combined, du)
-        prog.AddBoundingBoxConstraint(-self.params.stepsize,
-                                      self.params.stepsize,
-                                      du)
-        prog.AddBoundingBoxConstraint(q_a_lb - parent_node.ubar,
-                                      q_a_ub - parent_node.ubar,
-                                      du)
+        prog.AddBoundingBoxConstraint(
+            -self.params.stepsize, self.params.stepsize, du
+        )
+        prog.AddBoundingBoxConstraint(
+            q_a_lb - parent_node.ubar, q_a_ub - parent_node.ubar, du
+        )
 
         result = self.solver.Solve(prog)
         if not result.is_success():
@@ -126,7 +131,8 @@ class IrsRrtProjection(IrsRrt):
         du_star = np.linalg.lstsq(
             parent_node.Bhat[idx_obj, :],
             (q - parent_node.chat)[idx_obj],
-            rcond=None)[0]
+            rcond=None,
+        )[0]
 
         # Normalize least-squares solution.
         du_norm = np.linalg.norm(du_star)
@@ -144,9 +150,9 @@ class IrsRrtProjection(IrsRrt):
     def extend_towards_q(self, parent_node: Node, q: np.array):
         """
         Extend towards a specified configuration q and return a new
-        node, 
+        node,
         """
-        regrasp = (np.random.rand() < self.params.grasp_prob)
+        regrasp = np.random.rand() < self.params.grasp_prob
 
         if regrasp:
             x_next = self.contact_sampler.sample_contact(parent_node.q)

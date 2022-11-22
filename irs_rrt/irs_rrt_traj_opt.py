@@ -11,21 +11,27 @@ from .contact_sampler import ContactSampler
 
 
 class IrsRrtTrajOpt(IrsRrt):
-    def __init__(self, rrt_params: IrsRrtTrajOptParams,
-                 mpc_params: IrsMpcQuasistaticParameters,
-                 contact_sampler: ContactSampler):
+    def __init__(
+        self,
+        rrt_params: IrsRrtTrajOptParams,
+        mpc_params: IrsMpcQuasistaticParameters,
+        contact_sampler: ContactSampler,
+    ):
         super().__init__(rrt_params)
         # A QuasistaticDynamics object is constructed in IrsRrt.
         self.idx_q_u_indo_x = self.q_dynamics.get_q_u_indices_into_x()
         self.idx_q_a_into_x = self.q_dynamics.get_q_a_indices_into_x()
 
         # IrsMpc for traj-opt.
-        self.irs_mpc = IrsMpcQuasistatic(q_dynamics=self.q_dynamics,
-                                         params=mpc_params)
+        self.irs_mpc = IrsMpcQuasistatic(
+            q_dynamics=self.q_dynamics, params=mpc_params
+        )
         self.mpc_params = mpc_params
         self.reachable_set = ReachableSet(
-            q_dynamics=self.q_dynamics, params=rrt_params,
-            q_dynamics_p=self.irs_mpc.q_dynamics_parallel)
+            q_dynamics=self.q_dynamics,
+            params=rrt_params,
+            q_dynamics_p=self.irs_mpc.q_dynamics_parallel,
+        )
         self.contact_sampler = contact_sampler
 
     def extend_towards_q(self, parent_node: IrsNode, q: np.array):
@@ -35,8 +41,9 @@ class IrsRrtTrajOpt(IrsRrt):
         u_trj_0 = np.tile(q0[self.q_dynamics.get_q_a_indices_into_x()], (T, 1))
         self.irs_mpc.initialize_problem(x0=q0, x_trj_d=q_trj_d, u_trj_0=u_trj_0)
         self.irs_mpc.iterate(
-            10, cost_Qu_f_threshold=self.params.termination_tolerance)
-        #self.irs_mpc.plot_costs()
+            10, cost_Qu_f_threshold=self.params.termination_tolerance
+        )
+        # self.irs_mpc.plot_costs()
 
         child_node = IrsNode(self.irs_mpc.x_trj_best[-1])
         child_node.subgoal = q
@@ -59,8 +66,9 @@ class IrsRrtTrajOpt(IrsRrt):
 
         return child_node, edge
 
-    def select_closest_node(self, subgoal: np.array,
-                            d_threshold: float = np.inf):
+    def select_closest_node(
+        self, subgoal: np.array, d_threshold: float = np.inf
+    ):
         """
         Given a subgoal, this function finds the node that is closest from the
          subgoal.
@@ -90,7 +98,8 @@ class IrsRrtTrajOpt(IrsRrt):
 
             # 2. Sample closest node to subgoal
             parent_node = self.select_closest_node(
-                subgoal, d_threshold=self.params.distance_threshold)
+                subgoal, d_threshold=self.params.distance_threshold
+            )
             if parent_node is None:
                 continue
             # update progress only if a valid parent_node is chosen.
@@ -106,7 +115,8 @@ class IrsRrtTrajOpt(IrsRrt):
             # 4. Attempt to rewire a candidate child node.
             if self.params.rewire:
                 parent_node, child_node, edge = self.rewire(
-                    parent_node, child_node)
+                    parent_node, child_node
+                )
 
             # 5. Register the new node to the graph.
             self.add_node(child_node)
@@ -125,6 +135,7 @@ class IrsRrtTrajOpt(IrsRrt):
             models_list=self.q_dynamics.models_unactuated,
             x_dict=self.q_dynamics.get_q_dict_from_x(node.q),
             xd_dict=self.q_dynamics.get_q_dict_from_x(self.params.goal),
-            Q_dict=self.mpc_params.Qd_dict)
+            Q_dict=self.mpc_params.Qd_dict,
+        )
 
         return d < self.params.termination_tolerance

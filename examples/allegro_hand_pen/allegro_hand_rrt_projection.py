@@ -15,9 +15,9 @@ from pydrake.math import RollPitchYaw
 
 
 #%% quasistatic dynamical system
-q_dynamics = QuasistaticDynamics(h=h,
-                                    q_model_path=q_model_path,
-                                    internal_viz=True)
+q_dynamics = QuasistaticDynamics(
+    h=h, q_model_path=q_model_path, internal_viz=True
+)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 q_sim_py = q_dynamics.q_sim_py
@@ -27,21 +27,47 @@ idx_u = plant.GetModelInstanceByName(object_name)
 
 contact_sampler = AllegroHandPenContactSampler(q_dynamics)
 
-q_a0 = np.array([0.0, 0.0, 0.0,
-                    0.03501504, 0.75276565, 0.74146232, 0.83261002, 0.63256269,
-                    1.02378254, 0.64089555, 0.82444782, -0.1438725, 0.74696812,
-                    0.61908827, 0.70064279, -0.06922541, 0.78533142, 0.82942863,
-                    0.90415436])
+q_a0 = np.array(
+    [
+        0.0,
+        0.0,
+        0.0,
+        0.03501504,
+        0.75276565,
+        0.74146232,
+        0.83261002,
+        0.63256269,
+        1.02378254,
+        0.64089555,
+        0.82444782,
+        -0.1438725,
+        0.74696812,
+        0.61908827,
+        0.70064279,
+        -0.06922541,
+        0.78533142,
+        0.82942863,
+        0.90415436,
+    ]
+)
 
 q_u0 = np.array([1, 0, 0, 0, 0.0, 0.0, 0.05])
 x0 = contact_sampler.sample_contact(q_u0)
 
-num_joints = 19 # The last joint is weldjoint (welded to the world)
+num_joints = 19  # The last joint is weldjoint (welded to the world)
 joint_limits = {
-    idx_u: np.array([
-        [0.0, 0.5],[0.0, 0.5], [0.0, 1.2], [0, 0],
-        [0.0, 0.2], [0.0, 0.2], [0.0, 0.2]]),
-    idx_a: np.zeros([num_joints, 2])
+    idx_u: np.array(
+        [
+            [0.0, 0.5],
+            [0.0, 0.5],
+            [0.0, 1.2],
+            [0, 0],
+            [0.0, 0.2],
+            [0.0, 0.2],
+            [0.0, 0.2],
+        ]
+    ),
+    idx_a: np.zeros([num_joints, 2]),
 }
 
 for i in range(num_joints):
@@ -67,11 +93,13 @@ params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
 params.goal[q_dynamics.get_q_u_indices_into_x()[4]] = 0.15
 params.goal[q_dynamics.get_q_u_indices_into_x()[5]] = 0.15
 params.goal[q_dynamics.get_q_u_indices_into_x()[6]] = 0.15
-params.termination_tolerance = 0.0 # used in irs_rrt.iterate() as cost threshold.
+params.termination_tolerance = (
+    0.0  # used in irs_rrt.iterate() as cost threshold.
+)
 params.goal_as_subgoal_prob = 0.3
 params.rewire = False
 params.regularization = 1e-4
-params.distance_metric = 'local_u'
+params.distance_metric = "local_u"
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = np.ones(x0.shape) * 0.1
 params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
@@ -91,8 +119,8 @@ for i in range(5):
     print("minimum distance: ", d_batch.min())
 
     # %%
-    irs_rrt.save_tree(os.path.join(
-        data_folder,
-        "randomized",
-        f"tree_{params.max_size}_{i}.pkl"))
-
+    irs_rrt.save_tree(
+        os.path.join(
+            data_folder, "randomized", f"tree_{params.max_size}_{i}.pkl"
+        )
+    )

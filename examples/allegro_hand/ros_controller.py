@@ -5,18 +5,27 @@ import numpy as np
 
 import rospy
 from sensor_msgs.msg import JointState
-from pydrake.all import (LeafSystem, MultibodyPlant, DiagramBuilder, Parser,
-                         AddMultibodyPlantSceneGraph, MeshcatVisualizerCpp,
-                         MeshcatVisualizerParams, JointIndex, Role,
-                         StartMeshcat)
+from pydrake.all import (
+    LeafSystem,
+    MultibodyPlant,
+    DiagramBuilder,
+    Parser,
+    AddMultibodyPlantSceneGraph,
+    MeshcatVisualizerCpp,
+    MeshcatVisualizerParams,
+    JointIndex,
+    Role,
+    StartMeshcat,
+)
 from qsim.simulator import QuasistaticSimulator
 from qsim.model_paths import models_dir
 
-JOINT_COMM_TOPIC = '/allegroHand/joint_cmd'
-JOINT_STATE_TOPIC = '/allegroHand/joint_states'
+JOINT_COMM_TOPIC = "/allegroHand/joint_cmd"
+JOINT_STATE_TOPIC = "/allegroHand/joint_states"
 
 allegro_file = os.path.join(
-    models_dir, "allegro_hand_description_right_spheres.sdf")
+    models_dir, "allegro_hand_description_right_spheres.sdf"
+)
 
 
 class MeshcatJointSliders:
@@ -34,12 +43,14 @@ class MeshcatJointSliders:
     simulate any state dynamics.
     """
 
-    def __init__(self,
-                 meshcat,
-                 mvp: MeshcatVisualizerParams,
-                 lower_limit=-10.,
-                 upper_limit=10.,
-                 resolution=0.01):
+    def __init__(
+        self,
+        meshcat,
+        mvp: MeshcatVisualizerParams,
+        lower_limit=-10.0,
+        upper_limit=10.0,
+        resolution=0.01,
+    ):
         """
         Creates an meshcat slider for each joint in the plant.
         Args:
@@ -63,15 +74,14 @@ class MeshcatJointSliders:
 
         # make diagram.
         builder = DiagramBuilder()
-        plant, scene_graph = AddMultibodyPlantSceneGraph(
-            builder, time_step=0.0)
+        plant, scene_graph = AddMultibodyPlantSceneGraph(builder, time_step=0.0)
 
         Parser(plant, scene_graph).AddModelFromFile(allegro_file)
-        plant.WeldFrames(
-            plant.world_frame(), plant.GetFrameByName("hand_root"))
+        plant.WeldFrames(plant.world_frame(), plant.GetFrameByName("hand_root"))
         plant.Finalize()
         self.visualizer = MeshcatVisualizerCpp.AddToBuilder(
-            builder, scene_graph, meshcat, mvp)
+            builder, scene_graph, meshcat, mvp
+        )
         diagram = builder.Build()
 
         lower_limit = _broadcast(lower_limit, plant.num_positions())
@@ -97,16 +107,18 @@ class MeshcatJointSliders:
                 index = joint.position_start() + j
                 description = joint.name()
                 if joint.num_positions() > 1:
-                    description += '_' + joint.position_suffix(j)
+                    description += "_" + joint.position_suffix(j)
                 lower_limit[slider_num] = max(low[j], lower_limit[slider_num])
                 upper_limit[slider_num] = min(upp[j], upper_limit[slider_num])
                 value = (lower_limit[slider_num] + upper_limit[slider_num]) / 2
                 positions.append(value)
-                meshcat.AddSlider(value=value,
-                                  min=lower_limit[slider_num],
-                                  max=upper_limit[slider_num],
-                                  step=resolution[slider_num],
-                                  name=description)
+                meshcat.AddSlider(
+                    value=value,
+                    min=lower_limit[slider_num],
+                    max=upper_limit[slider_num],
+                    step=resolution[slider_num],
+                    name=description,
+                )
                 self._sliders[index] = description
                 slider_num += 1
 
@@ -114,10 +126,8 @@ class MeshcatJointSliders:
         self.visualizer.Publish(self.vis_context)
 
         # ROS
-        rospy.Subscriber(
-            JOINT_STATE_TOPIC, JointState, self.state_callback)
-        self.cmd_pub = rospy.Publisher(
-            'abc', JointState, queue_size=1)
+        rospy.Subscriber(JOINT_STATE_TOPIC, JointState, self.state_callback)
+        self.cmd_pub = rospy.Publisher("abc", JointState, queue_size=1)
         self.allegro_state = JointState()
         self.allegro_cmd = JointState()
 
@@ -135,8 +145,9 @@ class MeshcatJointSliders:
         #     if callback:
         #         callback(plant_context)
         #     self.visualizer.Publish(vis_context)
-        self._plant.SetPositions(self.plant_context,
-                                 self.allegro_state.position)
+        self._plant.SetPositions(
+            self.plant_context, self.allegro_state.position
+        )
         print(self.allegro_state.position)
         self.visualizer.Publish(self.vis_context)
         self.cmd_pub.publish(self.allegro_state)
@@ -148,7 +159,7 @@ if __name__ == "__main__":
     mvp.role = Role.kIllustration
     sliders = MeshcatJointSliders(meshcat, mvp)
 
-    rospy.init_node('hand_sliders')
+    rospy.init_node("hand_sliders")
     rospy.Timer(rospy.Duration(nsecs=33 * 1000000), sliders.run)
 
     rospy.spin()

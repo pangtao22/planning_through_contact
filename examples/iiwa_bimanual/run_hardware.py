@@ -22,10 +22,12 @@ q_sim = q_parser.make_simulator_cpp(has_objects=True)
 
 h_ref_knot = 1.0
 q_knots_ref, u_knots_ref, t_knots = load_ref_trajectories(
-    file_path="hand_trj.pkl", h_ref_knot=h_ref_knot, q_sim=q_sim)
+    file_path="hand_trj.pkl", h_ref_knot=h_ref_knot, q_sim=q_sim
+)
 
 q_msg = wait_for_msg(
-    kQEstimatedChannelName, lcmt_scope, lambda msg: msg.size == 21)
+    kQEstimatedChannelName, lcmt_scope, lambda msg: msg.size == 21
+)
 
 t_transition = 10.0
 t_knots += t_transition
@@ -43,8 +45,7 @@ R_diag = np.zeros(14)
 R_diag[:7] = [1, 1, 0.5, 0.5, 0.5, 0.5, 0.2]
 R_diag[7:] = R_diag[:7]
 controller_params_3d.R = np.diag(5 * R_diag)
-controller = Controller(
-    q_sim=q_sim, controller_params=controller_params_3d)
+controller = Controller(q_sim=q_sim, controller_params=controller_params_3d)
 
 
 # LCM callback.
@@ -67,8 +68,7 @@ def calc_iiwa_command(channel, data):
         u_goal = u_ref_trj.value(t).squeeze()
         q = np.array(q_msg.value)
         q_nominal, u_nominal = controller.find_closest_on_nominal_path(q)
-        u = controller.calc_u(
-            q_nominal, u_nominal, q)
+        u = controller.calc_u(q_nominal, u_nominal, q)
         # u = u_nominal
 
     cmd_msg = lcmt_iiwa_command()

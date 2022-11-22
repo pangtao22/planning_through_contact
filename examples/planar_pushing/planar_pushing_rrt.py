@@ -12,10 +12,8 @@ from qsim.simulator import QuasistaticSimulator, GradientMode
 from qsim_cpp import QuasistaticSimulatorCpp
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_mpc.quasistatic_dynamics_parallel import (
-    QuasistaticDynamicsParallel)
-from irs_mpc.irs_mpc_quasistatic import (
-    IrsMpcQuasistatic)
+from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
+from irs_mpc.irs_mpc_quasistatic import IrsMpcQuasistatic
 from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
 
 from irs_rrt.irs_rrt import IrsRrt, IrsNode, IrsRrtParams
@@ -29,9 +27,9 @@ duration = T * h
 
 
 # quasistatic dynamical system
-q_dynamics = QuasistaticDynamics(h=h,
-                                 q_model_path=q_model_path,
-                                 internal_viz=True)
+q_dynamics = QuasistaticDynamics(
+    h=h, q_model_path=q_model_path, internal_viz=True
+)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 q_sim_py = q_dynamics.q_sim_py
@@ -45,8 +43,7 @@ nq_a = 2
 qa_knots = np.array([0.0, -0.1])
 q_u0 = np.array([0.0, 0.5, 0])
 
-q0_dict = {idx_u: q_u0,
-           idx_a: qa_knots}
+q0_dict = {idx_u: q_u0, idx_a: qa_knots}
 
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 

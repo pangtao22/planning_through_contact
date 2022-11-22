@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from pydrake.all import (RigidTransform)
+from pydrake.all import RigidTransform
 from pydrake.math import RollPitchYaw
 from pydrake.systems.meshcat_visualizer import AddTriad
 from qsim.parser import QuasistaticParser
@@ -12,16 +12,17 @@ from irs_rrt.rrt_params import IrsRrtProjectionParams
 
 from iiwa_bimanual_setup import *
 from contact_sampler_iiwa_bimanual_planar2 import (
-    IiwaBimanualPlanarContactSampler)
+    IiwaBimanualPlanarContactSampler,
+)
 
 # %% sim setup
 
 h = 0.01
 
 q_parser = QuasistaticParser(q_model_path_planar)
-q_dynamics = QuasistaticDynamics(h=h,
-                                 q_model_path=q_model_path_planar,
-                                 internal_viz=True)
+q_dynamics = QuasistaticDynamics(
+    h=h, q_model_path=q_model_path_planar, internal_viz=True
+)
 q_sim = q_parser.make_simulator_cpp()
 plant = q_sim.get_plant()
 
@@ -46,10 +47,8 @@ x0 = q_sim.get_q_vec_from_dict(q0_dict)
 # input()
 
 joint_limits = {
-    idx_u: np.array([
-        [0.25, 0.75],
-        [-0.3, 0.3],
-        [-np.pi - 0.1, 0.1]])}
+    idx_u: np.array([[0.25, 0.75], [-0.3, 0.3], [-np.pi - 0.1, 0.1]])
+}
 
 q_u_goal = np.array([0.5, 0, -np.pi])
 
@@ -71,16 +70,16 @@ params.regularization = 1e-3
 params.std_u = std_u
 params.stepsize = 0.14
 params.rewire = False
-params.distance_metric = 'local_u'
+params.distance_metric = "local_u"
 params.grasp_prob = 0.3
 params.h = 0.05
 
 prob_rrt = IrsRrtProjection(params, contact_sampler)
 q_sim_py = prob_rrt.q_dynamics.q_sim_py
 
-draw_goal_and_object_triads_2d(vis=q_sim_py.viz.vis,
-                               plant=q_sim.get_plant(),
-                               q_u_goal=q_u_goal)
+draw_goal_and_object_triads_2d(
+    vis=q_sim_py.viz.vis, plant=q_sim.get_plant(), q_u_goal=q_u_goal
+)
 #
 prob_rrt.iterate()
 prob_rrt.save_tree("bimanual_planar.pkl")

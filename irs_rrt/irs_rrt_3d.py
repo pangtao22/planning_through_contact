@@ -29,18 +29,20 @@ class IrsRrt3D(IrsRrt):
     def extend_towards_q(self, parent_node: Node, q: np.array):
         """
         Extend towards a specified configuration q and return a new
-        node, 
+        node,
         """
         # Compute least-squares solution.
         du = np.linalg.lstsq(
-            parent_node.Bhat, q - parent_node.chat, rcond=None)[0]
+            parent_node.Bhat, q - parent_node.chat, rcond=None
+        )[0]
 
         # Normalize least-squares solution.
         du = du / np.linalg.norm(du)
         ustar = parent_node.ubar + self.params.stepsize * du
         xnext = self.q_dynamics.dynamics(parent_node.q, ustar)
         cost = self.reachable_set.calc_node_metric(
-            parent_node.covinv, parent_node.mu, xnext)
+            parent_node.covinv, parent_node.mu, xnext
+        )
 
         child_node = IrsNode(xnext)
 
@@ -58,40 +60,49 @@ class IrsRrt3D(IrsRrt):
         cost = error @ self.metric_mat @ error
 
         parent_quat = R.from_quat(
-            self.convert_quat_wxyz_to_xyzw(parent_q[self.quat_ind]))
+            self.convert_quat_wxyz_to_xyzw(parent_q[self.quat_ind])
+        )
         child_quat = R.from_quat(
-            self.convert_quat_wxyz_to_xyzw(child_q[self.quat_ind]))
+            self.convert_quat_wxyz_to_xyzw(child_q[self.quat_ind])
+        )
         quat_mul_diff = (child_quat * parent_quat.inv()).as_quat()
         cost += self.params.quat_metric * np.linalg.norm(quat_mul_diff[:-1])
         return cost
 
-    def calc_distance_batch_global(self, q_query: np.ndarray, n_nodes: int,
-                                   is_q_u_only: bool):
+    def calc_distance_batch_global(
+        self, q_query: np.ndarray, n_nodes: int, is_q_u_only: bool
+    ):
 
         q_batch = self.get_q_matrix_up_to(n_nodes)
 
         if is_q_u_only:
-            error_batch = (q_query[self.q_u_indices_into_x]
-                           - q_batch[:, self.q_u_indices_into_x])
+            error_batch = (
+                q_query[self.q_u_indices_into_x]
+                - q_batch[:, self.q_u_indices_into_x]
+            )
             metric_mat = np.diag(
-                self.params.global_metric[self.q_u_indices_into_x])
+                self.params.global_metric[self.q_u_indices_into_x]
+            )
         else:
             error_batch = q_query - q_batch
             metric_mat = np.diag(self.params.global_metric)
 
-        intsum = np.einsum('Bi,ij->Bj', error_batch, metric_mat)
-        metric_batch = np.einsum('Bi,Bi->B', intsum, error_batch)
+        intsum = np.einsum("Bi,ij->Bj", error_batch, metric_mat)
+        metric_batch = np.einsum("Bi,Bi->B", intsum, error_batch)
 
         # scipy accepts (x, y, z, w)
         q_query_quat = R.from_quat(
-            self.convert_quat_wxyz_to_xyzw(q_query[self.quat_ind]))
+            self.convert_quat_wxyz_to_xyzw(q_query[self.quat_ind])
+        )
         quat_batch = R.from_quat(
-            self.convert_quat_wxyz_to_xyzw(q_batch[:, self.quat_ind],
-                                           batch_mode=True))
-        quat_mul_diff = (
-                quat_batch * q_query_quat.inv()).as_quat()
+            self.convert_quat_wxyz_to_xyzw(
+                q_batch[:, self.quat_ind], batch_mode=True
+            )
+        )
+        quat_mul_diff = (quat_batch * q_query_quat.inv()).as_quat()
         metric_batch += self.params.quat_metric * np.linalg.norm(
-            quat_mul_diff[:, :-1], axis=1)
+            quat_mul_diff[:, :-1], axis=1
+        )
 
         return metric_batch
 

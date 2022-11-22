@@ -4,19 +4,34 @@ import os
 import pathlib
 import numpy as np
 
-from pydrake.all import (LeafSystem, Meshcat, DrakeLcm, RigidTransform,
-                         BasicVector, StartMeshcat, DiagramBuilder,
-                         RollPitchYaw, RotationMatrix,
-                         Simulator, LcmInterfaceSystem, LcmSubscriberSystem,
-                         LcmScopeSystem, MeshcatVisualizerCpp, Quaternion)
+from pydrake.all import (
+    LeafSystem,
+    Meshcat,
+    DrakeLcm,
+    RigidTransform,
+    BasicVector,
+    StartMeshcat,
+    DiagramBuilder,
+    RollPitchYaw,
+    RotationMatrix,
+    Simulator,
+    LcmInterfaceSystem,
+    LcmSubscriberSystem,
+    LcmScopeSystem,
+    MeshcatVisualizerCpp,
+    Quaternion,
+)
 
 from drake import lcmt_scope, lcmt_robot_state
 
 from qsim.parser import QuasistaticParser
 
 from control.systems_utils import wait_for_msg, add_triad
-from control.drake_sim import (add_mbp_scene_graph, load_ref_trajectories,
-                               calc_u_extended_and_t_knots)
+from control.drake_sim import (
+    add_mbp_scene_graph,
+    load_ref_trajectories,
+    calc_u_extended_and_t_knots,
+)
 
 from iiwa_bimanual_setup import q_model_path_planar, q_model_path_cylinder
 from state_estimator import kQEstimatedChannelName
@@ -37,7 +52,8 @@ meshcat = StartMeshcat()
 # Build diagram with MeshcatVisualizer
 builder = DiagramBuilder()
 plant, scene_graph, robot_models, object_models = add_mbp_scene_graph(
-    parser, builder)
+    parser, builder
+)
 visualizer = MeshcatVisualizerCpp.AddToBuilder(builder, scene_graph, meshcat)
 diagram = builder.Build()
 
@@ -46,14 +62,22 @@ context = diagram.CreateDefaultContext()
 context_vis = visualizer.GetMyContextFromRoot(context)
 context_plant = plant.GetMyContextFromRoot(context)
 
-add_triad(meshcat, name='frame', prefix="goal", length=0.35, radius=0.03,
-          opacity=0.5)
+add_triad(
+    meshcat, name="frame", prefix="goal", length=0.35, radius=0.03, opacity=0.5
+)
 
-add_triad(meshcat, name='frame', prefix="start", length=0.6, radius=0.005,
-          opacity=0.7)
+add_triad(
+    meshcat, name="frame", prefix="start", length=0.6, radius=0.005, opacity=0.7
+)
 
-add_triad(meshcat, name='frame', prefix='plant/box/box',
-          length=0.4, radius=0.01, opacity=1)
+add_triad(
+    meshcat,
+    name="frame",
+    prefix="plant/box/box",
+    length=0.4,
+    radius=0.01,
+    opacity=1,
+)
 
 # 2D rendering camera
 R_WC = RotationMatrix(np.array([[0, -1, 0], [0, 0, 1], [-1, 0, 0]]).T)
@@ -68,7 +92,7 @@ def draw_q(channel, data):
     visualizer.Publish(context_vis)
     q_u = q[q_sim.get_q_u_indices_into_q()]
     X_WB = RigidTransform(Quaternion(q_u[:4]), q_u[4:])
-    meshcat.SetTransform('plant/box/box/frame', X_WB)
+    meshcat.SetTransform("plant/box/box/frame", X_WB)
     time.sleep(0.03)
 
 
@@ -105,7 +129,3 @@ try:
 
 except KeyboardInterrupt:
     pass
-
-
-
-

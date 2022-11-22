@@ -6,10 +6,13 @@ import numpy as np
 import zmq
 from qsim.simulator import QuasistaticSimulator, ForwardDynamicsMode
 from qsim_cpp import GradientMode
-from zmq_parallel_cmp.array_io import (send_x_and_u, recv_bundled_AB)
+from zmq_parallel_cmp.array_io import send_x_and_u, recv_bundled_AB
 
-from .irs_mpc_params import (BundleMode, ParallelizationMode,
-                             IrsMpcQuasistaticParameters)
+from .irs_mpc_params import (
+    BundleMode,
+    ParallelizationMode,
+    IrsMpcQuasistaticParameters,
+)
 from .quasistatic_dynamics import QuasistaticDynamics
 from .zmq_dynamics_worker import kTaskVentSocket, kTaskSinkSocket
 
@@ -29,9 +32,9 @@ class QuasistaticDynamicsParallel:
      dynamics is needed.
     """
 
-    def __init__(self,
-                 q_dynamics: QuasistaticDynamics,
-                 use_zmq_workers: bool = False):
+    def __init__(
+        self, q_dynamics: QuasistaticDynamics, use_zmq_workers: bool = False
+    ):
         self.q_dynamics = q_dynamics
         self.q_sim_batch = q_dynamics.parser.make_batch_simulator()
         self.dim_x = q_dynamics.dim_x
@@ -50,8 +53,10 @@ class QuasistaticDynamicsParallel:
             self.receiver = context.socket(zmq.PULL)
             self.receiver.bind(f"tcp://*:{kTaskSinkSocket}")
 
-            print("Using ZMQ workers. This will hang if worker processes are "
-                  "not running")
+            print(
+                "Using ZMQ workers. This will hang if worker processes are "
+                "not running"
+            )
 
     def dynamics_batch_serial(self, x_batch: np.ndarray, u_batch: np.ndarray):
         """
@@ -73,11 +78,13 @@ class QuasistaticDynamicsParallel:
     def dynamics_batch(self, x_batch: np.ndarray, u_batch: np.ndarray):
         self.q_sim_params.gradient_mode = GradientMode.kNone
         x_next, _, _ = self.q_sim_batch.calc_dynamics_parallel(
-            x_batch, u_batch, self.q_sim_params)
+            x_batch, u_batch, self.q_sim_params
+        )
         return x_next
 
     def dynamics_rollout_batch(
-            self, x0_batch: np.ndarray, u_trj_batch: np.ndarray):
+        self, x0_batch: np.ndarray, u_trj_batch: np.ndarray
+    ):
         """
         Computes rollout of trajectories starting from x0_batch to every
         u_trj_batch.
@@ -96,7 +103,8 @@ class QuasistaticDynamicsParallel:
 
         for t in range(T):
             x_trj_batch[:, t + 1, :] = self.dynamics_batch(
-                x_trj_batch[:, t, :], u_trj_batch[:, t, :])
+                x_trj_batch[:, t, :], u_trj_batch[:, t, :]
+            )
 
         return x_trj_batch
 
@@ -110,20 +118,29 @@ class QuasistaticDynamicsParallel:
         xnext_batch = self.dynamics_batch(x_batch, u_batch)
         return np.mean(xnext_batch, axis=0)
 
-    def dynamics_bundled(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
-                         n_samples: int,
-                         std_u: Union[np.ndarray, float]):
+    def dynamics_bundled(
+        self,
+        x_nominal: np.ndarray,
+        u_nominal: np.ndarray,
+        n_samples: int,
+        std_u: Union[np.ndarray, float],
+    ):
         """
         Compute bundled dynamics using dynamics_batch function.
         """
         u_batch = np.random.normal(
-            u_nominal, std_u, size=[n_samples, self.dim_u])
+            u_nominal, std_u, size=[n_samples, self.dim_u]
+        )
         return self.dynamics_bundled_from_samples(x_nominal, u_batch)
 
-    def calc_bundled_ABc(self, x_trj: np.ndarray, u_trj: np.ndarray,
-                         irs_mpc_params: IrsMpcQuasistaticParameters,
-                         std_u: Union[np.ndarray, None] = None,
-                         log_barrier_weight: Union[float, None] = None):
+    def calc_bundled_ABc(
+        self,
+        x_trj: np.ndarray,
+        u_trj: np.ndarray,
+        irs_mpc_params: IrsMpcQuasistaticParameters,
+        std_u: Union[np.ndarray, None] = None,
+        log_barrier_weight: Union[float, None] = None,
+    ):
         """
         Get time varying linearized dynamics given a nominal trajectory.
         - args:
@@ -141,44 +158,50 @@ class QuasistaticDynamicsParallel:
 
         # dispatch based on parallelization mode.
         if parallel_mode == ParallelizationMode.kNone:
-            At, Bt = self.calc_bundled_AB_serial(x_trj, u_trj, std_u,
-                                                 n_samples, bundle_mode)
+            At, Bt = self.calc_bundled_AB_serial(
+                x_trj, u_trj, std_u, n_samples, bundle_mode
+            )
         elif parallel_mode == ParallelizationMode.kZmq:
-            At, Bt = self.calc_bundled_AB_zmq(x_trj, u_trj, std_u,
-                                              n_samples, bundle_mode)
-        elif (parallel_mode == ParallelizationMode.kCppBundledB or
-              parallel_mode == ParallelizationMode.kCppBundledBDirect):
-            '''
+            At, Bt = self.calc_bundled_AB_zmq(
+                x_trj, u_trj, std_u, n_samples, bundle_mode
+            )
+        elif (
+            parallel_mode == ParallelizationMode.kCppBundledB
+            or parallel_mode == ParallelizationMode.kCppBundledBDirect
+        ):
+            """
             The CPP API only supports scalar standard deviation and
             computing bundled B from averaging gradients, Zero-order
             methods such as least-squared is not supported.
-            '''
+            """
             if bundle_mode == BundleMode.kFirstRandomized:
-                is_direct = (parallel_mode
-                             == ParallelizationMode.kCppBundledBDirect)
+                is_direct = (
+                    parallel_mode == ParallelizationMode.kCppBundledBDirect
+                )
                 At, Bt, = self.calc_bundled_AB_cpp(
-                    x_trj, u_trj, std_u, n_samples,
-                    is_direct=is_direct)
+                    x_trj, u_trj, std_u, n_samples, is_direct=is_direct
+                )
             elif bundle_mode == BundleMode.kFirstAnalytic:
                 At, Bt = self.calc_bundled_AB_cpp_analytic(
-                    x_trj, u_trj, log_barrier_weight)
+                    x_trj, u_trj, log_barrier_weight
+                )
             else:
                 raise NotImplementedError
 
         elif parallel_mode == ParallelizationMode.kCppDebug:
-            '''
-            This mode exists because I'd like to compare the difference 
-             between sampling in python and sampling in C++. The conclusion 
-             so far is that there doesn't seem to be much difference. 
-            '''
+            """
+            This mode exists because I'd like to compare the difference
+             between sampling in python and sampling in C++. The conclusion
+             so far is that there doesn't seem to be much difference.
+            """
             assert bundle_mode == BundleMode.kFirstRandomized
-            du_samples = np.random.normal(0, std_u,
-                                          [T, n_samples, self.dim_u])
+            du_samples = np.random.normal(0, std_u, [T, n_samples, self.dim_u])
             At = np.zeros((T, self.dim_x, self.dim_x))
             Bt = self.calc_bundled_B_cpp_debug(x_trj, u_trj, du_samples)
         else:
             raise NotImplementedError(
-                f"Parallel mode {parallel_mode} has not been implemented.")
+                f"Parallel mode {parallel_mode} has not been implemented."
+            )
 
         # Post processing.
         if irs_mpc_params.decouple_AB:
@@ -188,9 +211,11 @@ class QuasistaticDynamicsParallel:
         ct = np.zeros((T, self.dim_x))
         for t in range(T):
             x_next_nominal = self.q_dynamics.dynamics(
-                x_trj[t], u_trj[t],
+                x_trj[t],
+                u_trj[t],
                 forward_mode=self.q_sim_params.forward_mode,
-                gradient_mode=GradientMode.kNone)
+                gradient_mode=GradientMode.kNone,
+            )
             ct[t] = x_next_nominal - At[t].dot(x_trj[t]) - Bt[t].dot(u_trj[t])
 
         return At, Bt, ct
@@ -213,26 +238,40 @@ class QuasistaticDynamicsParallel:
 
         return At, Bt
 
-    def calc_bundled_AB_serial(self, x_trj: np.ndarray, u_trj: np.ndarray,
-                               std_u: np.ndarray, n_samples: int,
-                               bundle_mode: BundleMode):
+    def calc_bundled_AB_serial(
+        self,
+        x_trj: np.ndarray,
+        u_trj: np.ndarray,
+        std_u: np.ndarray,
+        n_samples: int,
+        bundle_mode: BundleMode,
+    ):
         T = len(u_trj)
         At, Bt = self.initialize_AB(T)
 
         # Compute ABhat.
         ABhat_list = self.q_dynamics.calc_bundled_AB(
-            x_trj[:-1, :], u_trj, n_samples=n_samples, std_u=std_u,
-            bundle_mode=bundle_mode)
+            x_trj[:-1, :],
+            u_trj,
+            n_samples=n_samples,
+            std_u=std_u,
+            bundle_mode=bundle_mode,
+        )
 
         for t in range(T):
-            At[t] = ABhat_list[t, :, :self.dim_x]
-            Bt[t] = ABhat_list[t, :, self.dim_x:]
+            At[t] = ABhat_list[t, :, : self.dim_x]
+            Bt[t] = ABhat_list[t, :, self.dim_x :]
 
         return At, Bt
 
-    def calc_bundled_AB_zmq(self, x_trj: np.ndarray, u_trj: np.ndarray,
-                            std_u: np.ndarray, n_samples: int,
-                            bundle_mode: BundleMode):
+    def calc_bundled_AB_zmq(
+        self,
+        x_trj: np.ndarray,
+        u_trj: np.ndarray,
+        std_u: np.ndarray,
+        n_samples: int,
+        bundle_mode: BundleMode,
+    ):
         """
         Get time varying linearized dynamics given a nominal trajectory,
          using worker processes launched separately.
@@ -246,26 +285,33 @@ class QuasistaticDynamicsParallel:
         # send tasks.
         for t in range(T):
             x_u = np.zeros(self.dim_x + self.dim_u)
-            x_u[:self.dim_x] = x_trj[t]
-            x_u[self.dim_x:] = u_trj[t]
+            x_u[: self.dim_x] = x_trj[t]
+            x_u[self.dim_x :] = u_trj[t]
             send_x_and_u(
                 socket=self.sender,
                 x_u=x_u,
                 t=t,
-                n_samples=n_samples, std=std_u.tolist(),
-                bundle_mode=bundle_mode)
+                n_samples=n_samples,
+                std=std_u.tolist(),
+                bundle_mode=bundle_mode,
+            )
 
         # receive tasks.
         for _ in range(T):
             ABhat, t = recv_bundled_AB(self.receiver)
-            At[t] = ABhat[:, :, :self.dim_x]
-            Bt[t] = ABhat[:, :, self.dim_x:]
+            At[t] = ABhat[:, :, : self.dim_x]
+            Bt[t] = ABhat[:, :, self.dim_x :]
 
         return At, Bt
 
-    def calc_bundled_AB_cpp(self, x_trj: np.ndarray, u_trj: np.ndarray,
-                            std_u: np.ndarray, n_samples: int,
-                            is_direct: bool):
+    def calc_bundled_AB_cpp(
+        self,
+        x_trj: np.ndarray,
+        u_trj: np.ndarray,
+        std_u: np.ndarray,
+        n_samples: int,
+        is_direct: bool,
+    ):
         """
         Dispatches to BatchQuasistaticSimulator::CalcBundledBTrj or
             BatchQuasistaticSimulator::CalcBundledBTrjDirect, depending on
@@ -276,29 +322,35 @@ class QuasistaticDynamicsParallel:
         At, Bt = self.initialize_AB(T)
         if is_direct:
             Bt[:] = self.q_sim_batch.calc_bundled_B_trj_direct(
-                x_trj, u_trj, std_u, self.q_sim_params, n_samples, None)
+                x_trj, u_trj, std_u, self.q_sim_params, n_samples, None
+            )
         else:
             sim_params = copy.deepcopy(self.q_sim_params)
             sim_params.gradient_mode = GradientMode.kBOnly
-            (A_trj, B_trj, c_trj
-             ) = self.q_sim_batch.calc_bundled_ABc_trj(
-                x_trj, u_trj, std_u, sim_params, n_samples, None)
+            (A_trj, B_trj, c_trj) = self.q_sim_batch.calc_bundled_ABc_trj(
+                x_trj, u_trj, std_u, sim_params, n_samples, None
+            )
             Bt[:] = B_trj
 
         return At, Bt
 
     def calc_bundled_AB_cpp_analytic(
-            self, x_trj: np.ndarray, u_trj: np.ndarray,
-            log_barrier_weight: float):
+        self, x_trj: np.ndarray, u_trj: np.ndarray, log_barrier_weight: float
+    ):
         T = len(u_trj)
         At, Bt = self.initialize_AB(T)
         q_sim_params = QuasistaticSimulator.copy_sim_params(self.q_sim_params)
         q_sim_params.forward_mode = ForwardDynamicsMode.kLogPyramidMp
         q_sim_params.gradient_mode = GradientMode.kBOnly
         q_sim_params.log_barrier_weight = log_barrier_weight
-        (x_next_batch, A_Batch, B_batch, is_valid
-         ) = self.q_sim_batch.calc_dynamics_parallel(
-            x_trj[:T], u_trj, q_sim_params)
+        (
+            x_next_batch,
+            A_Batch,
+            B_batch,
+            is_valid,
+        ) = self.q_sim_batch.calc_dynamics_parallel(
+            x_trj[:T], u_trj, q_sim_params
+        )
 
         if not all(is_valid):
             raise RuntimeError("analytic bundling failed.")
@@ -306,8 +358,9 @@ class QuasistaticDynamicsParallel:
 
         return At, Bt
 
-    def calc_bundled_B_serial_debug(self, x_trj: np.ndarray, u_trj: np.ndarray,
-                                    du_samples: np.ndarray):
+    def calc_bundled_B_serial_debug(
+        self, x_trj: np.ndarray, u_trj: np.ndarray, du_samples: np.ndarray
+    ):
         """
         du_samples: shape (T, n_samples, dim_u)
         """
@@ -323,7 +376,8 @@ class QuasistaticDynamicsParallel:
                     self.q_dynamics.dynamics(
                         x_trj[t],
                         u_trj[t] + du_samples[t, i],
-                        gradient_mode=GradientMode.kBOnly)
+                        gradient_mode=GradientMode.kBOnly,
+                    )
                     Bt[t] += self.q_dynamics.q_sim.get_Dq_nextDqa_cmd()
                     n_good_samples += 1
                 except RuntimeError as err:
@@ -333,8 +387,9 @@ class QuasistaticDynamicsParallel:
 
         return Bt
 
-    def calc_bundled_B_cpp_debug(self, x_trj: np.ndarray, u_trj: np.ndarray,
-                                 du_samples: np.ndarray):
+    def calc_bundled_B_cpp_debug(
+        self, x_trj: np.ndarray, u_trj: np.ndarray, du_samples: np.ndarray
+    ):
         """
         du_samples: shape (T, n_samples, dim_u)
         """
@@ -350,8 +405,11 @@ class QuasistaticDynamicsParallel:
         u_batch_m = u_batch.view().reshape([T * n_samples, self.dim_u])
         sp = self.q_dynamics.q_sim.get_sim_params()
         sp.gradient_mode = GradientMode.kBOnly
-        (x_next_batch_m, B_batch, is_valid_batch
-         ) = self.q_sim_batch.calc_dynamics_parallel(x_batch_m, u_batch_m, sp)
+        (
+            x_next_batch_m,
+            B_batch,
+            is_valid_batch,
+        ) = self.q_sim_batch.calc_dynamics_parallel(x_batch_m, u_batch_m, sp)
 
         # Shape of B_batch: (T * self.n_samples, self.dim_x, self.dim_u).
         B_batch = np.array(B_batch)

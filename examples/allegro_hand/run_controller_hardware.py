@@ -1,18 +1,33 @@
 import pickle
 
 import numpy as np
-from examples.allegro_hand.sliders_active import (wait_for_status_msg,
-    wait_for_msg, kAllegroCommandChannel, kAllegroStatusChannel)
+from examples.allegro_hand.sliders_active import (
+    wait_for_status_msg,
+    wait_for_msg,
+    kAllegroCommandChannel,
+    kAllegroStatusChannel,
+)
 
-from pydrake.all import (DiagramBuilder, LeafSystem, PortDataType,
-                         LcmSubscriberSystem, LcmPublisherSystem, DrakeLcm,
-                         Simulator, LcmInterfaceSystem, AbstractValue)
+from pydrake.all import (
+    DiagramBuilder,
+    LeafSystem,
+    PortDataType,
+    LcmSubscriberSystem,
+    LcmPublisherSystem,
+    DrakeLcm,
+    Simulator,
+    LcmInterfaceSystem,
+    AbstractValue,
+)
 from drake import lcmt_allegro_status, lcmt_allegro_command, lcmt_scope
 from qsim.parser import QuasistaticParser
 from qsim_cpp import QuasistaticSimulatorCpp
 
-from allegro_hand_setup import (robot_name, q_model_path_hardware,
-                                controller_params)
+from allegro_hand_setup import (
+    robot_name,
+    q_model_path_hardware,
+    controller_params,
+)
 from control.drake_sim import add_controller_system_to_diagram
 
 from sliders_passive import kQEstimatedChannelName
@@ -28,15 +43,18 @@ class CommandVec2LcmSystem(LeafSystem):
         self.q_cmd_input_port = self.DeclareInputPort(
             "q_a_cmd",
             PortDataType.kVectorValued,
-            self.q_sim.num_actuated_dofs())
+            self.q_sim.num_actuated_dofs(),
+        )
 
         self.status_input_port = self.DeclareAbstractInputPort(
-            "allegro_status",
-            AbstractValue.Make(lcmt_allegro_status()))
+            "allegro_status", AbstractValue.Make(lcmt_allegro_status())
+        )
 
         self.cmd_output_port = self.DeclareAbstractOutputPort(
-            "allegro_cmd", lambda: AbstractValue.Make(lcmt_allegro_command()),
-            self.copy_allegro_cmd_out)
+            "allegro_cmd",
+            lambda: AbstractValue.Make(lcmt_allegro_command()),
+            self.copy_allegro_cmd_out,
+        )
 
     def copy_allegro_cmd_out(self, context, output):
         msg = output.get_value()
@@ -45,6 +63,7 @@ class CommandVec2LcmSystem(LeafSystem):
         msg.utime = allegro_staus_msg.utime
         msg.num_joints = len(q_a_cmd)
         msg.joint_position = q_a_cmd
+
 
 #%%
 q_parser = QuasistaticParser(q_model_path_hardware)
@@ -58,7 +77,8 @@ upper_limits = joint_limits[allegro_model]["upper"]
 # 1. Read current hand configuration.
 allegro_status_msg = wait_for_status_msg()
 q_a0 = np.clip(
-    allegro_status_msg.joint_position_measured, lower_limits, upper_limits)
+    allegro_status_msg.joint_position_measured, lower_limits, upper_limits
+)
 
 #%%
 h = 1.0
@@ -93,7 +113,8 @@ ctrller_allegro, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
     q_knots_ref=q_knots_ref,
     controller_params=controller_params,
     q_sim=q_sim,
-    closed_loop=True)
+    closed_loop=True,
+)
 
 builder.AddSystem(LcmInterfaceSystem(drake_lcm))
 
@@ -102,22 +123,20 @@ allegro_status_sub = builder.AddSystem(
     LcmSubscriberSystem.Make(
         channel=kAllegroStatusChannel,
         lcm_type=lcmt_allegro_status,
-        lcm=drake_lcm))
+        lcm=drake_lcm,
+    )
+)
 
 q_sub = builder.AddSystem(
     LcmSubscriberSystem.Make(
-        channel=kQEstimatedChannelName,
-        lcm_type=lcmt_scope,
-        lcm=drake_lcm))
+        channel=kQEstimatedChannelName, lcm_type=lcmt_scope, lcm=drake_lcm
+    )
+)
 
 q_receiver = QReceiver(n_q=q_sim.get_plant().num_positions())
 builder.AddSystem(q_receiver)
-builder.Connect(
-    q_sub.get_output_port(0),
-    q_receiver.input_port)
-builder.Connect(
-    q_receiver.output_port,
-    ctrller_allegro.q_input_port)
+builder.Connect(q_sub.get_output_port(0), q_receiver.input_port)
+builder.Connect(q_receiver.output_port, ctrller_allegro.q_input_port)
 
 # LCM command pub.
 allegro_lcm_pub = builder.AddSystem(
@@ -125,21 +144,22 @@ allegro_lcm_pub = builder.AddSystem(
         channel=kAllegroCommandChannel,
         lcm_type=lcmt_allegro_command,
         lcm=drake_lcm,
-        publish_period=h_ctrl))
+        publish_period=h_ctrl,
+    )
+)
 
 cmd_v2l = CommandVec2LcmSystem(q_sim)
 builder.AddSystem(cmd_v2l)
 builder.Connect(
     ctrller_allegro.position_cmd_output_ports[allegro_model],
-    cmd_v2l.q_cmd_input_port)
+    cmd_v2l.q_cmd_input_port,
+)
 
 builder.Connect(
-    allegro_status_sub.get_output_port(0),
-    cmd_v2l.status_input_port)
+    allegro_status_sub.get_output_port(0), cmd_v2l.status_input_port
+)
 
-builder.Connect(
-    cmd_v2l.cmd_output_port,
-    allegro_lcm_pub.get_input_port(0))
+builder.Connect(cmd_v2l.cmd_output_port, allegro_lcm_pub.get_input_port(0))
 
 diagram = builder.Build()
 render_system_with_graphviz(diagram, "controller_hardware.gz")
@@ -157,8 +177,9 @@ context_allegro_sub.SetAbstractState(0, allegro_status_msg)
 # context_ctrller = ctrller_allegro.GetMyContextFromRoot(context)
 # ctrller_allegro.q_input_port.FixValue(context_ctrller, q0)
 
-q_scope_msg = wait_for_msg(kQEstimatedChannelName, lcmt_scope,
-                           lambda msg: msg.size > 0)
+q_scope_msg = wait_for_msg(
+    kQEstimatedChannelName, lcmt_scope, lambda msg: msg.size > 0
+)
 context_q_sub = q_sub.GetMyContextFromRoot(context)
 context_q_sub.SetAbstractState(0, q_scope_msg)
 

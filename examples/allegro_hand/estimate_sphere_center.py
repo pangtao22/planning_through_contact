@@ -10,8 +10,9 @@ def estimate_center_and_r(p_surface: torch.Tensor, r_initial_guess: float):
     optim = torch.optim.Adam([p, r], lr=0.1)
     for i in range(500):
         optim.zero_grad()
-        loss = ((((((p - p_surface) ** 2).sum(axis=1)).sqrt() - r) ** 2).sum()
-                + 1e-4 * r ** 2)
+        loss = (
+            ((((p - p_surface) ** 2).sum(axis=1)).sqrt() - r) ** 2
+        ).sum() + 1e-4 * r**2
 
         loss.backward()
         optim.step()
@@ -28,8 +29,9 @@ def estimate_center(p_surface: torch.Tensor, r: float):
     optim = torch.optim.Adam([p, r], lr=0.1)
     for i in range(500):
         optim.zero_grad()
-        loss = ((((((p - p_surface_centered) ** 2).sum(axis=1)).sqrt() - r) ** 2).sum()
-                + 1e-4 * r ** 2)
+        loss = (
+            ((((p - p_surface_centered) ** 2).sum(axis=1)).sqrt() - r) ** 2
+        ).sum() + 1e-4 * r**2
 
         loss.backward()
         optim.step()

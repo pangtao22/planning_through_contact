@@ -56,12 +56,12 @@ class IrsEdge(Edge):
 class IrsRrt(Rrt):
     def __init__(self, params: IrsRrtParams):
         self.q_dynamics = QuasistaticDynamics(
-            h=params.h,
-            q_model_path=params.q_model_path,
-            internal_viz=True)
+            h=params.h, q_model_path=params.q_model_path, internal_viz=True
+        )
         self.q_dynamics.update_default_sim_params(
             log_barrier_weight=params.log_barrier_weight_for_bundling,
-            forward_mode=ForwardDynamicsMode.kSocpMp)
+            forward_mode=ForwardDynamicsMode.kSocpMp,
+        )
         self.params = self.load_params(params)
         self.reachable_set = ReachableSet(self.q_dynamics, params)
         self.max_size = params.max_size
@@ -70,18 +70,18 @@ class IrsRrt(Rrt):
         self.q_lb, self.q_ub = self.get_joint_limits()
 
         # Initialize tensors for batch computation.
-        self.Bhat_tensor = np.zeros((self.max_size,
-                                     self.q_dynamics.dim_x,
-                                     self.q_dynamics.dim_u))
-        self.covinv_tensor = np.zeros((self.max_size,
-                                       self.q_dynamics.dim_x,
-                                       self.q_dynamics.dim_x))
-        self.chat_matrix = np.zeros((self.max_size,
-                                     self.q_dynamics.dim_x))
+        self.Bhat_tensor = np.zeros(
+            (self.max_size, self.q_dynamics.dim_x, self.q_dynamics.dim_u)
+        )
+        self.covinv_tensor = np.zeros(
+            (self.max_size, self.q_dynamics.dim_x, self.q_dynamics.dim_x)
+        )
+        self.chat_matrix = np.zeros((self.max_size, self.q_dynamics.dim_x))
 
         self.dim_q_u = self.q_dynamics.dim_x - self.q_dynamics.dim_u
-        self.covinv_u_tensor = np.zeros((self.max_size,
-                                         self.dim_q_u, self.dim_q_u))
+        self.covinv_u_tensor = np.zeros(
+            (self.max_size, self.dim_q_u, self.dim_q_u)
+        )
 
         self.q_u_indices_into_x = self.q_sim.get_q_u_indices_into_q()
         self.q_a_indices_into_x = self.q_sim.get_q_a_indices_into_q()
@@ -93,13 +93,14 @@ class IrsRrt(Rrt):
     @staticmethod
     def make_from_pickled_tree(tree: networkx.DiGraph):
         # Factory method for making an IrsRrt object from a pickled tree.
-        irs_rrt_param = tree.graph['irs_rrt_params']
+        irs_rrt_param = tree.graph["irs_rrt_params"]
         prob_rrt = IrsRrt(irs_rrt_param)
         prob_rrt.graph = tree
         prob_rrt.size = tree.number_of_nodes()
 
         prob_rrt.q_dynamics.update_default_sim_params(
-            **tree.graph['q_sim_params'])
+            **tree.graph["q_sim_params"]
+        )
 
         for i_node in tree.nodes:
             node = tree.nodes[i_node]["node"]
@@ -117,7 +118,8 @@ class IrsRrt(Rrt):
         if isinstance(key, str):
             joint_limits_keyed_by_model_instance_index = {
                 self.q_dynamics.plant.GetModelInstanceByName(name): value
-                for name, value in params.joint_limits.items()}
+                for name, value in params.joint_limits.items()
+            }
             params.joint_limits = joint_limits_keyed_by_model_instance_index
 
         return params
@@ -141,8 +143,8 @@ class IrsRrt(Rrt):
             joint_limit_ub[model] = self.params.joint_limits[model][:, 1]
 
         for model, limits in robot_joint_limits.items():
-            lower = limits['lower']
-            upper = limits['upper']
+            lower = limits["lower"]
+            upper = limits["upper"]
             mid = (lower + upper) / 2
             range = (upper - lower) * (1 - padding)
             joint_limit_lb[model] = mid - range / 2
@@ -164,29 +166,36 @@ class IrsRrt(Rrt):
             Bhat, chat = self.reachable_set.calc_exact_Bc(node.q, node.ubar)
         elif self.params.bundle_mode == BundleMode.kFirstRandomized:
             Bhat, chat = self.reachable_set.calc_bundled_Bc_randomized(
-                node.q, node.ubar)
+                node.q, node.ubar
+            )
         elif self.params.bundle_mode == BundleMode.kFirstAnalytic:
             Bhat, chat = self.reachable_set.calc_bundled_Bc_analytic(
-                node.q, node.ubar)
+                node.q, node.ubar
+            )
         elif self.params.bundle_mode == BundleMode.kZeroB:
             Bhat, chat = self.reachable_set.calc_bundled_Bc_randomized_zero(
-                node.q, node.ubar)            
+                node.q, node.ubar
+            )
 
         else:
             raise NotImplementedError(
-                f"{self.params.bundle_mode} is not supported.")
+                f"{self.params.bundle_mode} is not supported."
+            )
 
         node.Bhat = Bhat
         node.chat = chat
         node.cov, node.mu = self.reachable_set.calc_metric_parameters(
-            node.Bhat, node.chat)
+            node.Bhat, node.chat
+        )
         node.covinv = np.linalg.inv(node.cov)
 
         # For q_u only.
         node.Bhat_u = Bhat[self.q_u_indices_into_x, :]
         node.chat_u = chat[self.q_u_indices_into_x]
-        node.cov_u, node.mu_u = (
-            self.reachable_set.calc_unactuated_metric_parameters(Bhat, chat))
+        (
+            node.cov_u,
+            node.mu_u,
+        ) = self.reachable_set.calc_unactuated_metric_parameters(Bhat, chat)
         node.covinv_u = np.linalg.inv(node.cov_u)
 
     def get_Bhat_tensor_up_to(self, n_nodes: int):
@@ -231,18 +240,20 @@ class IrsRrt(Rrt):
     def extend_towards_q(self, parent_node: Node, q: np.array):
         """
         Extend towards a specified configuration q and return a new
-        node, 
+        node,
         """
         # Compute least-squares solution.
         du = np.linalg.lstsq(
-            parent_node.Bhat, q - parent_node.chat, rcond=None)[0]
+            parent_node.Bhat, q - parent_node.chat, rcond=None
+        )[0]
 
         # Normalize least-squares solution.
         du = du / np.linalg.norm(du)
         ustar = parent_node.ubar + self.params.stepsize * du
         xnext = self.q_dynamics.dynamics(parent_node.q, ustar)
         cost = self.reachable_set.calc_node_metric(
-            parent_node.covinv, parent_node.mu, xnext)
+            parent_node.covinv, parent_node.mu, xnext
+        )
 
         child_node = IrsNode(xnext)
         child_node.subgoal = q
@@ -256,8 +267,9 @@ class IrsRrt(Rrt):
 
         return child_node, edge
 
-    def calc_distance_batch_local(self, q_query: np.ndarray, n_nodes: int,
-                                  is_q_u_only: bool):
+    def calc_distance_batch_local(
+        self, q_query: np.ndarray, n_nodes: int, is_q_u_only: bool
+    ):
         if is_q_u_only:
             q_query = q_query[self.q_u_indices_into_x]
         # B x n
@@ -265,53 +277,58 @@ class IrsRrt(Rrt):
         # B x n x n
         covinv_tensor = self.get_covinv_tensor_up_to(n_nodes, is_q_u_only)
         error_batch = q_query - mu_batch
-        int_batch = np.einsum('Bij,Bi -> Bj', covinv_tensor, error_batch)
-        metric_batch = np.einsum('Bi,Bi -> B', int_batch, error_batch)
+        int_batch = np.einsum("Bij,Bi -> Bj", covinv_tensor, error_batch)
+        metric_batch = np.einsum("Bi,Bi -> B", int_batch, error_batch)
 
         return metric_batch
 
     def calc_pairwise_distance_batch_local(
-        self, q_query_batch: np.ndarray, n_nodes: int,
-                                  is_q_u_only: bool):
+        self, q_query_batch: np.ndarray, n_nodes: int, is_q_u_only: bool
+    ):
         """
         q_query_batch consists is a (N x n) array  where N is the number of
         nodes to be queried for. THe returned array will be a (N x B) array
         where each element is the distance between the two nodes.
-        """                                
+        """
         # N x n
         if is_q_u_only:
-            q_query_batch = q_query_batch[:,self.q_u_indices_into_x]
+            q_query_batch = q_query_batch[:, self.q_u_indices_into_x]
         # B x n
         mu_batch = self.get_chat_matrix_up_to(n_nodes, is_q_u_only)
         # B x n x n
         covinv_tensor = self.get_covinv_tensor_up_to(n_nodes, is_q_u_only)
 
         # N x B x n
-        error_batch = q_query_batch[:,None,:] - mu_batch[None,:,:]
-        int_batch = np.einsum('Bij,NBi -> NBj', covinv_tensor, error_batch)
-        metric_batch = np.einsum('NBi,NBi -> NB', int_batch, error_batch)
+        error_batch = q_query_batch[:, None, :] - mu_batch[None, :, :]
+        int_batch = np.einsum("Bij,NBi -> NBj", covinv_tensor, error_batch)
+        metric_batch = np.einsum("NBi,NBi -> NB", int_batch, error_batch)
         return metric_batch
 
-    def calc_distance_batch_global(self, q_query: np.ndarray, n_nodes: int,
-                                   is_q_u_only: bool):
+    def calc_distance_batch_global(
+        self, q_query: np.ndarray, n_nodes: int, is_q_u_only: bool
+    ):
         q_batch = self.get_q_matrix_up_to(n_nodes)
 
         if is_q_u_only:
-            error_batch = (q_query[self.q_u_indices_into_x]
-                           - q_batch[:, self.q_u_indices_into_x])
+            error_batch = (
+                q_query[self.q_u_indices_into_x]
+                - q_batch[:, self.q_u_indices_into_x]
+            )
             metric_mat = np.diag(
-                self.params.global_metric[self.q_u_indices_into_x])
+                self.params.global_metric[self.q_u_indices_into_x]
+            )
         else:
             error_batch = q_query - q_batch
             metric_mat = np.diag(self.params.global_metric)
 
-        intsum = np.einsum('Bi,ij->Bj', error_batch, metric_mat)
-        metric_batch = np.einsum('Bi,Bi->B', intsum, error_batch)
+        intsum = np.einsum("Bi,ij->Bj", error_batch, metric_mat)
+        metric_batch = np.einsum("Bi,Bi->B", intsum, error_batch)
 
         return metric_batch
 
-    def calc_distance_batch(self, q_query: np.ndarray, n_nodes=None,
-                            distance_metric=None):
+    def calc_distance_batch(
+        self, q_query: np.ndarray, n_nodes=None, distance_metric=None
+    ):
         """
         Given q_query, return a np.array of \|q_query - q\|_{\Sigma}^{-1}_q,
         local distances from all the existing nodes in the tree to q_query.
@@ -334,20 +351,25 @@ class IrsRrt(Rrt):
             n_nodes = self.size
 
         if distance_metric == "global":
-            return self.calc_distance_batch_global(q_query, n_nodes,
-                                                   is_q_u_only=False)
+            return self.calc_distance_batch_global(
+                q_query, n_nodes, is_q_u_only=False
+            )
         elif distance_metric == "global_u":
-            return self.calc_distance_batch_global(q_query, n_nodes,
-                                                   is_q_u_only=True)
+            return self.calc_distance_batch_global(
+                q_query, n_nodes, is_q_u_only=True
+            )
         elif distance_metric == "local":
-            return self.calc_distance_batch_local(q_query, n_nodes,
-                                                  is_q_u_only=False)
+            return self.calc_distance_batch_local(
+                q_query, n_nodes, is_q_u_only=False
+            )
         elif distance_metric == "local_u":
-            return self.calc_distance_batch_local(q_query, n_nodes,
-                                                  is_q_u_only=True)
+            return self.calc_distance_batch_local(
+                q_query, n_nodes, is_q_u_only=True
+            )
         else:
-            raise RuntimeError(f"distance metric {distance_metric} is not "
-                               f"supported.")
+            raise RuntimeError(
+                f"distance metric {distance_metric} is not " f"supported."
+            )
 
     def save_tree(self, filename):
         """
@@ -355,14 +377,18 @@ class IrsRrt(Rrt):
          which pickle does not like. Here we create a copy of self.params
          with a joint_limits dictionary keyed by model instance names.
         """
-        picklable_params_dict = {key: copy.deepcopy(value)
-                                 for key, value in self.params.__dict__.items()
-                                 if key != "joint_limits"}
+        picklable_params_dict = {
+            key: copy.deepcopy(value)
+            for key, value in self.params.__dict__.items()
+            if key != "joint_limits"
+        }
         model_name_to_joint_limits_map = {
-            self.q_dynamics.plant.GetModelInstanceName(model):
-                copy.deepcopy(value)
-            for model, value in self.params.joint_limits.items()}
-        picklable_params_dict['joint_limits'] = model_name_to_joint_limits_map
+            self.q_dynamics.plant.GetModelInstanceName(model): copy.deepcopy(
+                value
+            )
+            for model, value in self.params.joint_limits.items()
+        }
+        picklable_params_dict["joint_limits"] = model_name_to_joint_limits_map
 
         picklable_params = IrsRrtParams(None, None)
         for key, value in picklable_params_dict.items():
@@ -372,14 +398,14 @@ class IrsRrt(Rrt):
         pickable_q_sim_params = {}
         q_sim_params = self.q_dynamics.q_sim_params_default
         for name in q_sim_params.__dir__():
-            if name.startswith('_'):
+            if name.startswith("_"):
                 continue
             pickable_q_sim_params[name] = getattr(q_sim_params, name)
 
-        self.graph.graph['irs_rrt_params'] = picklable_params
-        self.graph.graph['goal_node_id'] = self.goal_node_idx
-        self.graph.graph['q_sim_params'] = pickable_q_sim_params
-        with open(filename, 'wb') as f:
+        self.graph.graph["irs_rrt_params"] = picklable_params
+        self.graph.graph["goal_node_id"] = self.goal_node_idx
+        self.graph.graph["q_sim_params"] = pickable_q_sim_params
+        with open(filename, "wb") as f:
             pickle.dump(self.graph, f)
 
     def get_u_knots_from_node_idx_path(self, node_idx_path: List[int]):
@@ -388,7 +414,7 @@ class IrsRrt(Rrt):
         for i in range(n - 1):
             id_node0 = node_idx_path[i]
             id_node1 = node_idx_path[i + 1]
-            u_knots[i] = self.graph.edges[id_node0, id_node1]['edge'].u
+            u_knots[i] = self.graph.edges[id_node0, id_node1]["edge"].u
 
         return u_knots
 
@@ -508,9 +534,9 @@ class IrsRrt(Rrt):
         else:
             raise RuntimeError("dim_q_u needs to equal 3 (2D) or 7 (3D).")
 
-    def print_segments_displacements(self,
-                                     q_knots_trimmed: np.ndarray,
-                                     segments: List[Tuple[int, int]]):
+    def print_segments_displacements(
+        self, q_knots_trimmed: np.ndarray, segments: List[Tuple[int, int]]
+    ):
         """
         Prints the angular and translational displacements for each segment
         in segments.
@@ -521,15 +547,16 @@ class IrsRrt(Rrt):
             q_u_end = q_knots_trimmed[t_end][self.q_u_indices_into_x]
 
             angle_diff, position_diff = self.calc_q_u_diff(q_u_start, q_u_end)
-            print("angle diff", angle_diff,
-                  "position diff", position_diff)
+            print("angle diff", angle_diff, "position diff", position_diff)
 
         print("============================================================")
 
-    def trim_trajectory(self,
-                        q_trj: np.ndarray,
-                        angle_threshold: float = 1e-3,
-                        pos_threshold: float = 1e-3):
+    def trim_trajectory(
+        self,
+        q_trj: np.ndarray,
+        angle_threshold: float = 1e-3,
+        pos_threshold: float = 1e-3,
+    ):
         q_u_final = q_trj[-1, self.q_u_indices_into_x]
         for t, q in enumerate(q_trj):
             q_u = q[self.q_u_indices_into_x]
@@ -551,7 +578,7 @@ class IrsRrt(Rrt):
 
         t_start = 0
         for q_trj_size, q_trj in zip(q_trj_sizes, q_trj_list):
-            q_trj_all[t_start: t_start + q_trj_size] = q_trj
+            q_trj_all[t_start : t_start + q_trj_size] = q_trj
             t_start += q_trj_size
 
         return q_trj_all

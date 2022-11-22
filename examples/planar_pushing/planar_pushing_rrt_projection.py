@@ -19,9 +19,9 @@ from planar_pushing_setup import *
 from contact_sampler import PlanarPushingContactSampler
 
 #%% quasistatic dynamical system
-q_dynamics = QuasistaticDynamics(h=h,
-                                 q_model_path=q_model_path,
-                                 internal_viz=True)
+q_dynamics = QuasistaticDynamics(
+    h=h, q_model_path=q_model_path, internal_viz=True
+)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 q_sim_py = q_dynamics.q_sim_py
@@ -44,11 +44,12 @@ joint_limits = {
 mpc_params = IrsMpcQuasistaticParameters()
 mpc_params.Q_dict = {
     idx_u: np.array([20, 20, 10]),
-    idx_a: np.array([1e-3, 1e-3])}
+    idx_a: np.array([1e-3, 1e-3]),
+}
 mpc_params.Qd_dict = {
-    model: Q_i * 100 for model, Q_i in mpc_params.Q_dict.items()}
-mpc_params.R_dict = {
-    idx_a: 10 * np.array([1, 1])}
+    model: Q_i * 100 for model, Q_i in mpc_params.Q_dict.items()
+}
+mpc_params.R_dict = {idx_a: 10 * np.array([1, 1])}
 
 # IrsRrt params
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
@@ -57,10 +58,12 @@ params.root_node = IrsNode(x0)
 params.max_size = 500
 params.goal = np.copy(x0)
 params.goal[1] = -0.5
-params.termination_tolerance = 0.1  # used in irs_rrt.iterate() as cost threshold.
+params.termination_tolerance = (
+    0.1  # used in irs_rrt.iterate() as cost threshold.
+)
 params.goal_as_subgoal_prob = 0.1
 params.rewire = False
-params.distance_metric = 'local_u'
+params.distance_metric = "local_u"
 params.regularization = 1e-2
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = q_dynamics.get_x_from_q_dict(mpc_params.Q_dict)
@@ -68,12 +71,12 @@ params.distance_threshold = 50
 
 
 for i in range(5):
-    irs_rrt = IrsRrtProjection(params=params,
-                            contact_sampler=contact_sampler)
+    irs_rrt = IrsRrtProjection(params=params, contact_sampler=contact_sampler)
     irs_rrt.iterate()
 
     #%%
-    irs_rrt.save_tree(os.path.join(
-        data_folder,
-        "randomized",
-        f"tree_{params.max_size}_{i}.pkl"))
+    irs_rrt.save_tree(
+        os.path.join(
+            data_folder, "randomized", f"tree_{params.max_size}_{i}.pkl"
+        )
+    )

@@ -13,12 +13,12 @@ class TestAllegroContactSampler(unittest.TestCase):
     Test if contact sampler runs correctly for allegro. For visual
     inspection, turn on meshcat.
     """
+
     def setUp(self):
 
         self.q_dynamics = QuasistaticDynamics(
-            h=h,
-            q_model_path=q_model_path,
-            internal_viz=True)
+            h=h, q_model_path=q_model_path, internal_viz=True
+        )
 
         self.contact_sampler = AllegroHandContactSampler(self.q_dynamics)
 
@@ -28,10 +28,17 @@ class TestAllegroContactSampler(unittest.TestCase):
         """
 
         for i in range(10):
-            q_u = np.array([1, 0, 0, 0,
-                -0.08 + 0.01 * np.random.rand(),
-                0.01 * np.random.rand() - 0.005,
-                0.05 + 0.03 * np.random.rand()])
+            q_u = np.array(
+                [
+                    1,
+                    0,
+                    0,
+                    0,
+                    -0.08 + 0.01 * np.random.rand(),
+                    0.01 * np.random.rand() - 0.005,
+                    0.05 + 0.03 * np.random.rand(),
+                ]
+            )
 
             x_sample = self.contact_sampler.sample_contact(q_u)
             self.q_dynamics.q_sim_py.update_mbp_positions_from_vector(x_sample)
@@ -41,5 +48,5 @@ class TestAllegroContactSampler(unittest.TestCase):
             self.assertTrue(np.allclose(q_u_sample, q_u))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

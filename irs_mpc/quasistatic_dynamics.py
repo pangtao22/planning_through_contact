@@ -4,23 +4,23 @@ import os
 
 import numpy as np
 import logging
-from pydrake.all import (ModelInstanceIndex, MultibodyPlant,
-                         PiecewisePolynomial)
-from qsim.parser import (QuasistaticParser, GradientMode, QuasistaticSimulator,
-                         QuasistaticSimParameters)
+from pydrake.all import ModelInstanceIndex, MultibodyPlant, PiecewisePolynomial
+from qsim.parser import (
+    QuasistaticParser,
+    GradientMode,
+    QuasistaticSimulator,
+    QuasistaticSimParameters,
+)
 from qsim.simulator import ForwardDynamicsMode
 
 from irs_mpc.irs_mpc_params import BundleMode
 
 
 class QuasistaticDynamics:
-    def __init__(self, h: float, q_model_path: str,
-                 internal_viz: bool):
+    def __init__(self, h: float, q_model_path: str, internal_viz: bool):
         self.q_model_path = q_model_path
         self.parser = QuasistaticParser(q_model_path)
-        self.parser.set_sim_params(
-            h=h,
-            is_quasi_dynamic=True)
+        self.parser.set_sim_params(h=h, is_quasi_dynamic=True)
 
         self.h = h
         self.q_sim_py = self.parser.make_simulator_py(internal_vis=internal_viz)
@@ -43,16 +43,20 @@ class QuasistaticDynamics:
             models_all_a=self.q_sim.get_all_models(),
             models_all_b=self.q_sim_py.get_all_models(),
             velocity_indices_a=self.q_sim.get_velocity_indices(),
-            velocity_indices_b=self.q_sim.get_velocity_indices())
+            velocity_indices_b=self.q_sim.get_velocity_indices(),
+        )
 
         self.q_sim_params_default = self.q_sim.get_sim_params()
 
     @staticmethod
-    def check_plants(plant_a: MultibodyPlant, plant_b: MultibodyPlant,
-                     models_all_a: Set[ModelInstanceIndex],
-                     models_all_b: Set[ModelInstanceIndex],
-                     velocity_indices_a: Dict[ModelInstanceIndex, np.ndarray],
-                     velocity_indices_b: Dict[ModelInstanceIndex, np.ndarray]):
+    def check_plants(
+        plant_a: MultibodyPlant,
+        plant_b: MultibodyPlant,
+        models_all_a: Set[ModelInstanceIndex],
+        models_all_b: Set[ModelInstanceIndex],
+        velocity_indices_a: Dict[ModelInstanceIndex, np.ndarray],
+        velocity_indices_b: Dict[ModelInstanceIndex, np.ndarray],
+    ):
         """
         Make sure that plant_a and plant_b are identical.
         """
@@ -67,8 +71,7 @@ class QuasistaticDynamics:
             assert idx_a == idx_b
 
     def update_default_sim_params(self, **kwargs):
-        QuasistaticSimulator.set_sim_params(
-            self.q_sim_params_default, **kwargs)
+        QuasistaticSimulator.set_sim_params(self.q_sim_params_default, **kwargs)
 
     # TODO (pang): consider moving functions that convert between state
     #  dictionaries and state vectors to QuasistaticSimulator, together with
@@ -79,7 +82,7 @@ class QuasistaticDynamics:
         for model in self.models_actuated:
             indices = self.position_indices[model]
             n_model = len(indices)
-            q_a_indices[i_start: i_start + n_model] = indices
+            q_a_indices[i_start : i_start + n_model] = indices
             i_start += n_model
         return q_a_indices
 
@@ -89,7 +92,7 @@ class QuasistaticDynamics:
         for model in self.models_unactuated:
             indices = self.position_indices[model]
             n_model = len(indices)
-            q_u_indices[i_start: i_start + n_model] = indices
+            q_u_indices[i_start : i_start + n_model] = indices
             i_start += n_model
         return q_u_indices
 
@@ -98,7 +101,7 @@ class QuasistaticDynamics:
         i_start = 0
         for model in self.models_actuated:
             n_v_i = self.plant.num_velocities(model)
-            q_a_cmd_dict[model] = u[i_start: i_start + n_v_i]
+            q_a_cmd_dict[model] = u[i_start : i_start + n_v_i]
             i_start += n_v_i
 
         return q_a_cmd_dict
@@ -106,7 +109,8 @@ class QuasistaticDynamics:
     def get_q_dict_from_x(self, x: np.ndarray):
         q_dict = {
             model: x[n_q_indices]
-            for model, n_q_indices in self.position_indices.items()}
+            for model, n_q_indices in self.position_indices.items()
+        }
 
         return q_dict
 
@@ -117,13 +121,14 @@ class QuasistaticDynamics:
 
         return x
 
-    def get_u_from_q_cmd_dict(self,
-                              q_cmd_dict: Dict[ModelInstanceIndex, np.ndarray]):
+    def get_u_from_q_cmd_dict(
+        self, q_cmd_dict: Dict[ModelInstanceIndex, np.ndarray]
+    ):
         u = np.zeros(self.dim_u)
         i_start = 0
         for model in self.models_actuated:
             n_v_i = self.plant.num_velocities(model)
-            u[i_start: i_start + n_v_i] = q_cmd_dict[model]
+            u[i_start : i_start + n_v_i] = q_cmd_dict[model]
             i_start += n_v_i
 
         return u
@@ -134,26 +139,29 @@ class QuasistaticDynamics:
             Q[idx, idx] = Q_dict[model]
         return Q
 
-    def get_R_from_R_dict(self,
-                          R_dict: Dict[ModelInstanceIndex, np.ndarray]):
+    def get_R_from_R_dict(self, R_dict: Dict[ModelInstanceIndex, np.ndarray]):
         R = np.eye(self.dim_u)
         i_start = 0
         for model in self.models_actuated:
             n_v_i = self.plant.num_velocities(model)
-            R[i_start: i_start + n_v_i, i_start: i_start + n_v_i] = \
-                np.diag(R_dict[model])
+            R[i_start : i_start + n_v_i, i_start : i_start + n_v_i] = np.diag(
+                R_dict[model]
+            )
             i_start += n_v_i
         return R
 
     def publish_trajectory(self, x_traj, h=None):
         q_dict_traj = [self.get_q_dict_from_x(x) for x in x_traj]
-        self.q_sim_py.animate_system_trajectory(h=self.h if h is None else h,
-                                                q_dict_traj=q_dict_traj)
+        self.q_sim_py.animate_system_trajectory(
+            h=self.h if h is None else h, q_dict_traj=q_dict_traj
+        )
 
-    def make_sim_params(self, forward_mode: ForwardDynamicsMode,
-                        gradient_mode: GradientMode):
+    def make_sim_params(
+        self, forward_mode: ForwardDynamicsMode, gradient_mode: GradientMode
+    ):
         sim_params = QuasistaticSimulator.copy_sim_params(
-            self.q_sim_params_default)
+            self.q_sim_params_default
+        )
         if forward_mode is not None:
             sim_params.forward_mode = forward_mode
         if gradient_mode is not None:
@@ -162,9 +170,12 @@ class QuasistaticDynamics:
         return sim_params
 
     def dynamics_py(
-            self, x: np.ndarray, u: np.ndarray,
-            forward_mode: ForwardDynamicsMode = None,
-            gradient_mode: GradientMode = GradientMode.kNone):
+        self,
+        x: np.ndarray,
+        u: np.ndarray,
+        forward_mode: ForwardDynamicsMode = None,
+        gradient_mode: GradientMode = GradientMode.kNone,
+    ):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
@@ -182,9 +193,13 @@ class QuasistaticDynamics:
 
         return self.get_x_from_q_dict(q_next_dict)
 
-    def dynamics(self, x: np.ndarray, u: np.ndarray,
-                 forward_mode: ForwardDynamicsMode = None,
-                 gradient_mode: GradientMode = GradientMode.kNone):
+    def dynamics(
+        self,
+        x: np.ndarray,
+        u: np.ndarray,
+        forward_mode: ForwardDynamicsMode = None,
+        gradient_mode: GradientMode = GradientMode.kNone,
+    ):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
@@ -200,7 +215,8 @@ class QuasistaticDynamics:
         self.q_sim.step(
             q_a_cmd_dict=q_a_cmd_dict,
             tau_ext_dict=tau_ext_dict,
-            sim_params=sim_params)
+            sim_params=sim_params,
+        )
 
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)
@@ -219,8 +235,7 @@ class QuasistaticDynamics:
             x_trj[t + 1, :] = self.dynamics(x_trj[t, :], u_trj[t, :])
         return x_trj
 
-    def dynamics_multi_step(self, x: np.ndarray, u: np.ndarray,
-                            n_steps: int):
+    def dynamics_multi_step(self, x: np.ndarray, u: np.ndarray, n_steps: int):
         """
         Instead of commanding u in one step self.h, this function
         interpolates the control input between x[index_to_u] and u,
@@ -244,15 +259,19 @@ class QuasistaticDynamics:
     def jacobian_xu(self, x, u):
         AB = np.zeros((self.dim_x, self.dim_x + self.dim_u))
         self.dynamics(x, u, params=GradientMode.kAB)
-        AB[:, :self.dim_x] = self.q_sim.get_Dq_nextDq()
-        AB[:, self.dim_x:] = self.q_sim.get_Dq_nextDqa_cmd()
+        AB[:, : self.dim_x] = self.q_sim.get_Dq_nextDq()
+        AB[:, self.dim_x :] = self.q_sim.get_Dq_nextDqa_cmd()
 
         return AB
 
     def calc_bundled_AB(
-            self, x_nominals: np.ndarray, u_nominals: np.ndarray,
-            n_samples: int, std_u: Union[np.ndarray, float],
-            bundle_mode: BundleMode):
+        self,
+        x_nominals: np.ndarray,
+        u_nominals: np.ndarray,
+        n_samples: int,
+        std_u: Union[np.ndarray, float],
+        bundle_mode: BundleMode,
+    ):
         """
         x_nominals: (n, n_x) array, n states.
         u_nominals: (n, n_u) array, n inputs.
@@ -264,19 +283,21 @@ class QuasistaticDynamics:
         if bundle_mode == BundleMode.kFirstRandomized:
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_first_order(
-                    x_nominals[i], u_nominals[i], n_samples, std_u)
+                    x_nominals[i], u_nominals[i], n_samples, std_u
+                )
         elif bundle_mode == BundleMode.kZeroB:
             for i in range(n):
                 ABhat_list[i] = self.calc_B_zero_order(
-                    x_nominals[i], u_nominals[i], n_samples, std_u)
+                    x_nominals[i], u_nominals[i], n_samples, std_u
+                )
         elif bundle_mode == BundleMode.kZeroAB:
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_zero_order(
-                    x_nominals[i], u_nominals[i], n_samples, std_u)
+                    x_nominals[i], u_nominals[i], n_samples, std_u
+                )
         elif bundle_mode == BundleMode.kFirstExact:
             for i in range(n):
-                ABhat_list[i] = self.calc_AB_exact(
-                    x_nominals[i], u_nominals[i])
+                ABhat_list[i] = self.calc_AB_exact(x_nominals[i], u_nominals[i])
         else:
             raise RuntimeError(f"AB mode {bundle_mode} is not supported.")
 
@@ -285,8 +306,13 @@ class QuasistaticDynamics:
     def calc_AB_exact(self, x_nominal: np.ndarray, u_nominal: np.ndarray):
         return self.jacobian_xu(x_nominal, u_nominal)
 
-    def calc_AB_first_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
-                            n_samples: int, std_u: Union[np.ndarray, float]):
+    def calc_AB_first_order(
+        self,
+        x_nominal: np.ndarray,
+        u_nominal: np.ndarray,
+        n_samples: int,
+        std_u: Union[np.ndarray, float],
+    ):
         """
         x_nominal: (n_x,) array, 1 state.
         u_nominal: (n_u,) array, 1 input.
@@ -297,10 +323,11 @@ class QuasistaticDynamics:
         is_sample_good = np.ones(n_samples, dtype=bool)
         for i in range(n_samples):
             try:
-                self.dynamics(x_nominal, u_nominal + du[i],
-                              params=GradientMode.kBOnly)
-                ABhat[:, :self.dim_x] += self.q_sim.get_Dq_nextDq()
-                ABhat[:, self.dim_x:] += self.q_sim.get_Dq_nextDqa_cmd()
+                self.dynamics(
+                    x_nominal, u_nominal + du[i], params=GradientMode.kBOnly
+                )
+                ABhat[:, : self.dim_x] += self.q_sim.get_Dq_nextDq()
+                ABhat[:, self.dim_x :] += self.q_sim.get_Dq_nextDqa_cmd()
             except RuntimeError as err:
                 is_sample_good[i] = False
                 logging.warning(err.__str__())
@@ -308,8 +335,13 @@ class QuasistaticDynamics:
         ABhat /= is_sample_good.sum()
         return ABhat
 
-    def calc_B_zero_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
-                          n_samples: int, std_u: Union[np.ndarray, float]):
+    def calc_B_zero_order(
+        self,
+        x_nominal: np.ndarray,
+        u_nominal: np.ndarray,
+        n_samples: int,
+        std_u: Union[np.ndarray, float],
+    ):
         """
         Computes B:=df/du using least-square fit, and A:=df/dx using the
             exact gradient at x_nominal and u_nominal.
@@ -318,8 +350,9 @@ class QuasistaticDynamics:
         """
         n_x = self.dim_x
         n_u = self.dim_u
-        x_next_nominal = self.dynamics(x_nominal, u_nominal,
-                                       params=GradientMode.kBOnly)
+        x_next_nominal = self.dynamics(
+            x_nominal, u_nominal, params=GradientMode.kBOnly
+        )
         ABhat = np.zeros((n_x, n_x + n_u))
         ABhat[:, :n_x] = self.q_sim.get_Dq_nextDq()
 
@@ -334,10 +367,15 @@ class QuasistaticDynamics:
 
         return ABhat
 
-    def calc_AB_zero_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
-                           n_samples: int, std_u: Union[np.ndarray, float],
-                           std_x: Union[np.ndarray, float] = 1e-3,
-                           damp: float = 1e-2):
+    def calc_AB_zero_order(
+        self,
+        x_nominal: np.ndarray,
+        u_nominal: np.ndarray,
+        n_samples: int,
+        std_u: Union[np.ndarray, float],
+        std_x: Union[np.ndarray, float] = 1e-3,
+        damp: float = 1e-2,
+    ):
         """
         Computes both A:=df/dx and B:=df/du using least-square fit.
         :param std_x (n_x,): standard deviation of the normal distribution

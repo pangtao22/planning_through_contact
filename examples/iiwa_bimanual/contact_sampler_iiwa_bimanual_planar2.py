@@ -1,8 +1,7 @@
 import numpy as np
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics, GradientMode
 from irs_rrt.contact_sampler import ContactSampler
-from pydrake.all import (Quaternion, RollPitchYaw, RotationMatrix,
-    RigidTransform)
+from pydrake.all import Quaternion, RollPitchYaw, RotationMatrix, RigidTransform
 
 
 from iiwa_bimanual_setup import *
@@ -26,9 +25,9 @@ class IiwaBimanualPlanarContactSampler(ContactSampler):
 
     def sample_qdot(self, arm):
         """
-        Sample qdot. 
+        Sample qdot.
         """
-        if arm == 'r':
+        if arm == "r":
             return np.random.normal(self.mu_r, self.std)
         else:
             return np.random.normal(self.mu_l, self.std)
@@ -53,7 +52,8 @@ class IiwaBimanualPlanarContactSampler(ContactSampler):
             self.q_sim.step(
                 q_a_cmd_dict=q_a_cmd_dict,
                 tau_ext_dict=tau_ext_dict,
-                sim_params=sim_params)
+                sim_params=sim_params,
+            )
 
             q_next_dict = self.q_sim.get_mbp_positions()
             x = self.q_dynamics.get_x_from_q_dict(q_next_dict)
@@ -62,16 +62,16 @@ class IiwaBimanualPlanarContactSampler(ContactSampler):
             q_dict_lst.append(q_dict)
 
         if unactuated_mass_scale == 0:
-            #self.q_sim_py.animate_system_trajectory(
+            # self.q_sim_py.animate_system_trajectory(
             #    0.1, q_dict_lst)
-            #input()
+            # input()
             pass
-        return x, q_dict_lst 
+        return x, q_dict_lst
 
     def sample_contact(self, q):
 
         is_success = False
-        while(not is_success):
+        while not is_success:
             try:
                 q_u = q[self.q_dynamics.get_q_u_indices_into_x()]
                 q_a = q[self.q_dynamics.get_q_a_indices_into_x()]
@@ -86,7 +86,7 @@ class IiwaBimanualPlanarContactSampler(ContactSampler):
                 ee_a_r = self.plant.GetBodyByName("iiwa_link_7", idx_a_r)
                 ee_a_r_pos = self.plant.EvalBodyPoseInWorld(
                     self.q_sim_py.context_plant, ee_a_r
-                )        
+                )
 
                 idx_a_l = self.plant.GetModelInstanceByName(iiwa_l_name)
                 ee_a_l = self.plant.GetBodyByName("iiwa_link_7", idx_a_l)
@@ -103,7 +103,7 @@ class IiwaBimanualPlanarContactSampler(ContactSampler):
                     cointoss = 0.0
                 else:
                     cointoss = 1.0
-                """                
+                """
 
                 """
                 qdot[0] = -0.1
@@ -135,25 +135,29 @@ class IiwaBimanualPlanarContactSampler(ContactSampler):
 
                 cointoss = np.random.randint(2)
 
-                if(cointoss):
-                    qdot[:3] = self.sample_qdot('l')
+                if cointoss:
+                    qdot[:3] = self.sample_qdot("l")
                     q0[self.q_dynamics.get_q_a_indices_into_x()[:3]] = np.array(
-                            [np.pi/4, np.pi/4, 0.0])
+                        [np.pi / 4, np.pi / 4, 0.0]
+                    )
                 else:
-                    qdot[:3] = -self.sample_qdot('l')
+                    qdot[:3] = -self.sample_qdot("l")
                     q0[self.q_dynamics.get_q_a_indices_into_x()[:3]] = np.array(
-                            [np.pi/4, np.pi - 0.3, 0.0])
+                        [np.pi / 4, np.pi - 0.3, 0.0]
+                    )
 
                 cointoss = np.random.randint(2)
 
-                if(cointoss):
-                    qdot[3:] = self.sample_qdot('r')
+                if cointoss:
+                    qdot[3:] = self.sample_qdot("r")
                     q0[self.q_dynamics.get_q_a_indices_into_x()[3:]] = np.array(
-                            [-np.pi/4, -np.pi/4, 0.0])
+                        [-np.pi / 4, -np.pi / 4, 0.0]
+                    )
                 else:
-                    qdot[3:] = -self.sample_qdot('r')
+                    qdot[3:] = -self.sample_qdot("r")
                     q0[self.q_dynamics.get_q_a_indices_into_x()[3:]] = np.array(
-                            [-np.pi/4, -np.pi + 0.3, 0.0])
+                        [-np.pi / 4, -np.pi + 0.3, 0.0]
+                    )
 
                 xnext, q_dict_lst = self.simulate_qdot(q0, qdot, 3)
                 is_success = True

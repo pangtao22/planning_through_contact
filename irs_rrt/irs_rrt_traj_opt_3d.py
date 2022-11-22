@@ -12,12 +12,15 @@ from pydrake.all import RollPitchYaw, Quaternion, RotationMatrix
 
 
 class IrsRrtTrajOpt3D(IrsRrtTrajOpt):
-    def __init__(self, rrt_params: IrsRrtTrajOptParams,
-                 mpc_params: IrsMpcQuasistaticParameters,
-                 contact_sampler: ContactSampler):
+    def __init__(
+        self,
+        rrt_params: IrsRrtTrajOptParams,
+        mpc_params: IrsMpcQuasistaticParameters,
+        contact_sampler: ContactSampler,
+    ):
         super().__init__(rrt_params, mpc_params, contact_sampler)
         self.irs_rrt_3d = IrsRrt3D(rrt_params)
-    
+
     def sample_subgoal(self):
         # Sample translation
         subgoal = np.random.rand(self.q_dynamics.dim_x)

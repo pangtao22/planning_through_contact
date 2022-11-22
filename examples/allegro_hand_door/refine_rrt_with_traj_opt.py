@@ -6,8 +6,13 @@ import time
 
 import numpy as np
 import matplotlib.pyplot as plt
-from pydrake.all import (RigidTransform, Quaternion,
-                         RollPitchYaw, AngleAxis, PiecewisePolynomial)
+from pydrake.all import (
+    RigidTransform,
+    Quaternion,
+    RollPitchYaw,
+    AngleAxis,
+    PiecewisePolynomial,
+)
 
 from qsim_cpp import ForwardDynamicsMode, GradientMode
 from qsim.parser import QuasistaticParser
@@ -19,23 +24,28 @@ from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 from pydrake.systems.meshcat_visualizer import AddTriad
 
 from irs_mpc2.irs_mpc import IrsMpcQuasistatic
-from irs_mpc2.irs_mpc_params import (SmoothingMode, IrsMpcQuasistaticParameters)
+from irs_mpc2.irs_mpc_params import SmoothingMode, IrsMpcQuasistaticParameters
 from allegro_hand_setup import robot_name, object_name
 
 #%%
 pickled_tree_path = os.path.join(
-    os.path.dirname(irs_rrt.__file__), '..',
-    'examples', 'allegro_hand_door', "tree_1000_analytic_1.pkl")
+    os.path.dirname(irs_rrt.__file__),
+    "..",
+    "examples",
+    "allegro_hand_door",
+    "tree_1000_analytic_1.pkl",
+)
 
-with open(pickled_tree_path, 'rb') as f:
+with open(pickled_tree_path, "rb") as f:
     tree = pickle.load(f)
 
 prob_rrt = IrsRrt.make_from_pickled_tree(tree)
 q_dynamics = prob_rrt.q_dynamics
 q_dynamics.update_default_sim_params(forward_mode=ForwardDynamicsMode.kSocpMp)
 
-q_vis = QuasistaticVisualizer(q_sim=q_dynamics.q_sim,
-                              q_sim_py=q_dynamics.q_sim_py)
+q_vis = QuasistaticVisualizer(
+    q_sim=q_dynamics.q_sim, q_sim_py=q_dynamics.q_sim_py
+)
 
 # get goal and some problem data from RRT parameters.
 q_u_goal = prob_rrt.params.goal[q_dynamics.get_q_u_indices_into_x()]
@@ -55,8 +65,7 @@ segments = prob_rrt.get_regrasp_segments(u_knots_trimmed)
 if segments[0][0] == 0 and segments[0][1] == 0:
     segments.pop(0)
 
-q_vis.publish_trajectory(
-    q_knots_trimmed, q_dynamics.q_sim_params_default.h)
+q_vis.publish_trajectory(q_knots_trimmed, q_dynamics.q_sim_params_default.h)
 
 
 #%% see the segments.
@@ -99,8 +108,9 @@ params.R_dict = {idx_a: 200 * np.ones(dim_u)}
 params.R_dict[idx_a][:3] *= 10
 
 params.Q_dict = {
-    idx_u: np.array([100, 100.]),
-    idx_a: params.R_dict[idx_a] * 0.1}
+    idx_u: np.array([100, 100.0]),
+    idx_a: params.R_dict[idx_a] * 0.1,
+}
 
 params.Qd_dict = {}
 for model in q_sim.get_actuated_models():
@@ -125,26 +135,27 @@ params.log_barrier_weight_initial = 100
 log_barrier_weight_final = 1000
 max_iterations = 10
 
-base = np.log(
-    log_barrier_weight_final / params.log_barrier_weight_initial) \
-       / max_iterations
+base = (
+    np.log(log_barrier_weight_final / params.log_barrier_weight_initial)
+    / max_iterations
+)
 base = np.exp(base)
-params.calc_log_barrier_weight = (
-    lambda kappa0, i: kappa0 * (base ** i))
+params.calc_log_barrier_weight = lambda kappa0, i: kappa0 * (base**i)
 
 params.use_A = False
-params.rollout_forward_dynamics_mode = \
+params.rollout_forward_dynamics_mode = (
     q_dynamics.q_sim_params_default.forward_mode
+)
 
-prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params,
-                             q_vis=q_vis)
+prob_mpc = IrsMpcQuasistatic(
+    q_sim=q_sim, parser=q_parser, params=params, q_vis=q_vis
+)
 
 
 #%% traj-opt for segment
-def run_traj_opt_on_rrt_segment(n_steps_per_h: int,
-                                q0: np.ndarray,
-                                q_final: np.ndarray,
-                                u_trj: np.ndarray):
+def run_traj_opt_on_rrt_segment(
+    n_steps_per_h: int, q0: np.ndarray, q_final: np.ndarray, u_trj: np.ndarray
+):
     q_a0 = q0[indices_q_a_into_x]
 
     # q_goal (end of segment)
@@ -156,7 +167,8 @@ def run_traj_opt_on_rrt_segment(n_steps_per_h: int,
     q_trj_d = np.tile(q_d, (T + 1, 1))
 
     u_trj_small = IrsMpcQuasistatic.calc_u_trj_small(
-        u_trj, h_small, n_steps_per_h)
+        u_trj, h_small, n_steps_per_h
+    )
 
     prob_mpc.initialize_problem(x0=q0, x_trj_d=q_trj_d, u_trj_0=u_trj_small)
     prob_mpc.iterate(max_iterations=max_iterations, cost_Qu_f_threshold=0)
@@ -179,18 +191,19 @@ n_steps_per_h = 3
 sub_segments = segments[0:]
 time_start = time.time()
 for i_s, (t_start, t_end) in enumerate(sub_segments):
-    u_trj = u_knots_trimmed[t_start: t_end]
-    q_trj = q_knots_trimmed[t_start: t_end + 1]
+    u_trj = u_knots_trimmed[t_start:t_end]
+    q_trj = q_knots_trimmed[t_start : t_end + 1]
     prob_mpc.q_vis.publish_trajectory(q_trj, prob_rrt.params.h)
 
     q0 = np.array(q_trj[0])
     if len(q_trj_optimized_list) > 0:
-        q0[indices_q_u_into_x] = (
-            q_trj_optimized_list[-1][-1, indices_q_u_into_x])
+        q0[indices_q_u_into_x] = q_trj_optimized_list[-1][
+            -1, indices_q_u_into_x
+        ]
         q_vis.draw_configuration(q0)
-        print('q0 before projection', q0)
+        print("q0 before projection", q0)
         q0 = project_to_non_penetration(q0)
-        print('q0 after projection', q0)
+        print("q0 after projection", q0)
 
     input("Original trajectory segment shown. Press any key to optimize...")
 
@@ -199,12 +212,14 @@ for i_s, (t_start, t_end) in enumerate(sub_segments):
         q_final[indices_q_u_into_x] = q_u_goal
     try:
         q_trj_optimized, u_trj_optimized = run_traj_opt_on_rrt_segment(
-            n_steps_per_h=n_steps_per_h, q0=q0, q_final=q_final, u_trj=u_trj)
+            n_steps_per_h=n_steps_per_h, q0=q0, q_final=q_final, u_trj=u_trj
+        )
     except RuntimeError or ValueError as e:
         u_trj = np.zeros_like(u_trj)
         u_trj[:] = q0[indices_q_a_into_x]
         q_trj_optimized, u_trj_optimized = run_traj_opt_on_rrt_segment(
-            n_steps_per_h=n_steps_per_h, q0=q0, q_final=q_final, u_trj=u_trj)
+            n_steps_per_h=n_steps_per_h, q0=q0, q_final=q_final, u_trj=u_trj
+        )
 
     q_trj_optimized_list.append(q_trj_optimized)
     u_trj_optimized_list.append(u_trj_optimized)
@@ -227,7 +242,7 @@ def concatenate_traj_list(q_trj_list: List[np.ndarray]):
 
     t_start = 0
     for q_trj_size, q_trj in zip(q_trj_sizes, q_trj_list):
-        q_trj_all[t_start: t_start + q_trj_size] = q_trj
+        q_trj_all[t_start : t_start + q_trj_size] = q_trj
         t_start += q_trj_size
 
     return q_trj_all
@@ -267,9 +282,10 @@ q_trj_optimized_trimmed_list = []
 for q_trj in q_trj_optimized_list:
     t = trim_trajectory(q_trj)
     print(f"{t} / {len(q_trj)}")
-    q_trj_optimized_trimmed_list.append(q_trj[:t+1])
+    q_trj_optimized_trimmed_list.append(q_trj[: t + 1])
 
 
 q_trj_optimized_trimmed_all = concatenate_traj_list(
-    q_trj_optimized_trimmed_list)
+    q_trj_optimized_trimmed_list
+)
 prob_mpc.q_vis.publish_trajectory(q_trj_optimized_trimmed_all, 0.1)

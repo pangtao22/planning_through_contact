@@ -31,10 +31,10 @@ def f_worker_simple():
     i_tasks = 0
     while True:
         x_and_u, data = recv_x_and_u(receiver)
-        t = data['t']
-        n_samples = data['n_samples']
-        std = data['std']
-        irs_lqr_gradient_mode = BundleMode(data['bundle_mode'])
+        t = data["t"]
+        n_samples = data["n_samples"]
+        std = data["std"]
+        irs_lqr_gradient_mode = BundleMode(data["bundle_mode"])
 
         # Pretending to do some work.
         time.sleep(n_samples / 1000)
@@ -58,5 +58,3 @@ if __name__ == "__main__":
         for p in p_list:
             p.terminate()
             p.join()
-
-

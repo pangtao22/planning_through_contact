@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from pydrake.all import (RigidTransform)
+from pydrake.all import RigidTransform
 from pydrake.math import RollPitchYaw
 from pydrake.systems.meshcat_visualizer import AddTriad
 from qsim.parser import QuasistaticParser
@@ -19,12 +19,12 @@ h = 0.1
 # quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path)
 # q_parser.set_sim_params(gravity=[0, 0, -10])
-q_dynamics = QuasistaticDynamics(h=h,
-                                 q_model_path=q_model_path,
-                                 internal_viz=True)
+q_dynamics = QuasistaticDynamics(
+    h=h, q_model_path=q_model_path, internal_viz=True
+)
 q_dynamics.update_default_sim_params(
-    forward_mode=ForwardDynamicsMode.kSocpMp,
-    log_barrier_weight=100)
+    forward_mode=ForwardDynamicsMode.kSocpMp, log_barrier_weight=100
+)
 
 q_sim = q_parser.make_simulator_cpp()
 plant = q_sim.get_plant()
@@ -61,11 +61,18 @@ q_dynamics.q_sim_py.draw_current_configuration()
 
 num_joints = 7
 joint_limits = {
-    idx_u: np.array([
-        [-0.1, 0.1], [-0.1, 0.1], [-0.1, np.pi + 0.1], [0, 0],
-        [0.5 - 0.2, 0.5 + 0.2],
-        [0.00 - 0.2, 0.00 + 0.2],
-        [0.21 - 0.0, 0.21 + 0.0]])}
+    idx_u: np.array(
+        [
+            [-0.1, 0.1],
+            [-0.1, 0.1],
+            [-0.1, np.pi + 0.1],
+            [0, 0],
+            [0.5 - 0.2, 0.5 + 0.2],
+            [0.00 - 0.2, 0.00 + 0.2],
+            [0.21 - 0.0, 0.21 + 0.0],
+        ]
+    )
+}
 
 
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
@@ -89,7 +96,7 @@ params.regularization = 1e-3
 params.std_u = std_u
 params.stepsize = 0.3
 params.rewire = False
-params.distance_metric = 'local_u'
+params.distance_metric = "local_u"
 params.grasp_prob = 0.1
 params.h = 0.1
 
@@ -97,22 +104,25 @@ prob_rrt = IrsRrtProjection3D(params, contact_sampler)
 q_sim_py = prob_rrt.q_dynamics.q_sim_py
 AddTriad(
     vis=q_sim_py.viz.vis,
-    name='frame',
-    prefix='drake/plant/box/box',
+    name="frame",
+    prefix="drake/plant/box/box",
     length=0.4,
     radius=0.01,
-    opacity=1)
+    opacity=1,
+)
 
 AddTriad(
     vis=q_sim_py.viz.vis,
-    name='frame',
-    prefix='goal',
+    name="frame",
+    prefix="goal",
     length=0.4,
     radius=0.03,
-    opacity=0.5)
+    opacity=0.5,
+)
 
-q_sim_py.viz.vis['goal'].set_transform(
-    RigidTransform(Q_WB_d, p_WB_d).GetAsMatrix4())
+q_sim_py.viz.vis["goal"].set_transform(
+    RigidTransform(Q_WB_d, p_WB_d).GetAsMatrix4()
+)
 #
 prob_rrt.iterate()
 prob_rrt.save_tree("bimanual.pkl")

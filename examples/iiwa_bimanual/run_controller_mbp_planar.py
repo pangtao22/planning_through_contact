@@ -3,21 +3,36 @@ import copy
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-from pydrake.all import (MultibodyPlant, Parser, ProcessModelDirectives,
-                         LoadModelDirectives,  Quaternion, AngleAxis,
-                         Simulator, AddTriad)
+from pydrake.all import (
+    MultibodyPlant,
+    Parser,
+    ProcessModelDirectives,
+    LoadModelDirectives,
+    Quaternion,
+    AngleAxis,
+    Simulator,
+    AddTriad,
+)
 
 from qsim.parser import QuasistaticParser
 from qsim.model_paths import models_dir, add_package_paths_local
 from robotics_utilities.iiwa_controller.utils import (
-    create_iiwa_controller_plant)
+    create_iiwa_controller_plant,
+)
 
 from iiwa_bimanual_setup import (
-    q_model_path_cylinder, q_model_path_planar, iiwa_l_name, iiwa_r_name,
-    controller_params_2d, draw_goal_and_object_triads_2d)
-from control.drake_sim import (load_ref_trajectories,
-                               make_controller_mbp_diagram,
-                               calc_u_extended_and_t_knots)
+    q_model_path_cylinder,
+    q_model_path_planar,
+    iiwa_l_name,
+    iiwa_r_name,
+    controller_params_2d,
+    draw_goal_and_object_triads_2d,
+)
+from control.drake_sim import (
+    load_ref_trajectories,
+    make_controller_mbp_diagram,
+    calc_u_extended_and_t_knots,
+)
 from control.controller_planar_iiwa_bimanual import kIndices3Into7
 from control.systems_utils import render_system_with_graphviz
 
@@ -37,8 +52,8 @@ file_path = "./bimanual_optimized_q_and_u_trj.pkl"
 with open(file_path, "rb") as f:
     trj_dict = pickle.load(f)
 
-q_knots_ref_list = trj_dict['q_trj_list']
-u_knots_ref_list = trj_dict['u_trj_list']
+q_knots_ref_list = trj_dict["q_trj_list"]
+u_knots_ref_list = trj_dict["u_trj_list"]
 
 # pick one segment for now.
 idx_trj_segment = 1
@@ -46,10 +61,12 @@ q_knots_ref = q_knots_ref_list[idx_trj_segment]
 u_knots_ref, t_knots = calc_u_extended_and_t_knots(
     u_knots_ref=u_knots_ref_list[idx_trj_segment],
     u_knot_ref_start=q_knots_ref[0, q_sim_2d.get_q_a_indices_into_q()],
-    v_limit=0.1)
+    v_limit=0.1,
+)
 
 controller_plant_makers = {
-    iiwa_r_name: lambda gravity: create_iiwa_controller_plant(gravity)[0]}
+    iiwa_r_name: lambda gravity: create_iiwa_controller_plant(gravity)[0]
+}
 controller_plant_makers[iiwa_l_name] = controller_plant_makers[iiwa_r_name]
 
 diagram_and_contents = make_controller_mbp_diagram(
@@ -61,19 +78,20 @@ diagram_and_contents = make_controller_mbp_diagram(
     q_knots_ref=q_knots_ref,
     controller_params=controller_params_2d,
     create_controller_plant_functions=controller_plant_makers,
-    closed_loop=False)
+    closed_loop=False,
+)
 
 # unpack return values.
-diagram = diagram_and_contents['diagram']
-controller_robots = diagram_and_contents['controller_robots']
+diagram = diagram_and_contents["diagram"]
+controller_robots = diagram_and_contents["controller_robots"]
 robot_internal_controllers = diagram_and_contents["robot_internal_controllers"]
-plant_3d = diagram_and_contents['plant']
-meshcat_vis = diagram_and_contents['meshcat_vis']
-loggers_cmd = diagram_and_contents['loggers_cmd']
-q_ref_trj = diagram_and_contents['q_ref_trj']
-u_ref_trj = diagram_and_contents['u_ref_trj']
-logger_x = diagram_and_contents['logger_x']
-loggers_contact_torque = diagram_and_contents['loggers_contact_torque']
+plant_3d = diagram_and_contents["plant"]
+meshcat_vis = diagram_and_contents["meshcat_vis"]
+loggers_cmd = diagram_and_contents["loggers_cmd"]
+q_ref_trj = diagram_and_contents["q_ref_trj"]
+u_ref_trj = diagram_and_contents["u_ref_trj"]
+logger_x = diagram_and_contents["logger_x"]
+loggers_contact_torque = diagram_and_contents["loggers_contact_torque"]
 
 render_system_with_graphviz(diagram)
 model_a_l_3d = plant_3d.GetModelInstanceByName(iiwa_l_name)
@@ -91,7 +109,8 @@ for model_a in q_sim_3d.get_actuated_models():
     controller = robot_internal_controllers[model_a]
     controller.tau_feedforward_input_port.FixValue(
         controller.GetMyContextFromRoot(context),
-        np.zeros(controller.tau_feedforward_input_port.size()))
+        np.zeros(controller.tau_feedforward_input_port.size()),
+    )
 
 context_plant = plant_3d.GetMyContextFromRoot(context)
 q0 = controller_robots.calc_q_3d_from_q_2d(q_knots_ref[0])
@@ -102,9 +121,9 @@ context_controller.SetDiscreteState(q0)
 
 sim.Initialize()
 
-draw_goal_and_object_triads_2d(vis=meshcat_vis.vis,
-                               plant=plant_2d,
-                               q_u_goal=q_knots_ref[-1])
+draw_goal_and_object_triads_2d(
+    vis=meshcat_vis.vis, plant=plant_2d, q_u_goal=q_knots_ref[-1]
+)
 
 sim.set_target_realtime_rate(1.0)
 meshcat_vis.reset_recording()
@@ -115,8 +134,10 @@ meshcat_vis.publish_recording()
 
 # %% plots
 # 1. cmd vs nominal u.
-u_logs = {model_a: loggers_cmd[model_a].FindLog(context)
-          for model_a in q_sim_3d.get_actuated_models()}
+u_logs = {
+    model_a: loggers_cmd[model_a].FindLog(context)
+    for model_a in q_sim_3d.get_actuated_models()
+}
 
 u_log_l = u_logs[model_a_l_3d]
 
@@ -135,16 +156,15 @@ u_logged[:, indices] = u_logs[model_a_l_3d].data()[kIndices3Into7].T
 u_logged = u_logged[:, q_sim_2d.get_q_a_indices_into_q()]
 
 u_refs = np.array(
-    [u_ref_trj.value(t).squeeze() for t in u_log_l.sample_times()])
+    [u_ref_trj.value(t).squeeze() for t in u_log_l.sample_times()]
+)
 
 u_diff = np.linalg.norm(u_refs[:-1] - u_logged[1:], axis=1)
 
 # %% 2. q_u_nominal vs q_u.
 x_log = logger_x.FindLog(context)
-q_3d_log = x_log.data()[:plant_3d.num_positions()].T
-q_2d_log = [
-    controller_robots.calc_q_2d_from_q_3d(q_3d)
-    for q_3d in q_3d_log]
+q_3d_log = x_log.data()[: plant_3d.num_positions()].T
+q_2d_log = [controller_robots.calc_q_2d_from_q_3d(q_3d) for q_3d in q_3d_log]
 q_2d_log = np.array(q_2d_log)
 q_u_2d_log = q_2d_log[:, q_sim_2d.get_q_u_indices_into_q()]
 angle_error = []
@@ -175,7 +195,8 @@ plt.show()
 # %% 3. joint torque due to contact.
 contact_torque_logs = {
     model_a: loggers_contact_torque[model_a].FindLog(context)
-    for model_a in q_sim_3d.get_actuated_models()}
+    for model_a in q_sim_3d.get_actuated_models()
+}
 
 contact_torque_left = contact_torque_logs[model_a_l_3d]
 contact_torque_right = contact_torque_logs[model_a_r_3d]
@@ -197,7 +218,8 @@ plt.show()
 
 #%%
 t, indices = controller_robots.controller.calc_t_and_indices_for_q(
-    q_knots_ref[-1])
+    q_knots_ref[-1]
+)
 
 s = controller_robots.controller.calc_arc_length(t, indices)
 

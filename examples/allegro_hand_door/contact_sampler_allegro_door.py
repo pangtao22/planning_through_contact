@@ -29,7 +29,8 @@ class AllegroHandPlateContactSampler(ContactSampler):
 
         self.qdot_enveloping_flexion = np.zeros(19)
         self.qdot_enveloping_flexion[
-            [4, 5, 6, 6, 9, 10, 12, 13, 14, 16, 17, 18]] = 1.0
+            [4, 5, 6, 6, 9, 10, 12, 13, 14, 16, 17, 18]
+        ] = 1.0
 
         self.qdot_pinch_flexion = np.zeros(19)
         self.qdot_pinch_flexion[[6, 10, 14, 18]] = 1.0
@@ -47,15 +48,19 @@ class AllegroHandPlateContactSampler(ContactSampler):
         self.q_a0_thumb_upward[8] = 0
 
     def get_qa0(self):
-        return np.array(self.q_a0_thumb_forward if np.random.rand() > 0.5 else
-                        self.q_a0_thumb_upward)
+        return np.array(
+            self.q_a0_thumb_forward
+            if np.random.rand() > 0.5
+            else self.q_a0_thumb_upward
+        )
 
     def get_knob_center_world_frame(self, q_u: np.ndarray):
         q_dict = {self.idx_a: self.q_a0_thumb_forward, self.idx_u: q_u}
         # K: knob frame.
         self.q_dynamics.q_sim_py.update_mbp_positions(q_dict)
         X_WK = self.plant.EvalBodyPoseInWorld(
-            self.q_dynamics.q_sim_py.context_plant, self.knob_body)
+            self.q_dynamics.q_sim_py.context_plant, self.knob_body
+        )
 
         return X_WK.translation()
 
@@ -76,7 +81,8 @@ class AllegroHandPlateContactSampler(ContactSampler):
             self.q_sim.step(
                 q_a_cmd_dict=q_a_cmd_dict,
                 tau_ext_dict=tau_ext_dict,
-                sim_params=sim_params)
+                sim_params=sim_params,
+            )
 
             q_next_dict = self.q_sim.get_mbp_positions()
             x = self.q_dynamics.get_x_from_q_dict(q_next_dict)
@@ -107,11 +113,13 @@ class AllegroHandPlateContactSampler(ContactSampler):
 
                 w_thumb = 0.02 * np.random.rand()
 
-                qdot = w_torsion * self.qdot_torsion + \
-                       w_anti_torsion * self.qdot_anti_torsion + \
-                       w_enveloping_flexion * self.qdot_enveloping_flexion + \
-                       w_pinch_flexion * self.qdot_pinch_flexion + \
-                       w_thumb * self.qdot_thumb
+                qdot = (
+                    w_torsion * self.qdot_torsion
+                    + w_anti_torsion * self.qdot_anti_torsion
+                    + w_enveloping_flexion * self.qdot_enveloping_flexion
+                    + w_pinch_flexion * self.qdot_pinch_flexion
+                    + w_thumb * self.qdot_thumb
+                )
 
                 xnext, q_dict_lst = self.simulate_qdot(x0, qdot, self.T)
                 self.q_dynamics.q_sim_py.update_mbp_positions(q_dict_lst[-1])

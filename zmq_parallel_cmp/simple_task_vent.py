@@ -31,8 +31,14 @@ n_tasks = 10
 # Send 100 tasks
 for task_nbr in range(n_tasks):
     A = np.ones(random.randint(1, 10000))
-    send_x_and_u(sender, A, t=task_nbr, n_samples=100, std=[0.1],
-                 bundle_mode=BundleMode.kFirstRandomized)
+    send_x_and_u(
+        sender,
+        A,
+        t=task_nbr,
+        n_samples=100,
+        std=[0.1],
+        bundle_mode=BundleMode.kFirstRandomized,
+    )
 
     print(task_nbr, A.sum())
 
@@ -40,7 +46,7 @@ for task_nbr in range(n_tasks):
 # Start our clock now
 # Each request sleeps for 100ms. The total elapsed time should be close to
 #  (10s / num_workers).
-print('---------------------------------------------')
+print("---------------------------------------------")
 tstart = time.time()
 # Process 100 confirmations
 for task_nbr in range(n_tasks):

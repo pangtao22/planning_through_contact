@@ -18,5 +18,5 @@ class IrsRrtProjection3D(IrsRrtProjection):
 
         rpy = RollPitchYaw(subgoal[self.irs_rrt_3d.quat_ind][0:3])
         subgoal[self.irs_rrt_3d.quat_ind] = rpy.ToQuaternion().wxyz()
-        
+
         return subgoal

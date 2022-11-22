@@ -1,12 +1,11 @@
 import os
 
-from irs_mpc.irs_mpc_params import (BundleMode,
-                                    ParallelizationMode)
+from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
 
 from qsim.model_paths import models_dir
 
 
-q_model_path = os.path.join(models_dir, 'q_sys', 'planar_hand_ball.yml')
+q_model_path = os.path.join(models_dir, "q_sys", "planar_hand_ball.yml")
 
 # names.
 robot_l_name = "arm_left"

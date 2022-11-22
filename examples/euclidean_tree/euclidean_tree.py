@@ -4,12 +4,14 @@ import networkx as nx
 
 from irs_rrt.rrt_base import Node, Edge, RrtParams, Rrt
 
+
 class EuclideanRrtParams(RrtParams):
     def __init__(self):
         super().__init__()
-        self.x_lb = np.array([-20,-20])
+        self.x_lb = np.array([-20, -20])
         self.x_ub = np.array([20, 20])
-        self.radius = 0.1 # radius of maximum extension
+        self.radius = 0.1  # radius of maximum extension
+
 
 class EuclideanRrt(Rrt):
     def __init__(self, params: RrtParams):
@@ -17,8 +19,9 @@ class EuclideanRrt(Rrt):
 
     def sample_subgoal(self):
         subgoal = np.random.rand(2)
-        subgoal = self.params.x_lb + (
-            self.params.x_ub - self.params.x_lb) * subgoal
+        subgoal = (
+            self.params.x_lb + (self.params.x_ub - self.params.x_lb) * subgoal
+        )
         return subgoal
 
     def compute_edge_cost(self, parent_node: Node, child_node: Node):
@@ -27,16 +30,17 @@ class EuclideanRrt(Rrt):
         return np.linalg.norm(x_parent - x_child)
 
     def extend_towards_q(self, node: Node, q: np.array):
-        if (np.linalg.norm(q - node.q) < self.params.radius):
+        if np.linalg.norm(q - node.q) < self.params.radius:
             child_q = q
         else:
             child_q = node.q + self.params.radius * (
-                q - node.q) / np.linalg.norm(q - node.q)
+                q - node.q
+            ) / np.linalg.norm(q - node.q)
         return Node(child_q)
 
     def calc_distance_batch(self, q_query: np.array):
         q_batch = self.get_q_matrix_up_to()
-        error_batch = q_query[None,:] - q_batch
+        error_batch = q_query[None, :] - q_batch
         return np.linalg.norm(error_batch, axis=1)
 
 
@@ -63,7 +67,7 @@ def plot_result():
     for edge_tuple in tree.graph.edges:
         qu = tree.get_node_from_id(edge_tuple[0]).q
         qv = tree.get_node_from_id(edge_tuple[1]).q
-        plt.plot([qu[0], qv[0]], [qu[1], qv[1]], 'k-')
+        plt.plot([qu[0], qv[0]], [qu[1], qv[1]], "k-")
 
     """
     for node_idx in tree.graph.nodes:
@@ -71,8 +75,8 @@ def plot_result():
             xy=tree.get_node_from_id(node_idx).q)
     """
 
-    plt.plot(goal[0], goal[1], 'ro')
-    plt.scatter(node_lst[:,0], node_lst[:,1])
+    plt.plot(goal[0], goal[1], "ro")
+    plt.scatter(node_lst[:, 0], node_lst[:, 1])
     plt.xlim([-15, 15])
     plt.ylim([-15, 15])
 

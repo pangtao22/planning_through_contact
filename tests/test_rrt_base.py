@@ -7,15 +7,18 @@ from .context import examples, irs_mpc, irs_rrt
 from irs_rrt.rrt_base import Node
 
 from examples.euclidean_tree.euclidean_tree import (
-    EuclideanRrtParams, EuclideanRrt)
+    EuclideanRrtParams,
+    EuclideanRrt,
+)
 
 
 class TestRRTBase(unittest.TestCase):
     """
     The tests compare the numpy storage used for batch computations against
-    information in the invidiual nodes of network x to make sure they are 
+    information in the invidiual nodes of network x to make sure they are
     consistent.
     """
+
     def setUp(self):
         np.random.seed(940923)
         root_node = Node(np.zeros(2))
@@ -64,5 +67,5 @@ class TestRRTBase(unittest.TestCase):
         self.assertTrue(np.allclose(node_lst, np.array(range(self.tree.size))))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

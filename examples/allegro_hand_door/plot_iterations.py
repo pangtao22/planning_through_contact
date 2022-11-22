@@ -1,5 +1,3 @@
-
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
@@ -18,7 +16,9 @@ def get_cost_array(irs_rrt, global_metric):
     for n in range(1, n_nodes):
         costs[n] = np.min(
             irs_rrt.calc_distance_batch_global(
-                irs_rrt.goal, n, is_q_u_only=True))
+                irs_rrt.goal, n, is_q_u_only=True
+            )
+        )
 
     return costs[1:]
 
@@ -30,7 +30,8 @@ def get_packing_ratio_array(irs_rrt, sampling_function, n_samples, threshold):
     for n in tqdm(range(1, n_nodes)):
         samples = sampling_function(n_samples)
         pairwise_distance = irs_rrt.calc_pairwise_distance_batch_local(
-            samples, n, is_q_u_only=True)
+            samples, n, is_q_u_only=True
+        )
         dist = np.min(pairwise_distance, axis=1)
         costs[n] = np.sum(dist < threshold) / n_samples
 
@@ -38,7 +39,7 @@ def get_packing_ratio_array(irs_rrt, sampling_function, n_samples, threshold):
 
 
 def compute_statistics(filename):
-    with open(filename, 'rb') as f:
+    with open(filename, "rb") as f:
         tree = pickle.load(f)
 
     """Modify the below lines for specific implementations."""
@@ -57,9 +58,9 @@ def compute_statistics(filename):
         return samples
 
     cost_array = get_cost_array(irs_rrt, global_metric)
-    packing_ratio_array = get_packing_ratio_array(irs_rrt,
-                                                  sampling_function, n_samples,
-                                                  threshold)
+    packing_ratio_array = get_packing_ratio_array(
+        irs_rrt, sampling_function, n_samples, threshold
+    )
 
     return cost_array, packing_ratio_array
 
@@ -78,42 +79,48 @@ def plot_filename_array(filename_array, color, label):
     mean_cost = np.mean(cost_array_lst, axis=0)
     std_cost = np.std(cost_array_lst, axis=0)
 
-    plt.plot(range(len(mean_cost)), mean_cost, '-', color=color,
-             label=label)
-    plt.fill_between(range(len(mean_cost)),
-                     mean_cost - std_cost, mean_cost + std_cost, color=color,
-                     alpha=0.1)
-    plt.xlabel('Iterations')
-    plt.ylabel('Closest Distance to Goal')
+    plt.plot(range(len(mean_cost)), mean_cost, "-", color=color, label=label)
+    plt.fill_between(
+        range(len(mean_cost)),
+        mean_cost - std_cost,
+        mean_cost + std_cost,
+        color=color,
+        alpha=0.1,
+    )
+    plt.xlabel("Iterations")
+    plt.ylabel("Closest Distance to Goal")
 
     plt.subplot(1, 2, 2)
     packing_ratio_lst = np.array(packing_ratio_lst)
     mean_cost = np.mean(packing_ratio_lst, axis=0)
     std_cost = np.std(packing_ratio_lst, axis=0)
 
-    plt.plot(range(len(mean_cost)), mean_cost, '-', color=color,
-             label=label)
-    plt.fill_between(range(len(mean_cost)),
-                     mean_cost - std_cost, mean_cost + std_cost, color=color,
-                     alpha=0.1)
-    plt.xlabel('Iterations')
-    plt.ylabel('Packing Ratio')
+    plt.plot(range(len(mean_cost)), mean_cost, "-", color=color, label=label)
+    plt.fill_between(
+        range(len(mean_cost)),
+        mean_cost - std_cost,
+        mean_cost + std_cost,
+        color=color,
+        alpha=0.1,
+    )
+    plt.xlabel("Iterations")
+    plt.ylabel("Packing Ratio")
 
 
 fig = plt.figure(figsize=(16, 4))
-plt.rcParams['font.size'] = '16'
+plt.rcParams["font.size"] = "16"
 prefix = "tree"  # tree_traj_opt
 n_nodes = 500  # 100
 filename_array = [f"{prefix}_local_u_{n_nodes}_{i}.pkl" for i in range(5)]
-plot_filename_array(filename_array, 'springgreen', 'iRS-RRT')
+plot_filename_array(filename_array, "springgreen", "iRS-RRT")
 
-filename_array = [f"{prefix}_global_u_{n_nodes}_{i}.pkl"
-                  for i in range(5)]
-plot_filename_array(filename_array, 'red', 'Global Metric')
+filename_array = [f"{prefix}_global_u_{n_nodes}_{i}.pkl" for i in range(5)]
+plot_filename_array(filename_array, "red", "Global Metric")
 
-filename_array = [f"{prefix}_local_u_{n_nodes}_no_contact_{i}.pkl"
-                  for i in range(5)]
-plot_filename_array(filename_array, 'royalblue', 'No Contact')
+filename_array = [
+    f"{prefix}_local_u_{n_nodes}_no_contact_{i}.pkl" for i in range(5)
+]
+plot_filename_array(filename_array, "royalblue", "No Contact")
 
 #%%
 plt.subplot(1, 2, 1)

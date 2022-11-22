@@ -1,6 +1,6 @@
 import numpy as np
 
-from pydrake.all import (RotationMatrix, RigidTransform, Quaternion)
+from pydrake.all import RotationMatrix, RigidTransform, Quaternion
 from optitrack import optitrack_frame_t
 
 from control.systems_utils import wait_for_msg
@@ -27,8 +27,7 @@ def is_optitrack_message_good(msg: optitrack_frame_t):
     return all(is_good.values())
 
 
-def get_marker_set_points(marker_set_name: str,
-                          msg: optitrack_frame_t):
+def get_marker_set_points(marker_set_name: str, msg: optitrack_frame_t):
     """
     Returns None if msg does not have a marker_set with name marker_set_name.
     Otherwise, returns ((n, 3) marker coordinates, index of marker set.)
@@ -57,8 +56,9 @@ class PoseEstimatorBase:
         return X_LW.inverse()
 
     @staticmethod
-    def get_X_LF_from_msg(optitrack_msg: optitrack_frame_t,
-                          idx_rigid_body: int):
+    def get_X_LF_from_msg(
+        optitrack_msg: optitrack_frame_t, idx_rigid_body: int
+    ):
         """
         F is the frame of the rigid body indexed by idx_rigid_body in
          optitrack_msg.
@@ -66,11 +66,13 @@ class PoseEstimatorBase:
         q = optitrack_msg.rigid_bodies[idx_rigid_body].quat
         return RigidTransform(
             Quaternion(q[3], q[0], q[1], q[2]),
-            optitrack_msg.rigid_bodies[idx_rigid_body].xyz)
+            optitrack_msg.rigid_bodies[idx_rigid_body].xyz,
+        )
 
     @staticmethod
-    def get_q_and_p_from_msg(optitrack_msg: optitrack_frame_t,
-                          idx_rigid_body: int):
+    def get_q_and_p_from_msg(
+        optitrack_msg: optitrack_frame_t, idx_rigid_body: int
+    ):
         """
         F is the frame of the rigid body indexed by idx_rigid_body in
          optitrack_msg.
@@ -117,7 +119,9 @@ class BoxPoseEstimator(PoseEstimatorBase):
 
 
 if __name__ == "__main__":
-    initial_msg = wait_for_msg(channel_name="OPTITRACK_FRAMES",
-                               lcm_type=optitrack_frame_t,
-                               is_message_good=is_optitrack_message_good)
+    initial_msg = wait_for_msg(
+        channel_name="OPTITRACK_FRAMES",
+        lcm_type=optitrack_frame_t,
+        is_message_good=is_optitrack_message_good,
+    )
     bpe = BoxPoseEstimator(initial_msg)

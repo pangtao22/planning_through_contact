@@ -4,7 +4,7 @@ from typing import Dict, Set, List
 
 from matplotlib import cm
 import numpy as np
-from pydrake.all import (ModelInstanceIndex, MultibodyPlant)
+from pydrake.all import ModelInstanceIndex, MultibodyPlant
 
 from qsim.simulator import QuasistaticSimulator
 from qsim_cpp import QuasistaticSimulatorCpp
@@ -13,9 +13,9 @@ from pydrake.all import PiecewisePolynomial, ContactResults, BodyIndex
 
 
 class QuasistaticVisualizer:
-    def __init__(self,
-                 q_sim: QuasistaticSimulatorCpp,
-                 q_sim_py: QuasistaticSimulator):
+    def __init__(
+        self, q_sim: QuasistaticSimulatorCpp, q_sim_py: QuasistaticSimulator
+    ):
         self.q_sim_py = q_sim_py
         self.q_sim = q_sim
         self.plant = self.q_sim.get_plant()
@@ -30,7 +30,8 @@ class QuasistaticVisualizer:
             models_all_a=self.q_sim.get_all_models(),
             models_all_b=self.q_sim_py.get_all_models(),
             velocity_indices_a=self.q_sim.get_velocity_indices(),
-            velocity_indices_b=self.q_sim.get_velocity_indices())
+            velocity_indices_b=self.q_sim.get_velocity_indices(),
+        )
 
     def get_body_id_to_meshcat_name_map(self):
         body_id_meshcat_name_map = {}
@@ -40,17 +41,20 @@ class QuasistaticVisualizer:
             model_name = self.plant.GetModelInstanceName(model)
             for bi in body_indices:
                 body_name = self.plant.get_body(bi).name()
-                name = prefix + f'/{model_name}/{body_name}'
+                name = prefix + f"/{model_name}/{body_name}"
                 body_id_meshcat_name_map[bi] = name
 
         return body_id_meshcat_name_map
 
     @staticmethod
-    def check_plants(plant_a: MultibodyPlant, plant_b: MultibodyPlant,
-                     models_all_a: Set[ModelInstanceIndex],
-                     models_all_b: Set[ModelInstanceIndex],
-                     velocity_indices_a: Dict[ModelInstanceIndex, np.ndarray],
-                     velocity_indices_b: Dict[ModelInstanceIndex, np.ndarray]):
+    def check_plants(
+        plant_a: MultibodyPlant,
+        plant_b: MultibodyPlant,
+        models_all_a: Set[ModelInstanceIndex],
+        models_all_b: Set[ModelInstanceIndex],
+        velocity_indices_a: Dict[ModelInstanceIndex, np.ndarray],
+        velocity_indices_b: Dict[ModelInstanceIndex, np.ndarray],
+    ):
         """
         Make sure that plant_a and plant_b are identical.
         """
@@ -80,11 +84,12 @@ class QuasistaticVisualizer:
             q = x[indices[:4]]
             x[indices[:4]] /= np.linalg.norm(q)
 
-    def calc_body_id_to_contact_force_map(self,
-                                          contact_results: ContactResults):
+    def calc_body_id_to_contact_force_map(
+        self, contact_results: ContactResults
+    ):
         """
         Returns {BodyIndex: (3,) np array}, where the array is a contact force.
-        Only Bodies present in both contact_results and 
+        Only Bodies present in both contact_results and
          body_id_meshcat_name_map().keys() appear in the returned dictionary.
         """
         contact_forces_map = {}
@@ -121,21 +126,24 @@ class QuasistaticVisualizer:
         return contact_forces_map
 
     def calc_contact_forces_knots_map(
-            self, contact_results_list: List[ContactResults]):
+        self, contact_results_list: List[ContactResults]
+    ):
         """
         Returns {BodyIndex: (n, 3) array}, where n = len(contact_results_list).
         """
         contact_forces_knots_map = {
-            body_idx: []
-            for body_idx in self.body_id_meshcat_name_map.keys()}
+            body_idx: [] for body_idx in self.body_id_meshcat_name_map.keys()
+        }
 
         for t, contact_results in enumerate(contact_results_list):
             contact_forces_map = self.calc_body_id_to_contact_force_map(
-                contact_results)
+                contact_results
+            )
             for body_idx in self.body_id_meshcat_name_map.keys():
                 if body_idx in contact_forces_map.keys():
                     contact_forces_knots_map[body_idx].append(
-                        contact_forces_map[body_idx])
+                        contact_forces_map[body_idx]
+                    )
                 else:
                     contact_forces_knots_map[body_idx].append(np.zeros(3))
 
@@ -145,20 +153,23 @@ class QuasistaticVisualizer:
         return contact_forces_knots_map
 
     def calc_contact_forces_traj_map(
-            self,
-            contact_forces_knots_map: Dict[BodyIndex, np.ndarray],
-            t_knots: np.ndarray):
+        self,
+        contact_forces_knots_map: Dict[BodyIndex, np.ndarray],
+        t_knots: np.ndarray,
+    ):
         """
         Returns {BodyIndex: PiecewisePolynomial}.
         """
         contact_forces_traj_map = {}
         for key, f_W_knots in contact_forces_knots_map.items():
             contact_forces_traj_map[key] = PiecewisePolynomial.FirstOrderHold(
-                t_knots, f_W_knots.T)
+                t_knots, f_W_knots.T
+            )
         return contact_forces_traj_map
 
-    def calc_contact_force_norm_upper_bound(self,
-        cf_knots_map: Dict[BodyIndex, np.ndarray], percentile: float):
+    def calc_contact_force_norm_upper_bound(
+        self, cf_knots_map: Dict[BodyIndex, np.ndarray], percentile: float
+    ):
         """
         @param cf_knots_map: {BodyIndex: (n, 3) array}, where n is the
          number of knots in the trajectory.
@@ -171,9 +182,9 @@ class QuasistaticVisualizer:
 
         return np.percentile(f_W_knot_norms, percentile)
 
-    def concatenate_contact_forces(self,
-                                   cf_knots_map: Dict[BodyIndex, np.ndarray],
-                                   stride: int):
+    def concatenate_contact_forces(
+        self, cf_knots_map: Dict[BodyIndex, np.ndarray], stride: int
+    ):
         """
         The length of each value in cf_knots_map is (T * stride + 1),
          and the first force is always 0 and therefore can be ignored.
@@ -187,17 +198,21 @@ class QuasistaticVisualizer:
             cf_reduced = np.zeros((T, 3))
             for t in range(T):
                 i_start = t * stride
-                cf_reduced[t] = np.mean(
-                    cf[i_start: i_start + stride], axis=0)
+                cf_reduced[t] = np.mean(cf[i_start : i_start + stride], axis=0)
 
             cf_knots_map_reduced[key] = cf_reduced
 
         return cf_knots_map_reduced
 
-    def render_trajectory(self, x_traj_knots: np.ndarray, h: float,
-                          folder_path: str, fps: int = 60,
-                          contact_results_list: List[ContactResults] = None,
-                          stride: int = 1):
+    def render_trajectory(
+        self,
+        x_traj_knots: np.ndarray,
+        h: float,
+        folder_path: str,
+        fps: int = 60,
+        contact_results_list: List[ContactResults] = None,
+        stride: int = 1,
+    ):
         """
         Saves rendered frames to folder_path.
         """
@@ -208,18 +223,22 @@ class QuasistaticVisualizer:
         cf_traj_map = None
         if contact_results_list:
             cf_knots_map = self.calc_contact_forces_knots_map(
-                contact_results_list)
+                contact_results_list
+            )
             cf_knots_map_reduced = self.concatenate_contact_forces(
-                cf_knots_map, stride)
+                cf_knots_map, stride
+            )
             cf_traj_map = self.calc_contact_forces_traj_map(
-                cf_knots_map_reduced, t_knots)
+                cf_knots_map_reduced, t_knots
+            )
             cf_upper_bound = self.calc_contact_force_norm_upper_bound(
-                cf_knots_map_reduced, 95)
+                cf_knots_map_reduced, 95
+            )
 
             cf_upper_bound = 5
 
             def calc_cm_value(f_norm: float):
-                return 1 - np.exp(- f_norm / (cf_upper_bound / 2.3))
+                return 1 - np.exp(-f_norm / (cf_upper_bound / 2.3))
 
         dt = 1 / fps
         n_frames = int(t_knots[-1] / dt)
@@ -235,15 +254,15 @@ class QuasistaticVisualizer:
             self.q_sim_py.draw_current_configuration(False)
 
             if cf_traj_map:
-                cf_map = {key: cf_traj.value(t).squeeze()
-                          for key, cf_traj in cf_traj_map.items()}
+                cf_map = {
+                    key: cf_traj.value(t).squeeze()
+                    for key, cf_traj in cf_traj_map.items()
+                }
                 for body_id, f_W in cf_map.items():
                     f_W_norm = np.linalg.norm(f_W)
                     color = cm.plasma(calc_cm_value(f_W_norm))
                     meshcat_name = self.body_id_meshcat_name_map[body_id]
-                    self.meshcat_vis[meshcat_name].set_property(
-                        "color", color)
+                    self.meshcat_vis[meshcat_name].set_property("color", color)
 
             im = self.meshcat_vis.get_image()
-            im.save(os.path.join(folder_path, f"{i:04d}.png"), 'png')
-
+            im.save(os.path.join(folder_path, f"{i:04d}.png"), "png")

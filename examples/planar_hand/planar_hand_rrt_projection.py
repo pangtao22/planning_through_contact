@@ -9,9 +9,9 @@ from planar_hand_setup import *
 from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 
 # %% quasistatic dynamical system
-q_dynamics = QuasistaticDynamics(h=h,
-                                 q_model_path=q_model_path,
-                                 internal_viz=True)
+q_dynamics = QuasistaticDynamics(
+    h=h, q_model_path=q_model_path, internal_viz=True
+)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 q_sim_py = q_dynamics.q_sim_py
@@ -25,8 +25,7 @@ q_u0 = np.array([0.0, 0.35, 0])
 q0_dict = contact_sampler.calc_enveloping_grasp(q_u0)
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 
-joint_limits = {
-    idx_u: np.array([[-0.3, 0.3], [0.3, 0.5], [-0.01, np.pi]])}
+joint_limits = {idx_u: np.array([[-0.3, 0.3], [0.3, 0.5], [-0.01, np.pi]])}
 
 # %% RRT testing
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
@@ -42,7 +41,7 @@ params.regularization = 1e-4
 params.rewire = False
 params.grasp_prob = 0.2
 params.distance_threshold = np.inf
-params.distance_metric = 'local_u'
+params.distance_metric = "local_u"
 
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 10.0, 10.0, 1.0])
@@ -63,9 +62,3 @@ prob_rrt.save_tree(f"tree_{params.max_size}_{0}.pkl")
 #     data_folder,
 #     "randomized",
 #     f"tree_{params.max_size}_{0}.pkl"))
-
-
-
-
-
-
