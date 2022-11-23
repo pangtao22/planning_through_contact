@@ -19,7 +19,7 @@ class QuasistaticVisualizer:
         self.q_sim_py = q_sim_py
         self.q_sim = q_sim
         self.plant = self.q_sim.get_plant()
-        self.meshcat_vis = self.q_sim_py.viz.vis
+        self.meshcat_vis = self.q_sim_py.viz
 
         self.body_id_meshcat_name_map = self.get_body_id_to_meshcat_name_map()
 
@@ -73,8 +73,14 @@ class QuasistaticVisualizer:
         self.q_sim_py.draw_current_configuration()
 
     def publish_trajectory(self, x_knots: np.ndarray, h: float):
-        q_dict_knots = [self.q_sim.get_q_dict_from_vec(x) for x in x_knots]
-        self.q_sim_py.animate_system_trajectory(h, q_dict_traj=q_dict_knots)
+        self.meshcat_vis.StartRecording(False)
+        for i, t in enumerate(np.arange(len(x_knots)) * h):
+            self.q_sim_py.context.SetTime(t)
+            self.q_sim_py.update_mbp_positions_from_vector(x_knots[i])
+            self.meshcat_vis.ForcedPublish(self.q_sim_py.context_meshcat)
+
+        self.meshcat_vis.StopRecording()
+        self.meshcat_vis.PublishRecording()
 
     def normalize_quaternions_in_x(self, x: np.ndarray):
         for model in self.q_sim_py.models_unactuated:

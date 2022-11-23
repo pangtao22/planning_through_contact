@@ -13,7 +13,8 @@ from pydrake.all import (
     RigidTransform,
 )
 from pydrake.math import RollPitchYaw
-from pydrake.systems.meshcat_visualizer import AddTriad
+from manipulation.meshcat_utils import AddMeshcatTriad
+
 
 from qsim.parser import QuasistaticParser
 from qsim.simulator import QuasistaticSimulator, GradientMode
@@ -112,7 +113,7 @@ prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
 q_sim_py = prob_mpc.q_vis.q_sim_py
 #%%
 q_sim_py.update_mbp_positions(q0_dict)
-q_sim_py.draw_current_configuration()
+q_sim_py.draw_current_configuration(draw_forces=False)
 
 #%%
 Q_WB_d = RollPitchYaw(0, 0, np.pi / 6).ToQuaternion()
@@ -133,26 +134,22 @@ t1 = time.time()
 print(f"iterate took {t1 - t0} seconds.")
 
 #%% visualize goal.
-AddTriad(
-    vis=q_sim_py.viz.vis,
-    name="frame",
-    prefix="drake/plant/sphere/sphere",
+meshcat = q_sim_py.meshcat
+AddMeshcatTriad(
+    meshcat=meshcat,
+    path="visualizer/sphere/sphere/frame",
     length=0.1,
     radius=0.001,
     opacity=1,
 )
 
-AddTriad(
-    vis=q_sim_py.viz.vis,
-    name="frame",
-    prefix="goal",
+AddMeshcatTriad(
+    meshcat=meshcat,
+    path="goal/frame",
     length=0.1,
     radius=0.005,
     opacity=0.5,
-)
-
-q_sim_py.viz.vis["goal"].set_transform(
-    RigidTransform(Q_WB_d, p_WB_d).GetAsMatrix4()
+    X_PT=RigidTransform(Q_WB_d, p_WB_d),
 )
 
 
@@ -177,13 +174,12 @@ prob_mpc.plot_costs()
 prob_mpc.q_vis.publish_trajectory(prob_mpc.x_trj_best, h)
 
 
+assert False
 #%% save trajectories
 things_to_save = {"x_trj": prob_mpc.x_trj_best, "u_trj": prob_mpc.u_trj_best}
 with open("hand_trj.pkl", "wb") as f:
     pickle.dump(things_to_save, f)
 
-
-assert False
 
 #%%
 u_trj_best = prob_mpc.u_trj_best

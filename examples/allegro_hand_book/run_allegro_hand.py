@@ -12,9 +12,7 @@ from pydrake.all import (
     RigidTransform,
 )
 from pydrake.math import RollPitchYaw
-from pydrake.systems.meshcat_visualizer import AddTriad
-
-from qsim.simulator import QuasistaticSimulator, GradientMode
+from manipulation.meshcat_utils import AddMeshcatTriad
 from qsim_cpp import QuasistaticSimulatorCpp
 
 from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
