@@ -1,0 +1,6 @@
+plotly
+dash
+dash_bootstrap_components
+tqdm
+spdlog
+networkx
