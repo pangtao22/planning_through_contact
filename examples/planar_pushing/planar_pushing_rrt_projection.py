@@ -71,7 +71,9 @@ params.distance_threshold = 50
 
 
 for i in range(5):
-    irs_rrt = IrsRrtProjection(params=params, contact_sampler=contact_sampler)
+    irs_rrt = IrsRrtProjection(
+        rrt_params=params, contact_sampler=contact_sampler
+    )
     irs_rrt.iterate()
 
     #%%

@@ -29,7 +29,7 @@ class IrsRrtTrajOpt(IrsRrt):
         self.mpc_params = mpc_params
         self.reachable_set = ReachableSet(
             q_dynamics=self.q_dynamics,
-            params=rrt_params,
+            rrt_params=rrt_params,
             q_dynamics_p=self.irs_mpc.q_dynamics_parallel,
         )
         self.contact_sampler = contact_sampler
@@ -41,7 +41,7 @@ class IrsRrtTrajOpt(IrsRrt):
         u_trj_0 = np.tile(q0[self.q_dynamics.get_q_a_indices_into_x()], (T, 1))
         self.irs_mpc.initialize_problem(x0=q0, x_trj_d=q_trj_d, u_trj_0=u_trj_0)
         self.irs_mpc.iterate(
-            10, cost_Qu_f_threshold=self.params.termination_tolerance
+            10, cost_Qu_f_threshold=self.rrt_params.termination_tolerance
         )
         # self.irs_mpc.plot_costs()
 
@@ -89,16 +89,16 @@ class IrsRrtTrajOpt(IrsRrt):
         """
         pbar = tqdm(total=self.max_size)
 
-        while self.size < self.params.max_size:
+        while self.size < self.rrt_params.max_size:
             # 1. Sample a subgoal.
             if self.cointoss_for_goal():
-                subgoal = self.params.goal
+                subgoal = self.rrt_params.goal
             else:
                 subgoal = self.sample_subgoal()
 
             # 2. Sample closest node to subgoal
             parent_node = self.select_closest_node(
-                subgoal, d_threshold=self.params.distance_threshold
+                subgoal, d_threshold=self.rrt_params.distance_threshold
             )
             if parent_node is None:
                 continue
@@ -113,7 +113,7 @@ class IrsRrtTrajOpt(IrsRrt):
             pbar.update(1)
 
             # 4. Attempt to rewire a candidate child node.
-            if self.params.rewire:
+            if self.rrt_params.rewire:
                 parent_node, child_node, edge = self.rewire(
                     parent_node, child_node
                 )
@@ -134,8 +134,8 @@ class IrsRrtTrajOpt(IrsRrt):
         d = self.irs_mpc.calc_Q_cost(
             models_list=self.q_dynamics.models_unactuated,
             x_dict=self.q_dynamics.get_q_dict_from_x(node.q),
-            xd_dict=self.q_dynamics.get_q_dict_from_x(self.params.goal),
+            xd_dict=self.q_dynamics.get_q_dict_from_x(self.rrt_params.goal),
             Q_dict=self.mpc_params.Qd_dict,
         )
 
-        return d < self.params.termination_tolerance
+        return d < self.rrt_params.termination_tolerance

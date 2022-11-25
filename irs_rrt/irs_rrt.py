@@ -9,10 +9,13 @@ from pydrake.all import Quaternion, AngleAxis
 from qsim_cpp import ForwardDynamicsMode
 
 from irs_mpc.irs_mpc_params import BundleMode
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.reachable_set import ReachableSet
 from irs_rrt.rrt_base import Node, Edge, Rrt
 from irs_rrt.rrt_params import IrsRrtParams
+
+from qsim.simulator import QuasistaticSimulator
+from qsim_cpp import QuasistaticSimulatorCpp
+from qsim.parser import QuasistaticParser
 
 
 class IrsNode(Node):
@@ -54,31 +57,43 @@ class IrsEdge(Edge):
 
 
 class IrsRrt(Rrt):
-    def __init__(self, params: IrsRrtParams):
-        self.q_dynamics = QuasistaticDynamics(
-            h=params.h, q_model_path=params.q_model_path, internal_viz=True
+    def __init__(
+        self,
+        rrt_params: IrsRrtParams,
+        q_sim: QuasistaticSimulatorCpp,
+        q_sim_py: QuasistaticSimulator,
+    ):
+        self.q_sim = q_sim
+        self.plant = q_sim.get_plant()
+        self.q_sim_py = q_sim_py
+        # q_sim_py must have an internal MeshcatVisualizer.
+        assert q_sim_py.internal_vis
+
+        self.sim_params = q_sim.get_sim_params()
+        self.sim_params.h = rrt_params.h
+        self.sim_params.log_barrier_weight = (
+            rrt_params.log_barrier_weight_for_bundling
         )
-        self.q_dynamics.update_default_sim_params(
-            log_barrier_weight=params.log_barrier_weight_for_bundling,
-            forward_mode=ForwardDynamicsMode.kSocpMp,
+        self.sim_params.forward_mode = ForwardDynamicsMode.kSocpMp
+
+        # TODO(pang): what does self.load_params() do?
+        self.rrt_params = self.load_params(rrt_params)
+        self.reachable_set = ReachableSet(
+            q_sim=q_sim, rrt_params=rrt_params, sim_params=self.sim_params
         )
-        self.params = self.load_params(params)
-        self.reachable_set = ReachableSet(self.q_dynamics, params)
-        self.max_size = params.max_size
-        self.q_sim = self.q_dynamics.q_sim
+        self.max_size = rrt_params.max_size
+
+        self.dim_x = self.plant.num_positions()
+        self.dim_u = self.q_sim.num_actuated_dofs()
+        self.dim_q_u = self.dim_x - self.dim_u
 
         self.q_lb, self.q_ub = self.get_joint_limits()
 
         # Initialize tensors for batch computation.
-        self.Bhat_tensor = np.zeros(
-            (self.max_size, self.q_dynamics.dim_x, self.q_dynamics.dim_u)
-        )
-        self.covinv_tensor = np.zeros(
-            (self.max_size, self.q_dynamics.dim_x, self.q_dynamics.dim_x)
-        )
-        self.chat_matrix = np.zeros((self.max_size, self.q_dynamics.dim_x))
+        self.Bhat_tensor = np.zeros((self.max_size, self.dim_x, self.dim_u))
+        self.covinv_tensor = np.zeros((self.max_size, self.dim_x, self.dim_x))
+        self.chat_matrix = np.zeros((self.max_size, self.dim_x))
 
-        self.dim_q_u = self.q_dynamics.dim_x - self.q_dynamics.dim_u
         self.covinv_u_tensor = np.zeros(
             (self.max_size, self.dim_q_u, self.dim_q_u)
         )
@@ -88,19 +103,22 @@ class IrsRrt(Rrt):
 
         self.calc_q_u_diff = self.get_calc_q_u_diff()
 
-        super().__init__(params)
+        super().__init__(rrt_params)
 
     @staticmethod
     def make_from_pickled_tree(tree: networkx.DiGraph):
         # Factory method for making an IrsRrt object from a pickled tree.
-        irs_rrt_param = tree.graph["irs_rrt_params"]
-        prob_rrt = IrsRrt(irs_rrt_param)
+        rrt_param = tree.graph["irs_rrt_params"]
+        parser = QuasistaticParser(rrt_param.q_model_path)
+        parser.set_sim_params(**tree.graph["q_sim_params"])
+
+        prob_rrt = IrsRrt(
+            rrt_params=rrt_param,
+            q_sim=parser.make_simulator_cpp(),
+            q_sim_py=parser.make_simulator_py(internal_vis=True),
+        )
         prob_rrt.graph = tree
         prob_rrt.size = tree.number_of_nodes()
-
-        prob_rrt.q_dynamics.update_default_sim_params(
-            **tree.graph["q_sim_params"]
-        )
 
         for i_node in tree.nodes:
             node = tree.nodes[i_node]["node"]
@@ -112,12 +130,12 @@ class IrsRrt(Rrt):
 
         return prob_rrt
 
-    def load_params(self, params: IrsRrtParams):
+    def load_params(self, params: IrsRrtParams) -> IrsRrtParams:
         for key in params.joint_limits.keys():
             break
         if isinstance(key, str):
             joint_limits_keyed_by_model_instance_index = {
-                self.q_dynamics.plant.GetModelInstanceByName(name): value
+                self.plant.GetModelInstanceByName(name): value
                 for name, value in params.joint_limits.items()
             }
             params.joint_limits = joint_limits_keyed_by_model_instance_index
@@ -139,8 +157,8 @@ class IrsRrt(Rrt):
         robot_joint_limits = self.q_sim.get_actuated_joint_limits()
 
         for model in self.q_sim.get_unactuated_models():
-            joint_limit_lb[model] = self.params.joint_limits[model][:, 0]
-            joint_limit_ub[model] = self.params.joint_limits[model][:, 1]
+            joint_limit_lb[model] = self.rrt_params.joint_limits[model][:, 0]
+            joint_limit_ub[model] = self.rrt_params.joint_limits[model][:, 1]
 
         for model, limits in robot_joint_limits.items():
             lower = limits["lower"]
@@ -159,27 +177,27 @@ class IrsRrt(Rrt):
         Given a node which has a q, this method populates the rest of the
         node parameters using reachable set computations.
         """
-        node.ubar = node.q[self.q_dynamics.get_q_a_indices_into_x()]
+        node.ubar = node.q[self.q_sim.get_q_a_indices_into_q()]
 
         # For q_u and q_a.
-        if self.params.bundle_mode == BundleMode.kFirstExact:
+        if self.rrt_params.bundle_mode == BundleMode.kFirstExact:
             Bhat, chat = self.reachable_set.calc_exact_Bc(node.q, node.ubar)
-        elif self.params.bundle_mode == BundleMode.kFirstRandomized:
+        elif self.rrt_params.bundle_mode == BundleMode.kFirstRandomized:
             Bhat, chat = self.reachable_set.calc_bundled_Bc_randomized(
                 node.q, node.ubar
             )
-        elif self.params.bundle_mode == BundleMode.kFirstAnalytic:
+        elif self.rrt_params.bundle_mode == BundleMode.kFirstAnalytic:
             Bhat, chat = self.reachable_set.calc_bundled_Bc_analytic(
                 node.q, node.ubar
             )
-        elif self.params.bundle_mode == BundleMode.kZeroB:
+        elif self.rrt_params.bundle_mode == BundleMode.kZeroB:
             Bhat, chat = self.reachable_set.calc_bundled_Bc_randomized_zero(
                 node.q, node.ubar
             )
 
         else:
             raise NotImplementedError(
-                f"{self.params.bundle_mode} is not supported."
+                f"{self.rrt_params.bundle_mode} is not supported."
             )
 
         node.Bhat = Bhat
@@ -213,8 +231,8 @@ class IrsRrt(Rrt):
 
     def add_node(self, node: IrsNode, draw_node: bool = False):
         if draw_node:
-            self.q_dynamics.q_sim_py.update_mbp_positions_from_vector(node.q)
-            self.q_dynamics.q_sim_py.draw_current_configuration()
+            self.q_sim_py.update_mbp_positions_from_vector(node.q)
+            self.q_sim_py.draw_current_configuration()
         self.populate_node_parameters(node)  # exception may be thrown here.
 
         super().add_node(node)
@@ -233,7 +251,7 @@ class IrsRrt(Rrt):
         """
         Sample a subgoal from the configuration space.
         """
-        subgoal = np.random.rand(self.q_dynamics.dim_x)
+        subgoal = np.random.rand(self.dim_x)
         subgoal = self.q_lb + (self.q_ub - self.q_lb) * subgoal
         return subgoal
 
@@ -249,8 +267,8 @@ class IrsRrt(Rrt):
 
         # Normalize least-squares solution.
         du = du / np.linalg.norm(du)
-        ustar = parent_node.ubar + self.params.stepsize * du
-        xnext = self.q_dynamics.dynamics(parent_node.q, ustar)
+        ustar = parent_node.ubar + self.rrt_params.stepsize * du
+        xnext = self.q_sim.calc_dynamics(parent_node.q, ustar, self.sim_params)
         cost = self.reachable_set.calc_node_metric(
             parent_node.covinv, parent_node.mu, xnext
         )
@@ -261,7 +279,7 @@ class IrsRrt(Rrt):
         edge = IrsEdge()
         edge.parent = parent_node
         edge.child = child_node
-        edge.du = self.params.stepsize * du
+        edge.du = self.rrt_params.stepsize * du
         edge.u = ustar
         edge.cost = cost
 
@@ -315,11 +333,11 @@ class IrsRrt(Rrt):
                 - q_batch[:, self.q_u_indices_into_x]
             )
             metric_mat = np.diag(
-                self.params.global_metric[self.q_u_indices_into_x]
+                self.rrt_params.global_metric[self.q_u_indices_into_x]
             )
         else:
             error_batch = q_query - q_batch
-            metric_mat = np.diag(self.params.global_metric)
+            metric_mat = np.diag(self.rrt_params.global_metric)
 
         intsum = np.einsum("Bi,ij->Bj", error_batch, metric_mat)
         metric_batch = np.einsum("Bi,Bi->B", intsum, error_batch)
@@ -342,10 +360,10 @@ class IrsRrt(Rrt):
          - full_tree OR up_to_n_nodes
          - global_metric OR local_metric
         """
-        assert len(q_query) == self.q_dynamics.dim_x
+        assert len(q_query) == self.dim_x
 
         if distance_metric is None:
-            distance_metric = self.params.distance_metric
+            distance_metric = self.rrt_params.distance_metric
 
         if n_nodes is None:
             n_nodes = self.size
@@ -379,14 +397,12 @@ class IrsRrt(Rrt):
         """
         picklable_params_dict = {
             key: copy.deepcopy(value)
-            for key, value in self.params.__dict__.items()
+            for key, value in self.rrt_params.__dict__.items()
             if key != "joint_limits"
         }
         model_name_to_joint_limits_map = {
-            self.q_dynamics.plant.GetModelInstanceName(model): copy.deepcopy(
-                value
-            )
-            for model, value in self.params.joint_limits.items()
+            self.plant.GetModelInstanceName(model): copy.deepcopy(value)
+            for model, value in self.rrt_params.joint_limits.items()
         }
         picklable_params_dict["joint_limits"] = model_name_to_joint_limits_map
 
@@ -396,11 +412,10 @@ class IrsRrt(Rrt):
 
         # QuasistaticSimParams
         pickable_q_sim_params = {}
-        q_sim_params = self.q_dynamics.q_sim_params_default
-        for name in q_sim_params.__dir__():
+        for name in self.sim_params.__dir__():
             if name.startswith("_"):
                 continue
-            pickable_q_sim_params[name] = getattr(q_sim_params, name)
+            pickable_q_sim_params[name] = getattr(self.sim_params, name)
 
         self.graph.graph["irs_rrt_params"] = picklable_params
         self.graph.graph["goal_node_id"] = self.goal_node_idx
@@ -410,7 +425,7 @@ class IrsRrt(Rrt):
 
     def get_u_knots_from_node_idx_path(self, node_idx_path: List[int]):
         n = len(node_idx_path)
-        u_knots = np.zeros((n - 1, self.q_dynamics.dim_u))
+        u_knots = np.zeros((n - 1, self.dim_u))
         for i in range(n - 1):
             id_node0 = node_idx_path[i]
             id_node1 = node_idx_path[i + 1]

@@ -8,30 +8,37 @@ from irs_rrt.irs_rrt_projection_3d import IrsRrtProjection3D
 from irs_rrt.rrt_params import IrsRrtTrajOptParams, IrsRrtProjectionParams
 
 from qsim_cpp import ForwardDynamicsMode
+from qsim.parser import QuasistaticParser
+from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 from allegro_hand_setup import *
 from irs_rrt.contact_sampler_allegro import AllegroHandContactSampler
 
-from pydrake.multibody.tree import JointIndex
 from pydrake.math import RollPitchYaw
-from pydrake.systems.meshcat_visualizer import AddTriad
+from manipulation.meshcat_utils import AddMeshcatTriad
 
 #%% quasistatic dynamical system
-q_dynamics = QuasistaticDynamics(
-    h=h, q_model_path=q_model_path, internal_viz=True
-)
-q_dynamics.update_default_sim_params(
-    forward_mode=ForwardDynamicsMode.kSocpMp, log_barrier_weight=200
-)
+# q_dynamics = QuasistaticDynamics(
+#     h=h, q_model_path=q_model_path, internal_viz=True
+# )
+# q_dynamics.update_default_sim_params(
+#     forward_mode=ForwardDynamicsMode.kSocpMp, log_barrier_weight=200
+# )
 
-dim_x = q_dynamics.dim_x
-dim_u = q_dynamics.dim_u
-q_sim_py = q_dynamics.q_sim_py
-q_sim = q_dynamics.q_sim
+q_parser = QuasistaticParser(q_model_path)
+q_parser.set_sim_params(
+    h=h, forward_mode=ForwardDynamicsMode.kSocpMp, log_barrier_weight=200
+)
+q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
+q_sim, q_sim_py = q_vis.q_sim, q_vis.q_sim_py
+plant = q_sim.get_plant()
+
+dim_x = plant.num_positions()
+dim_u = q_sim.num_actuated_dofs()
 plant = q_sim_py.get_plant()
 idx_a = plant.GetModelInstanceByName(robot_name)
 idx_u = plant.GetModelInstanceByName(object_name)
 
-contact_sampler = AllegroHandContactSampler(q_dynamics)
+contact_sampler = AllegroHandContactSampler(q_sim)
 
 q_a0 = np.array(
     [
@@ -57,6 +64,7 @@ q_a0 = np.array(
 
 q_u0 = np.array([1, 0, 0, 0, -0.081, 0.001, 0.071])
 x0 = contact_sampler.sample_contact(q_u0)
+q_vis.draw_configuration(x0)
 
 num_joints = q_sim.num_actuated_dofs()
 joint_limits = {
@@ -93,7 +101,7 @@ params.root_node = IrsNode(x0)
 params.max_size = 1000
 params.goal = np.copy(x0)
 Q_WB_d = RollPitchYaw(0, 0, np.pi).ToQuaternion()
-params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
+params.goal[q_sim.get_q_u_indices_into_q()[:4]] = Q_WB_d.wxyz()
 params.termination_tolerance = 0.01  # used in irs_rrt.iterate() as cost
 # threshold.
 params.goal_as_subgoal_prob = 0.3
@@ -112,11 +120,10 @@ params.h = 0.1
 
 #%% draw the goals
 for i in range(5):
-    prob_rrt = IrsRrtProjection3D(params, contact_sampler)
-    AddTriad(
-        vis=q_dynamics.q_sim_py.viz.vis,
-        name="frame",
-        prefix="drake/plant/sphere/sphere",
+    prob_rrt = IrsRrtProjection3D(params, contact_sampler, q_sim_py)
+    AddMeshcatTriad(
+        meshcat=q_sim_py.meshcat,
+        path="visualizer/sphere/sphere/frame",
         length=0.1,
         radius=0.001,
         opacity=1,
@@ -124,7 +131,7 @@ for i in range(5):
 
     prob_rrt.iterate()
 
-    d_batch = prob_rrt.calc_distance_batch(prob_rrt.params.goal)
+    d_batch = prob_rrt.calc_distance_batch(prob_rrt.rrt_params.goal)
     node_id_closest = np.argmin(d_batch)
     print("closest distance to goal", d_batch[node_id_closest])
 

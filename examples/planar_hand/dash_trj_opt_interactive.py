@@ -96,7 +96,7 @@ q_dynamics_p = irs_mpc.q_dynamics_parallel
 IrsRrtParams(q_model_path, contact_sampler.joint_limits)
 reachable_set = ReachableSet(
     q_dynamics=q_dynamics,
-    params=IrsRrtParams(q_model_path, contact_sampler.joint_limits),
+    rrt_params=IrsRrtParams(q_model_path, contact_sampler.joint_limits),
     q_dynamics_p=q_dynamics_p,
 )
 

@@ -467,7 +467,7 @@ def click_callback(click_data, relayout_data):
         pass
 
     # show path in meshcat
-    q_dynamics.publish_trajectory(x_trj, h=irs_rrt_obj.params.h)
+    q_dynamics.publish_trajectory(x_trj, h=irs_rrt_obj.rrt_params.h)
 
     return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
 

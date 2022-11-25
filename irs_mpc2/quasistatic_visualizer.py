@@ -7,6 +7,7 @@ import numpy as np
 from pydrake.all import ModelInstanceIndex, MultibodyPlant
 
 from qsim.simulator import QuasistaticSimulator
+from qsim.parser import QuasistaticParser
 from qsim_cpp import QuasistaticSimulatorCpp
 
 from pydrake.all import PiecewisePolynomial, ContactResults, BodyIndex
@@ -32,6 +33,12 @@ class QuasistaticVisualizer:
             velocity_indices_a=self.q_sim.get_velocity_indices(),
             velocity_indices_b=self.q_sim.get_velocity_indices(),
         )
+
+    @staticmethod
+    def make_visualizer(q_parser: QuasistaticParser):
+        q_sim = q_parser.make_simulator_cpp()
+        q_sim_py = q_parser.make_simulator_py(internal_vis=True)
+        return QuasistaticVisualizer(q_sim, q_sim_py)
 
     def get_body_id_to_meshcat_name_map(self):
         body_id_meshcat_name_map = {}

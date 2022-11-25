@@ -30,19 +30,12 @@ class IrsMpcQuasistatic:
         q_sim: QuasistaticSimulatorCpp,
         parser: QuasistaticParser,
         params: IrsMpcQuasistaticParameters,
-        q_vis: QuasistaticVisualizer = None,
     ):
         self.irs_mpc_params = params
         self.parser = parser
         self.q_sim = q_sim
         self.q_sim_batch = parser.make_batch_simulator()
-        if q_vis:
-            self.q_vis = q_vis
-        else:
-            self.q_vis = QuasistaticVisualizer(
-                q_sim=q_sim,
-                q_sim_py=parser.make_simulator_py(internal_vis=True),
-            )
+
         self.plant = self.q_sim.get_plant()
         self.solver = GurobiSolver()
 

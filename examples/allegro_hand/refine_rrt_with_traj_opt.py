@@ -50,7 +50,7 @@ q_vis = QuasistaticVisualizer(
 )
 
 # get goal and some problem data from RRT parameters.
-q_u_goal = prob_rrt.params.goal[q_dynamics.get_q_u_indices_into_x()]
+q_u_goal = prob_rrt.rrt_params.goal[q_dynamics.get_q_u_indices_into_x()]
 Q_WB_d = Quaternion(q_u_goal[:4])
 p_WB_d = q_u_goal[4:]
 dim_q = prob_rrt.dim_q
@@ -168,7 +168,7 @@ input("Starting refinement...")
 for i_s, (t_start, t_end) in enumerate(sub_segments):
     u_trj = u_knots_trimmed[t_start:t_end]
     q_trj = q_knots_trimmed[t_start : t_end + 1]
-    prob_mpc.q_vis.publish_trajectory(q_trj, prob_rrt.params.h)
+    prob_mpc.q_vis.publish_trajectory(q_trj, prob_rrt.rrt_params.h)
 
     q0 = np.array(q_trj[0])
     if len(q_trj_optimized_list) > 0:

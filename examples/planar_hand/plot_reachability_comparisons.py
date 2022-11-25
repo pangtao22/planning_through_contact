@@ -66,7 +66,7 @@ q_dynamics_p = QuasistaticDynamicsParallel(q_dynamics)
 IrsRrtParams(q_model_path, contact_sampler.joint_limits)
 reachable_set = ReachableSet(
     q_dynamics=q_dynamics,
-    params=IrsRrtParams(q_model_path, contact_sampler.joint_limits),
+    rrt_params=IrsRrtParams(q_model_path, contact_sampler.joint_limits),
     q_dynamics_p=q_dynamics_p,
 )
 

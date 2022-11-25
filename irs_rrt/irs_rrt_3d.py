@@ -5,19 +5,29 @@ from irs_rrt.rrt_params import IrsRrtParams
 from pydrake.all import RollPitchYaw, Quaternion, RotationMatrix
 from scipy.spatial.transform import Rotation as R
 
+from qsim_cpp import QuasistaticSimulatorCpp
+from qsim.simulator import QuasistaticSimulator
+
 
 class IrsRrt3D(IrsRrt):
-    def __init__(self, params):
-        IrsRrt.__init__(self, params)
+    def __init__(
+        self,
+        rrt_params: IrsRrtParams,
+        q_sim: QuasistaticSimulatorCpp,
+        q_sim_py: QuasistaticSimulator,
+    ):
+        IrsRrt.__init__(
+            self, rrt_params=rrt_params, q_sim=q_sim, q_sim_py=q_sim_py
+        )
 
-        self.qa_dim = self.q_dynamics.dim_u
+        self.qa_dim = self.dim_u
         # Global metric
-        self.quat_ind = self.q_dynamics.get_q_u_indices_into_x()[:4]
-        assert (self.params.global_metric[self.quat_ind] == 0).all()
+        self.quat_ind = self.q_sim.get_q_u_indices_into_q()[:4]
+        assert (self.rrt_params.global_metric[self.quat_ind] == 0).all()
 
     def sample_subgoal(self):
         # Sample translation
-        subgoal = np.random.rand(self.q_dynamics.dim_x)
+        subgoal = np.random.rand(self.dim_x)
         subgoal = self.q_lb + (self.q_ub - self.q_lb) * subgoal
 
         # Sample quaternion uniformly following https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.128.8767&rep=rep1&type=pdf
@@ -38,8 +48,8 @@ class IrsRrt3D(IrsRrt):
 
         # Normalize least-squares solution.
         du = du / np.linalg.norm(du)
-        ustar = parent_node.ubar + self.params.stepsize * du
-        xnext = self.q_dynamics.dynamics(parent_node.q, ustar)
+        ustar = parent_node.ubar + self.rrt_params.stepsize * du
+        xnext = self.q_sim.calc_dynamics(parent_node.q, ustar, self.sim_params)
         cost = self.reachable_set.calc_node_metric(
             parent_node.covinv, parent_node.mu, xnext
         )
@@ -49,7 +59,7 @@ class IrsRrt3D(IrsRrt):
         edge = IrsEdge()
         edge.parent = parent_node
         edge.child = child_node
-        edge.du = self.params.stepsize * du
+        edge.du = self.rrt_params.stepsize * du
         edge.u = ustar
         edge.cost = cost
 
@@ -66,7 +76,7 @@ class IrsRrt3D(IrsRrt):
             self.convert_quat_wxyz_to_xyzw(child_q[self.quat_ind])
         )
         quat_mul_diff = (child_quat * parent_quat.inv()).as_quat()
-        cost += self.params.quat_metric * np.linalg.norm(quat_mul_diff[:-1])
+        cost += self.rrt_params.quat_metric * np.linalg.norm(quat_mul_diff[:-1])
         return cost
 
     def calc_distance_batch_global(
@@ -81,11 +91,11 @@ class IrsRrt3D(IrsRrt):
                 - q_batch[:, self.q_u_indices_into_x]
             )
             metric_mat = np.diag(
-                self.params.global_metric[self.q_u_indices_into_x]
+                self.rrt_params.global_metric[self.q_u_indices_into_x]
             )
         else:
             error_batch = q_query - q_batch
-            metric_mat = np.diag(self.params.global_metric)
+            metric_mat = np.diag(self.rrt_params.global_metric)
 
         intsum = np.einsum("Bi,ij->Bj", error_batch, metric_mat)
         metric_batch = np.einsum("Bi,Bi->B", intsum, error_batch)
@@ -100,7 +110,7 @@ class IrsRrt3D(IrsRrt):
             )
         )
         quat_mul_diff = (quat_batch * q_query_quat.inv()).as_quat()
-        metric_batch += self.params.quat_metric * np.linalg.norm(
+        metric_batch += self.rrt_params.quat_metric * np.linalg.norm(
             quat_mul_diff[:, :-1], axis=1
         )
 
