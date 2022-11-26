@@ -17,13 +17,6 @@ from pydrake.math import RollPitchYaw
 from manipulation.meshcat_utils import AddMeshcatTriad
 
 #%% quasistatic dynamical system
-# q_dynamics = QuasistaticDynamics(
-#     h=h, q_model_path=q_model_path, internal_viz=True
-# )
-# q_dynamics.update_default_sim_params(
-#     forward_mode=ForwardDynamicsMode.kSocpMp, log_barrier_weight=200
-# )
-
 q_parser = QuasistaticParser(q_model_path)
 q_parser.set_sim_params(
     h=h, forward_mode=ForwardDynamicsMode.kSocpMp, log_barrier_weight=200
@@ -63,7 +56,8 @@ q_a0 = np.array(
 
 
 q_u0 = np.array([1, 0, 0, 0, -0.081, 0.001, 0.071])
-x0 = contact_sampler.sample_contact(q_u0)
+# x0 = contact_sampler.sample_contact(q_u0)
+x0 = q_sim.get_q_vec_from_dict({idx_u: q_u0, idx_a: q_a0})
 q_vis.draw_configuration(x0)
 
 num_joints = q_sim.num_actuated_dofs()

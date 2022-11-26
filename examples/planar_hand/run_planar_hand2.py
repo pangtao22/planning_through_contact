@@ -9,7 +9,7 @@ from qsim_cpp import ForwardDynamicsMode
 
 from contact_sampler import PlanarHandContactSampler
 
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 
 """
 Modification of run_planar_hand that uses the new irs_mpc2 interface.
@@ -20,16 +20,15 @@ duration = T * h
 
 # %% sim setup
 q_parser = QuasistaticParser(q_model_path)
+q_parser.set_sim_params(h=h, gravity=[0, 0, 0])
 
-q_dynamics = QuasistaticDynamics(
-    h=h, q_model_path=q_model_path, internal_viz=False
-)
-contact_sampler = PlanarHandContactSampler(q_dynamics, pinch_prob=0.5)
-
-
-q_parser.set_sim_params(gravity=[0, 0, 0])
-q_sim = q_parser.make_simulator_cpp()
+q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
+q_sim, q_sim_py = q_vis.q_sim, q_vis.q_sim_py
 plant = q_sim.get_plant()
+
+contact_sampler = PlanarHandContactSampler(
+    q_sim=q_sim, q_sim_py=q_sim_py, pinch_prob=0.5
+)
 
 dim_x = plant.num_positions()
 dim_u = q_sim.num_actuated_dofs()
@@ -45,7 +44,6 @@ nq_a = 2
 q_u0 = np.array([0.0, 0.35, 0])
 q_a_l0 = np.array([-np.pi / 4, -np.pi / 4])
 q_a_r0 = np.array([np.pi / 4, np.pi / 4])
-
 
 q0_dict = contact_sampler.calc_enveloping_grasp(q_u0)
 
@@ -105,24 +103,7 @@ x_trj_d = np.tile(xd, (T + 1, 1))
 u_trj_0 = np.tile(u0, (T, 1))
 prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 
-# # %%
-# t0 = time.time()
-# prob_mpc.iterate(max_iterations=20, cost_Qu_f_threshold=0.)
-# t1 = time.time()
-#
-# print(f"iterate took {t1 - t0} seconds.")
-#
-# # %% plot different components of the cost for all iterations.
-# prob_mpc.plot_costs()
-#
-# # %%
-# x_traj_to_publish = prob_mpc.x_trj_best
-# prob_mpc.q_vis.publish_trajectory(x_traj_to_publish, h=h)
-# print('x_goal:', xd)
-# print('x_final:', x_traj_to_publish[-1])
-
-
-#%%
+# %%
 n_runs = 5
 costs = np.zeros((n_runs, 21))
 for i in range(n_runs):
@@ -130,3 +111,5 @@ for i in range(n_runs):
     prob_mpc.iterate(max_iterations=20, cost_Qu_f_threshold=0.0)
     prob_mpc.plot_costs()
     costs[i] = prob_mpc.cost_all_list
+
+q_vis.publish_trajectory(prob_mpc.x_trj_best, h)

@@ -6,9 +6,11 @@ import matplotlib.pyplot as plt
 
 from pydrake.all import ModelInstanceIndex
 
-from planar_hand_setup import robot_l_name, robot_r_name, object_name
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from qsim_cpp import QuasistaticSimulatorCpp
+from qsim.simulator import QuasistaticSimulator
 from irs_rrt.contact_sampler import ContactSampler
+
+from planar_hand_setup import robot_l_name, robot_r_name, object_name
 
 
 class PlanarHandContactSampler(ContactSampler):
@@ -19,11 +21,16 @@ class PlanarHandContactSampler(ContactSampler):
      the lower bound of joint i and joint_limits[model][i, 1] the upper bound.
     """
 
-    def __init__(self, q_dynamics: QuasistaticDynamics, pinch_prob: float):
-        super().__init__(q_dynamics)
+    def __init__(
+        self,
+        q_sim: QuasistaticSimulatorCpp,
+        q_sim_py: QuasistaticSimulator,
+        pinch_prob: float,
+    ):
+        super().__init__(q_sim, q_sim_py)
 
         self.pinch_prob = pinch_prob
-        n2i_map = q_dynamics.q_sim.get_model_instance_name_to_index_map()
+        n2i_map = self.q_sim.get_model_instance_name_to_index_map()
         self.model_u = n2i_map[object_name]
         self.model_a_l = n2i_map[robot_l_name]
         self.model_a_r = n2i_map[robot_r_name]

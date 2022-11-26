@@ -1,6 +1,10 @@
 import numpy as np
 from contact_sampler import PlanarHandContactSampler
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+
+from qsim.parser import QuasistaticParser
+
+from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
+
 from irs_rrt.irs_rrt import IrsNode
 from irs_rrt.irs_rrt_projection import IrsRrtProjection
 from irs_rrt.rrt_params import IrsRrtProjectionParams
@@ -9,21 +13,25 @@ from planar_hand_setup import *
 from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 
 # %% quasistatic dynamical system
-q_dynamics = QuasistaticDynamics(
-    h=h, q_model_path=q_model_path, internal_viz=True
-)
-dim_x = q_dynamics.dim_x
-dim_u = q_dynamics.dim_u
-q_sim_py = q_dynamics.q_sim_py
-plant = q_sim_py.get_plant()
+q_parser = QuasistaticParser(q_model_path)
+q_parser.set_sim_params(h=h)
+
+q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
+q_sim, q_sim_py = q_vis.q_sim, q_vis.q_sim_py
+plant = q_sim.get_plant()
+
+dim_x = plant.num_positions()
+dim_u = q_sim.num_actuated_dofs()
 idx_a_l = plant.GetModelInstanceByName(robot_l_name)
 idx_a_r = plant.GetModelInstanceByName(robot_r_name)
 idx_u = plant.GetModelInstanceByName(object_name)
-contact_sampler = PlanarHandContactSampler(q_dynamics, pinch_prob=0.5)
+contact_sampler = PlanarHandContactSampler(
+    q_sim=q_sim, q_sim_py=q_sim_py, pinch_prob=0.5
+)
 
 q_u0 = np.array([0.0, 0.35, 0])
 q0_dict = contact_sampler.calc_enveloping_grasp(q_u0)
-x0 = q_dynamics.get_x_from_q_dict(q0_dict)
+x0 = q_sim.get_q_vec_from_dict(q0_dict)
 
 joint_limits = {idx_u: np.array([[-0.3, 0.3], [0.3, 0.5], [-0.01, np.pi]])}
 
@@ -46,14 +54,13 @@ params.distance_metric = "local_u"
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 10.0, 10.0, 1.0])
 
-
-prob_rrt = IrsRrtProjection(params, contact_sampler)
+prob_rrt = IrsRrtProjection(params, contact_sampler, q_sim_py)
 prob_rrt.iterate()
 
 d_batch = prob_rrt.calc_distance_batch(params.goal)
 print("minimum distance: ", d_batch.min())
 
-#%%
+# %%
 node_id_closest = np.argmin(d_batch)
 
 # %%

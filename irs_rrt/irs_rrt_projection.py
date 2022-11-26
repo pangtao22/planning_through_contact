@@ -15,8 +15,8 @@ class IrsRrtProjection(IrsRrt):
         self,
         rrt_params: IrsRrtParams,
         contact_sampler: ContactSampler,
-        # TODO: replace q_sim_py with a QuasistaticVisualizer? This would
-        #  allow visualizing the found path at the end of self.iterate().
+        # TODO: get rid of q_sim_py once visualization is supported in
+        #  QuasistaticVisualizerCpp.
         q_sim_py: QuasistaticSimulator,
     ):
         self.contact_sampler = contact_sampler

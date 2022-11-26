@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 from irs_rrt.contact_sampler import ContactSampler
 from qsim_cpp import QuasistaticSimulatorCpp
@@ -41,7 +43,7 @@ class AllegroHandContactSampler(ContactSampler):
         x = np.copy(x0)
         q_lst = []
 
-        sim_params = self.q_sim.get_sim_params()
+        sim_params = copy.deepcopy(self.q_sim.get_sim_params())
         sim_params.unactuated_mass_scale = 0.0
         sim_params.gradient_mode = GradientMode.kNone
 
