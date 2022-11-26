@@ -2,6 +2,7 @@ import copy
 
 import numpy as np
 from irs_rrt.contact_sampler import ContactSampler
+from qsim.simulator import QuasistaticSimulator
 from qsim_cpp import QuasistaticSimulatorCpp
 from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 
@@ -10,8 +11,10 @@ from examples.allegro_hand.allegro_hand_setup import *
 
 
 class AllegroHandContactSampler(ContactSampler):
-    def __init__(self, q_sim: QuasistaticSimulatorCpp):
-        super().__init__(q_sim)
+    def __init__(
+        self, q_sim: QuasistaticSimulatorCpp, q_sim_py: QuasistaticSimulator
+    ):
+        super().__init__(q_sim, q_sim_py)
 
         plant = q_sim.get_plant()
         self.idx_a = plant.GetModelInstanceByName(robot_name)
@@ -64,7 +67,7 @@ class AllegroHandContactSampler(ContactSampler):
         w_enveloping_flexion = 0.05 + 0.03 * (np.random.rand() - 0.5)
         w_pinch_flexion = 0.01 + 0.03 * (np.random.rand() - 0.5)
 
-        xnext, q_dict_lst = self.simulate_qdot(
+        xnext, q_lst = self.simulate_qdot(
             x0,
             w_torsion * self.qdot_torsion
             + w_anti_torsion * self.qdot_anti_torsion
