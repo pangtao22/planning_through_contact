@@ -131,6 +131,10 @@ class IrsRrt(Rrt):
         return prob_rrt
 
     def load_params(self, params: IrsRrtParams) -> IrsRrtParams:
+        """
+        This function makes sure that joint limits are keyed by model
+        instance indices.
+        """
         for key in params.joint_limits.keys():
             break
         if isinstance(key, str):

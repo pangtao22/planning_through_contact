@@ -31,7 +31,7 @@ plant = q_sim_py.get_plant()
 idx_a = plant.GetModelInstanceByName(robot_name)
 idx_u = plant.GetModelInstanceByName(object_name)
 
-contact_sampler = AllegroHandContactSampler(q_sim)
+contact_sampler = AllegroHandContactSampler(q_sim, q_sim_py)
 
 q_a0 = np.array(
     [
@@ -57,8 +57,8 @@ q_a0 = np.array(
 
 q_u0 = np.array([1, 0, 0, 0, -0.081, 0.001, 0.071])
 # x0 = contact_sampler.sample_contact(q_u0)
-x0 = q_sim.get_q_vec_from_dict({idx_u: q_u0, idx_a: q_a0})
-q_vis.draw_configuration(x0)
+q0 = q_sim.get_q_vec_from_dict({idx_u: q_u0, idx_a: q_a0})
+q_vis.draw_configuration(q0)
 
 num_joints = q_sim.num_actuated_dofs()
 joint_limits = {
@@ -91,9 +91,9 @@ joint_limits[idx_a][:, 0] = q_a_limits_dict[idx_a]["upper"]
 # IrsRrt params
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
 params.bundle_mode = BundleMode.kFirstAnalytic
-params.root_node = IrsNode(x0)
+params.root_node = IrsNode(q0)
 params.max_size = 1000
-params.goal = np.copy(x0)
+params.goal = np.copy(q0)
 Q_WB_d = RollPitchYaw(0, 0, np.pi).ToQuaternion()
 params.goal[q_sim.get_q_u_indices_into_q()[:4]] = Q_WB_d.wxyz()
 params.termination_tolerance = 0.01  # used in irs_rrt.iterate() as cost
@@ -103,7 +103,7 @@ params.rewire = False
 params.regularization = 1e-6
 params.distance_metric = "local_u"
 # params.distance_metric = 'global'  # If using global metric
-params.global_metric = np.ones(x0.shape) * 0.1
+params.global_metric = np.ones(q0.shape) * 0.1
 params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
 params.quat_metric = 5
 params.distance_threshold = np.inf

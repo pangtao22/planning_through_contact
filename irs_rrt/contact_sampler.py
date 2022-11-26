@@ -15,7 +15,7 @@ class ContactSampler:
         #  QuasistaticSimulatorCpp.
         self.q_sim_py = q_sim_py
 
-    def sample_contact(self, q_u):
+    def sample_contact(self, q):
         """
         Given a q_u, return a state vector that corresponds to a grasp
         configuration.

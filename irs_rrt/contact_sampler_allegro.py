@@ -25,22 +25,22 @@ class AllegroHandContactSampler(ContactSampler):
 
         # Basis vectors for generating eigengrasps.
         self.qdot_torsion = np.zeros(16)
-        self.qdot_torsion[[0, 9, 12, 4]] = 1.0
+        self.qdot_torsion[[0, 13, 4, 8]] = 1.0
 
         self.qdot_anti_torsion = np.zeros(16)
         self.qdot_anti_torsion[0] = -1.0
-        self.qdot_anti_torsion[4] = 1.0
+        self.qdot_anti_torsion[8] = 1.0
 
         self.qdot_enveloping_flexion = np.zeros(16)
         self.qdot_enveloping_flexion[
-            [1, 2, 3, 8, 10, 11, 13, 14, 15, 5, 6, 7]
+            [1, 2, 3, 12, 14, 15, 5, 6, 7, 9, 10, 11]
         ] = 1.0
 
         self.qdot_pinch_flexion = np.zeros(16)
-        self.qdot_pinch_flexion[[3, 11, 15, 7]] = 1.0
+        self.qdot_pinch_flexion[[3, 7, 11, 15]] = 1.0
 
         self.q_a0 = np.zeros(16)
-        self.q_a0[9] = np.pi / 2  # Default configuraiton.
+        self.q_a0[13] = np.pi / 2  # Default configuration.
 
     def simulate_qdot(self, x0, qdot, T):
         x = np.copy(x0)
@@ -57,9 +57,9 @@ class AllegroHandContactSampler(ContactSampler):
 
         return x, q_lst
 
-    def sample_contact(self, q_u):
-        q0_dict = {self.idx_a: self.q_a0, self.idx_u: q_u}
-        x0 = self.q_sim.get_q_vec_from_dict(q0_dict)
+    def sample_contact(self, q):
+        x0 = np.copy(q)
+        x0[self.q_sim.get_q_a_indices_into_q()] = self.q_a0
 
         w_torsion = 0.03 * (np.random.rand() - 0.5)
         w_anti_torsion = 0.03 * (np.random.rand() - 0.5)

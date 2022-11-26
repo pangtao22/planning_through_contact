@@ -83,7 +83,7 @@ class IrsRrtProjection(IrsRrt):
             try:
                 # Drawing every new node in meshcat seems to slow down
                 #  tree building by quite a bit.
-                self.add_node(child_node, draw_node=self.size % 50 == 0)
+                self.add_node(child_node, draw_node=self.size % 20 == 0)
             except RuntimeError as e:
                 print(e)
                 continue
