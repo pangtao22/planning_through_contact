@@ -24,7 +24,7 @@ from irs_rrt.reachable_set import ReachableSet
 from matplotlib import cm
 import matplotlib.pyplot as plt
 
-from pydrake.all import AngleAxis, Quaternion, AddTriad, RigidTransform
+from pydrake.all import AngleAxis, Quaternion, RigidTransform
 
 parser = argparse.ArgumentParser()
 parser.add_argument("tree_file_path")

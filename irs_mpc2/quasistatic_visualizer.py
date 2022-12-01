@@ -4,13 +4,15 @@ from typing import Dict, Set, List
 
 from matplotlib import cm
 import numpy as np
-from pydrake.all import ModelInstanceIndex, MultibodyPlant
+from pydrake.all import ModelInstanceIndex, MultibodyPlant, RigidTransform
+from pydrake.all import PiecewisePolynomial, ContactResults, BodyIndex
+
+from manipulation.meshcat_utils import AddMeshcatTriad
 
 from qsim.simulator import QuasistaticSimulator, InternalVisualizationType
+from qsim.meshcat_visualizer_old import MeshcatVisualizer, AddTriad
 from qsim.parser import QuasistaticParser
 from qsim_cpp import QuasistaticSimulatorCpp
-
-from pydrake.all import PiecewisePolynomial, ContactResults, BodyIndex
 
 
 class QuasistaticVisualizer:
@@ -80,6 +82,61 @@ class QuasistaticVisualizer:
     def draw_configuration(self, q: np.ndarray):
         self.q_sim_py.update_mbp_positions_from_vector(q)
         self.q_sim_py.draw_current_configuration()
+
+    def draw_goal_triad(
+        self,
+        length: float,
+        radius: float,
+        opacity: float,
+        X_WG: RigidTransform,
+        name: str = "goal",
+    ):
+        if self.q_sim_py.internal_vis == InternalVisualizationType.Cpp:
+            AddMeshcatTriad(
+                meshcat=self.q_sim_py.meshcat,
+                path=f"{name}/frame",
+                length=length,
+                radius=radius,
+                opacity=opacity,
+                X_PT=X_WG,
+            )
+        elif self.q_sim_py.internal_vis == InternalVisualizationType.Python:
+            AddTriad(
+                vis=self.meshcat_vis.vis,
+                name="frame",
+                prefix=name,
+                length=length,
+                radius=radius,
+                opacity=opacity,
+            )
+            self.meshcat_vis.vis[name].set_transform(X_WG.GetAsMatrix4())
+
+        return name
+
+    def draw_object_triad(
+        self,
+        length: float,
+        radius: float,
+        opacity: float,
+        path: str,
+    ):
+        if self.q_sim_py.internal_vis == InternalVisualizationType.Cpp:
+            AddMeshcatTriad(
+                meshcat=self.q_sim_py.meshcat,
+                path=f"visualizer/{path}/frame",
+                length=length,
+                radius=radius,
+                opacity=opacity,
+            )
+        elif self.q_sim_py.internal_vis == InternalVisualizationType.Python:
+            AddTriad(
+                vis=self.meshcat_vis.vis,
+                name="frame",
+                prefix=f"drake/plant/{path}",
+                length=length,
+                radius=radius,
+                opacity=opacity,
+            )
 
     def publish_trajectory(self, x_knots: np.ndarray, h: float):
         if self.q_sim_py.internal_vis == InternalVisualizationType.Cpp:

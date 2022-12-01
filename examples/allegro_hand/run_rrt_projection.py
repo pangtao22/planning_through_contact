@@ -115,12 +115,8 @@ params.h = 0.1
 #%% draw the goals
 for i in range(5):
     prob_rrt = IrsRrtProjection3D(params, contact_sampler, q_sim_py)
-    AddMeshcatTriad(
-        meshcat=q_sim_py.meshcat,
-        path="visualizer/sphere/sphere/frame",
-        length=0.1,
-        radius=0.001,
-        opacity=1,
+    q_vis.draw_object_triad(
+        length=0.1, radius=0.001, opacity=1, path="sphere/sphere"
     )
 
     prob_rrt.iterate()

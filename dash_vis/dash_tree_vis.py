@@ -17,7 +17,6 @@ from dash.dependencies import Input, Output, State
 from matplotlib import cm
 from pydrake.all import RigidTransform, RollPitchYaw, RotationMatrix
 from qsim.simulator import InternalVisualizationType
-from qsim.meshcat_visualizer_old import AddTriad
 
 from dash_vis.dash_common import (
     set_orthographic_camera_yz,
@@ -58,29 +57,16 @@ X_WG = RigidTransform(
 )
 
 q_vis.draw_configuration(tree.nodes[0]["node"].q)
-
-AddTriad(
-    vis=meshcat_vis,
-    name="frame",
-    prefix="drake/plant/sphere/sphere",
-    length=0.4,
-    radius=0.005,
-    opacity=1,
+q_vis.draw_object_triad(
+    length=0.4, radius=0.005, opacity=1, path="sphere/sphere"
 )
-
-AddTriad(
-    vis=meshcat_vis,
-    name="frame",
-    prefix="goal",
+kGoalVisPrefix = q_vis.draw_goal_triad(
     length=0.4,
     radius=0.01,
     opacity=0.7,
-)
-
-meshcat_vis["goal"].set_transform(
-    RigidTransform(
+    X_WG=RigidTransform(
         RollPitchYaw(q_u_goal[2], 0, 0), np.hstack([[z_height], q_u_goal[:2]])
-    ).GetAsMatrix4()
+    ),
 )
 
 # %%
@@ -194,7 +180,9 @@ def create_tree_plot_up_to_node(num_nodes: int):
     )
 
     root_plot = make_large_point_3d(q_u_nodes[0], name="root")
-    goal_plot = make_large_point_3d(q_u_goal, name="goal", color="green")
+    goal_plot = make_large_point_3d(
+        q_u_goal, name=kGoalVisPrefix, color="green"
+    )
 
     return [nodes_plot, edges_plot, root_plot, goal_plot, path_plot]
 
@@ -211,7 +199,7 @@ if args.draw_ellipsoids:
 else:
     fig = go.Figure(data=create_tree_plot_up_to_node(n_nodes), layout=layout)
 
-# global variable for histrogram figure.
+# global variable for histogram figure.
 fig_hist_local = {}
 fig_hist_local_u = {}
 fig_hist_global = {}

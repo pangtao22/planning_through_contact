@@ -132,22 +132,15 @@ t1 = time.time()
 print(f"iterate took {t1 - t0} seconds.")
 
 # %% visualize goal.
-meshcat = q_sim_py.meshcat
-AddMeshcatTriad(
-    meshcat=meshcat,
-    path="visualizer/sphere/sphere/frame",
-    length=0.1,
-    radius=0.001,
-    opacity=1,
+q_vis.draw_object_triad(
+    length=0.1, radius=0.001, opacity=1, path="sphere/sphere"
 )
 
-AddMeshcatTriad(
-    meshcat=meshcat,
-    path="goal/frame",
+q_vis.draw_goal_triad(
     length=0.1,
     radius=0.005,
     opacity=0.5,
-    X_PT=RigidTransform(Q_WB_d, p_WB_d),
+    X_WG=RigidTransform(Q_WB_d, p_WB_d),
 )
 
 # %% Rollout trajectory according to the real physics.
