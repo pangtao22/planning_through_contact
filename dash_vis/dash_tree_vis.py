@@ -3,32 +3,32 @@
 import argparse
 import json
 import pickle
+import time
 
 import dash
 import dash_bootstrap_components as dbc
+import matplotlib.pyplot as plt
 import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
+from matplotlib import cm
+from pydrake.all import RigidTransform, RollPitchYaw, RotationMatrix
+from qsim.simulator import InternalVisualizationType
+from qsim.meshcat_visualizer_old import AddTriad
+
 from dash_vis.dash_common import (
+    set_orthographic_camera_yz,
     hover_template_y_z_theta,
     layout,
     make_large_point_3d,
     make_ellipsoid_plotly,
-    set_orthographic_camera_yz,
-    add_goal_meshcat,
     calc_X_WG,
     trace_path_to_root_from_node,
 )
-from dash.exceptions import PreventUpdate
-from pydrake.all import RigidTransform, RollPitchYaw
-
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from pydrake.systems.meshcat_visualizer import AddTriad
-
+from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 from irs_rrt.irs_rrt import IrsRrt
 
 parser = argparse.ArgumentParser()
@@ -41,31 +41,45 @@ args = parser.parse_args()
 with open(args.tree_file_path, "rb") as f:
     tree = pickle.load(f)
 
-irs_rrt_obj = IrsRrt.make_from_pickled_tree(tree)
-q_dynamics = irs_rrt_obj.q_dynamics
-q_sim_py = q_dynamics.q_sim_py
-vis = q_dynamics.q_sim_py.viz.vis
+irs_rrt_obj = IrsRrt.make_from_pickled_tree(
+    tree, internal_vis=InternalVisualizationType.Python
+)
+q_sim, q_sim_py = irs_rrt_obj.q_sim, irs_rrt_obj.q_sim_py
+q_vis = QuasistaticVisualizer(q_sim=q_sim, q_sim_py=q_sim_py)
+meshcat_vis = q_sim_py.viz.vis  # meshcat.Visualizer (from meshcat-python)
+
 if args.two_d:
-    set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
+    set_orthographic_camera_yz(meshcat_vis)
 z_height = 0.25
 q_goal = tree.graph["irs_rrt_params"].goal
-q_u_goal = q_goal[q_dynamics.get_q_u_indices_into_x()]
+q_u_goal = q_goal[q_sim.get_q_u_indices_into_q()]
+X_WG = RigidTransform(
+    RollPitchYaw(0, 0, q_u_goal[2]), np.hstack([[0.25], q_u_goal[:2]])
+)
+
+q_vis.draw_configuration(tree.nodes[0]["node"].q)
+
 AddTriad(
-    vis=vis,
+    vis=meshcat_vis,
     name="frame",
-    prefix="drake/plant/box/box",
+    prefix="drake/plant/sphere/sphere",
     length=0.4,
     radius=0.005,
     opacity=1,
 )
 
 AddTriad(
-    vis=vis, name="frame", prefix="goal", length=0.4, radius=0.01, opacity=0.7
+    vis=meshcat_vis,
+    name="frame",
+    prefix="goal",
+    length=0.4,
+    radius=0.01,
+    opacity=0.7,
 )
 
-vis["goal"].set_transform(
+meshcat_vis["goal"].set_transform(
     RigidTransform(
-        RollPitchYaw(0, 0, q_u_goal[2]), np.hstack([q_u_goal[:2], [z_height]])
+        RollPitchYaw(q_u_goal[2], 0, 0), np.hstack([[z_height], q_u_goal[:2]])
     ).GetAsMatrix4()
 )
 
@@ -75,16 +89,20 @@ This visualizer works only for 2D systems with 3 DOFs, which are
     [y, z, theta].
 """
 n_nodes = len(tree.nodes)
-n_q_u = q_dynamics.dim_x - q_dynamics.dim_u
-assert n_q_u == 3 or n_q_u == 2
-q_nodes = np.zeros((n_nodes, q_dynamics.dim_x))
+n_q_u = q_sim.num_unactuated_dofs()
+n_q = q_sim.num_dofs()
+if not (n_q_u == 3 or n_q_u == 2):
+    raise RuntimeError("Visualizing planar systems only.")
+
+q_nodes = np.zeros((n_nodes, n_q))
 
 # node coordinates.
 for i in range(n_nodes):
     node = tree.nodes[i]["node"]
     q_nodes[i] = node.q
 
-q_u_nodes = q_nodes[:, q_dynamics.get_q_u_indices_into_x()]
+idx_q_u_into_x = q_sim.get_q_u_indices_into_q()
+q_u_nodes = q_nodes[:, idx_q_u_into_x]
 if n_q_u == 2:
     q_u_nodes = np.hstack([q_u_nodes, np.zeros((len(q_u_nodes), 1))])
 
@@ -113,7 +131,6 @@ def scalar_to_rgb255(v: float):
 # Draw ellipsoids.
 ellipsoid_mesh_points = []
 ellipsoid_volumes = []
-idx_q_u_into_x = q_dynamics.get_q_u_indices_into_x()
 for i in range(n_nodes):
     node = tree.nodes[i]["node"]
     cov_inv_u = node.covinv_u
@@ -177,9 +194,6 @@ def create_tree_plot_up_to_node(num_nodes: int):
     )
 
     root_plot = make_large_point_3d(q_u_nodes[0], name="root")
-
-    q_goal = tree.graph["irs_rrt_params"].goal
-    q_u_goal = q_goal[q_dynamics.get_q_u_indices_into_x()]
     goal_plot = make_large_point_3d(q_u_goal, name="goal", color="green")
 
     return [nodes_plot, edges_plot, root_plot, goal_plot, path_plot]
@@ -216,7 +230,7 @@ app.layout = dbc.Container(
                 ),
                 dbc.Col(
                     html.Iframe(
-                        src="http://127.0.0.1:7000/static/",
+                        src=meshcat_vis.url(),
                         height=800,
                         width=1000,
                     ),
@@ -386,10 +400,7 @@ def display_config_in_meshcat(hover_data):
 
     if i_node is None:
         return json.dumps(hover_data, indent=2)
-
-    q_sim_py.update_mbp_positions_from_vector(tree.nodes[i_node]["node"].q)
-    q_sim_py.draw_current_configuration()
-
+    q_vis.draw_configuration(tree.nodes[i_node]["node"].q)
     return json.dumps(hover_data, indent=2)
 
 
@@ -453,7 +464,6 @@ def click_callback(click_data, relayout_data):
         q_u_nodes=q_u_nodes,
         q_nodes=q_nodes,
         tree=tree,
-        q_dynamics=q_dynamics,
     )
     fig.update_traces(
         x=q_u_path[:, 0],
@@ -467,7 +477,7 @@ def click_callback(click_data, relayout_data):
         pass
 
     # show path in meshcat
-    q_dynamics.publish_trajectory(x_trj, h=irs_rrt_obj.rrt_params.h)
+    q_vis.publish_trajectory(x_trj, h=irs_rrt_obj.rrt_params.h)
 
     return fig, fig_hist_local, fig_hist_local_u, fig_hist_global
 
@@ -515,7 +525,7 @@ def slider_callback(num_nodes, metric_to_plot, relayout_data):
     X_WG = calc_X_WG(
         y=q_g_u[0], z=q_g_u[1], theta=q_g_u[2] if len(q_g_u) == 3 else 0
     )
-    vis["goal"].set_transform(X_WG)
+    meshcat_vis["goal"].set_transform(X_WG.GetAsMatrix4())
 
     # Subgoal to parent in red dashed line.
     distance_metric = tree.graph["irs_rrt_params"].distance_metric

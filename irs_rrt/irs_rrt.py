@@ -13,7 +13,7 @@ from irs_rrt.reachable_set import ReachableSet
 from irs_rrt.rrt_base import Node, Edge, Rrt
 from irs_rrt.rrt_params import IrsRrtParams
 
-from qsim.simulator import QuasistaticSimulator
+from qsim.simulator import QuasistaticSimulator, InternalVisualizationType
 from qsim_cpp import QuasistaticSimulatorCpp
 from qsim.parser import QuasistaticParser
 
@@ -106,7 +106,9 @@ class IrsRrt(Rrt):
         super().__init__(rrt_params)
 
     @staticmethod
-    def make_from_pickled_tree(tree: networkx.DiGraph):
+    def make_from_pickled_tree(
+        tree: networkx.DiGraph, internal_vis: InternalVisualizationType
+    ):
         # Factory method for making an IrsRrt object from a pickled tree.
         rrt_param = tree.graph["irs_rrt_params"]
         parser = QuasistaticParser(rrt_param.q_model_path)
@@ -115,7 +117,7 @@ class IrsRrt(Rrt):
         prob_rrt = IrsRrt(
             rrt_params=rrt_param,
             q_sim=parser.make_simulator_cpp(),
-            q_sim_py=parser.make_simulator_py(internal_vis=True),
+            q_sim_py=parser.make_simulator_py(internal_vis=internal_vis),
         )
         prob_rrt.graph = tree
         prob_rrt.size = tree.number_of_nodes()

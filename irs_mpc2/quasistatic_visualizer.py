@@ -6,7 +6,7 @@ from matplotlib import cm
 import numpy as np
 from pydrake.all import ModelInstanceIndex, MultibodyPlant
 
-from qsim.simulator import QuasistaticSimulator
+from qsim.simulator import QuasistaticSimulator, InternalVisualizationType
 from qsim.parser import QuasistaticParser
 from qsim_cpp import QuasistaticSimulatorCpp
 
@@ -37,7 +37,9 @@ class QuasistaticVisualizer:
     @staticmethod
     def make_visualizer(q_parser: QuasistaticParser):
         q_sim = q_parser.make_simulator_cpp()
-        q_sim_py = q_parser.make_simulator_py(internal_vis=True)
+        q_sim_py = q_parser.make_simulator_py(
+            internal_vis=InternalVisualizationType.Cpp
+        )
         return QuasistaticVisualizer(q_sim, q_sim_py)
 
     def get_body_id_to_meshcat_name_map(self):
@@ -80,14 +82,24 @@ class QuasistaticVisualizer:
         self.q_sim_py.draw_current_configuration()
 
     def publish_trajectory(self, x_knots: np.ndarray, h: float):
-        self.meshcat_vis.StartRecording(False)
-        for i, t in enumerate(np.arange(len(x_knots)) * h):
-            self.q_sim_py.context.SetTime(t)
-            self.q_sim_py.update_mbp_positions_from_vector(x_knots[i])
-            self.meshcat_vis.ForcedPublish(self.q_sim_py.context_meshcat)
+        if self.q_sim_py.internal_vis == InternalVisualizationType.Cpp:
+            self.meshcat_vis.StartRecording(False)
+            for i, t in enumerate(np.arange(len(x_knots)) * h):
+                self.q_sim_py.context.SetTime(t)
+                self.q_sim_py.update_mbp_positions_from_vector(x_knots[i])
+                self.meshcat_vis.ForcedPublish(self.q_sim_py.context_meshcat)
 
-        self.meshcat_vis.StopRecording()
-        self.meshcat_vis.PublishRecording()
+            self.meshcat_vis.StopRecording()
+            self.meshcat_vis.PublishRecording()
+        elif self.q_sim_py.internal_vis == InternalVisualizationType.Python:
+            self.meshcat_vis.draw_period = h
+            self.meshcat_vis.reset_recording()
+            self.meshcat_vis.start_recording()
+            for x_i in x_knots:
+                self.draw_configuration(x_i)
+
+            self.meshcat_vis.stop_recording()
+            self.meshcat_vis.publish_recording()
 
     def normalize_quaternions_in_x(self, x: np.ndarray):
         for model in self.q_sim_py.models_unactuated:

@@ -20,7 +20,7 @@ q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
 q_sim, q_sim_py = q_vis.q_sim, q_vis.q_sim_py
 plant = q_sim.get_plant()
 
-dim_x = plant.num_positions()
+dim_x = q_sim.num_dofs()
 dim_u = q_sim.num_actuated_dofs()
 idx_a_l = plant.GetModelInstanceByName(robot_l_name)
 idx_a_r = plant.GetModelInstanceByName(robot_r_name)
@@ -40,7 +40,7 @@ params = IrsRrtProjectionParams(q_model_path, joint_limits)
 params.bundle_mode = BundleMode.kFirstAnalytic
 params.log_barrier_weight_for_bundling = 100
 params.root_node = IrsNode(x0)
-params.max_size = 2000
+params.max_size = 1000
 params.goal = np.copy(x0)
 params.goal[2] = np.pi
 params.termination_tolerance = 0.01
