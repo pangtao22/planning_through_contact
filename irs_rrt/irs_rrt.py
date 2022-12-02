@@ -69,7 +69,8 @@ class IrsRrt(Rrt):
         # q_sim_py must have an internal MeshcatVisualizer.
         assert q_sim_py.internal_vis
 
-        self.sim_params = q_sim.get_sim_params()
+        self.sim_params = copy.deepcopy(q_sim.get_sim_params())
+        self.sim_params.calc_contact_forces = False
         self.sim_params.h = rrt_params.h
         self.sim_params.log_barrier_weight = (
             rrt_params.log_barrier_weight_for_bundling

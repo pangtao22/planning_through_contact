@@ -14,7 +14,6 @@ from allegro_hand_setup import *
 from irs_rrt.contact_sampler_allegro import AllegroHandContactSampler
 
 from pydrake.math import RollPitchYaw
-from manipulation.meshcat_utils import AddMeshcatTriad
 
 #%% quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path)

@@ -149,11 +149,12 @@ class IrsRrtProjection(IrsRrt):
         du_star = du_star / du_norm
         u_star = parent_node.ubar + step_size * du_star
 
-        idx_robot = self.q_sim.get_q_a_indices_into_q()
-        q_a_lb = self.q_lb[idx_robot]
-        q_a_ub = self.q_ub[idx_robot]
+        if self.rrt_params.enforce_robot_joint_limits:
+            idx_robot = self.q_sim.get_q_a_indices_into_q()
+            q_a_lb = self.q_lb[idx_robot]
+            q_a_ub = self.q_ub[idx_robot]
+            u_star = np.clip(u_star, q_a_lb, q_a_ub)
 
-        u_star = np.clip(u_star, q_a_lb, q_a_ub)
         return u_star - parent_node.ubar
 
     def extend_towards_q(self, parent_node: Node, q: np.array):
