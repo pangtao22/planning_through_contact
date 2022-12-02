@@ -18,9 +18,6 @@ from manipulation.meshcat_utils import AddMeshcatTriad
 
 #%% quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path)
-q_parser.set_sim_params(
-    h=h, forward_mode=ForwardDynamicsMode.kSocpMp, log_barrier_weight=200
-)
 q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
 q_sim, q_sim_py = q_vis.q_sim, q_vis.q_sim_py
 plant = q_sim.get_plant()
@@ -53,7 +50,6 @@ q_a0 = np.array(
         0.82444782,
     ]
 )
-
 
 q_u0 = np.array([1, 0, 0, 0, -0.081, 0.001, 0.071])
 # x0 = contact_sampler.sample_contact(q_u0)
@@ -89,32 +85,32 @@ joint_limits[idx_a][:, 0] = q_a_limits_dict[idx_a]["upper"]
 
 #%% RRT testing
 # IrsRrt params
-params = IrsRrtProjectionParams(q_model_path, joint_limits)
-params.bundle_mode = BundleMode.kFirstAnalytic
-params.root_node = IrsNode(q0)
-params.max_size = 1000
-params.goal = np.copy(q0)
+rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits)
+rrt_params.bundle_mode = BundleMode.kFirstAnalytic
+rrt_params.root_node = IrsNode(q0)
+rrt_params.max_size = 1000
+rrt_params.goal = np.copy(q0)
 Q_WB_d = RollPitchYaw(0, 0, np.pi).ToQuaternion()
-params.goal[q_sim.get_q_u_indices_into_q()[:4]] = Q_WB_d.wxyz()
-params.termination_tolerance = 0.01  # used in irs_rrt.iterate() as cost
+rrt_params.goal[q_sim.get_q_u_indices_into_q()[:4]] = Q_WB_d.wxyz()
+rrt_params.termination_tolerance = 0.01  # used in irs_rrt.iterate() as cost
 # threshold.
-params.goal_as_subgoal_prob = 0.3
-params.rewire = False
-params.regularization = 1e-6
-params.distance_metric = "local_u"
+rrt_params.goal_as_subgoal_prob = 0.3
+rrt_params.rewire = False
+rrt_params.regularization = 1e-6
+rrt_params.distance_metric = "local_u"
 # params.distance_metric = 'global'  # If using global metric
-params.global_metric = np.ones(q0.shape) * 0.1
-params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
-params.quat_metric = 5
-params.distance_threshold = np.inf
-params.stepsize = 0.2
-params.std_u = 0.1
-params.grasp_prob = 0.2
-params.h = 0.1
+rrt_params.global_metric = np.ones(q0.shape) * 0.1
+rrt_params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
+rrt_params.quat_metric = 5
+rrt_params.distance_threshold = np.inf
+rrt_params.stepsize = 0.2
+rrt_params.std_u = 0.1
+rrt_params.grasp_prob = 0.2
+rrt_params.h = 0.1
 
 #%% draw the goals
 for i in range(5):
-    prob_rrt = IrsRrtProjection3D(params, contact_sampler, q_sim_py)
+    prob_rrt = IrsRrtProjection3D(rrt_params, contact_sampler, q_sim_py)
     q_vis.draw_object_triad(
         length=0.1, radius=0.001, opacity=1, path="sphere/sphere"
     )
@@ -128,6 +124,6 @@ for i in range(5):
     #%%
     prob_rrt.save_tree(
         os.path.join(
-            data_folder, "randomized", f"tree_{params.max_size}_{i}.pkl"
+            data_folder, "randomized", f"tree_{rrt_params.max_size}_{i}.pkl"
         )
     )

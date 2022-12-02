@@ -44,6 +44,7 @@ irs_rrt_obj = IrsRrt.make_from_pickled_tree(
     tree, internal_vis=InternalVisualizationType.Python
 )
 q_sim, q_sim_py = irs_rrt_obj.q_sim, irs_rrt_obj.q_sim_py
+plant = q_sim.get_plant()
 q_vis = QuasistaticVisualizer(q_sim=q_sim, q_sim_py=q_sim_py)
 meshcat_vis = q_sim_py.viz.vis  # meshcat.Visualizer (from meshcat-python)
 
@@ -76,7 +77,7 @@ This visualizer works only for 2D systems with 3 DOFs, which are
 """
 n_nodes = len(tree.nodes)
 n_q_u = q_sim.num_unactuated_dofs()
-n_q = q_sim.num_dofs()
+n_q = plant.num_positions()
 if not (n_q_u == 3 or n_q_u == 2):
     raise RuntimeError("Visualizing planar systems only.")
 

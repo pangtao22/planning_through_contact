@@ -21,7 +21,7 @@ class AllegroHandContactSampler(ContactSampler):
         self.idx_u = plant.GetModelInstanceByName(object_name)
         self.idx_a_vec = q_sim.get_q_a_indices_into_q()
 
-        self.T = 20
+        self.T = 12
 
         # Basis vectors for generating eigengrasps.
         self.qdot_torsion = np.zeros(16)
@@ -42,17 +42,21 @@ class AllegroHandContactSampler(ContactSampler):
         self.q_a0 = np.zeros(16)
         self.q_a0[13] = np.pi / 2  # Default configuration.
 
+        # simulation parameters
+        self.sim_params = copy.deepcopy(self.q_sim.get_sim_params())
+        self.sim_params.unactuated_mass_scale = 0.0
+        self.sim_params.forward_mode = ForwardDynamicsMode.kQpMp
+        self.sim_params.gradient_mode = GradientMode.kNone
+        self.sim_params.calc_contact_forces = False
+        self.sim_params.h = h
+
     def simulate_qdot(self, x0, qdot, T):
         x = np.copy(x0)
         q_lst = []
 
-        sim_params = copy.deepcopy(self.q_sim.get_sim_params())
-        sim_params.unactuated_mass_scale = 0.0
-        sim_params.gradient_mode = GradientMode.kNone
-
         for t in range(T):
             ubar = x[self.idx_a_vec]
-            x = self.q_sim.calc_dynamics(x, ubar + qdot, sim_params)
+            x = self.q_sim.calc_dynamics(x, ubar + qdot, self.sim_params)
             q_lst.append(np.copy(x))
 
         return x, q_lst
@@ -67,12 +71,18 @@ class AllegroHandContactSampler(ContactSampler):
         w_enveloping_flexion = 0.05 + 0.03 * (np.random.rand() - 0.5)
         w_pinch_flexion = 0.01 + 0.03 * (np.random.rand() - 0.5)
 
-        xnext, q_lst = self.simulate_qdot(
-            x0,
+        q_dot = (
             w_torsion * self.qdot_torsion
             + w_anti_torsion * self.qdot_anti_torsion
             + w_enveloping_flexion * self.qdot_enveloping_flexion
-            + w_pinch_flexion * self.qdot_pinch_flexion,
+            + w_pinch_flexion * self.qdot_pinch_flexion
+        )
+
+        q_dot *= 2
+
+        xnext, q_lst = self.simulate_qdot(
+            x0,
+            q_dot,
             self.T,
         )
 
