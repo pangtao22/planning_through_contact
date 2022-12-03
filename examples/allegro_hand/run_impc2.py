@@ -110,8 +110,7 @@ params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
 
 prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
 # %%
-q_sim_py.update_mbp_positions(q0_dict)
-q_sim_py.draw_current_configuration(draw_forces=False)
+q_vis.draw_configuration(q_sim.get_q_vec_from_dict(q0_dict))
 
 # %%
 Q_WB_d = RollPitchYaw(0, 0, np.pi / 6).ToQuaternion()

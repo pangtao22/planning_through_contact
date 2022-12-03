@@ -459,7 +459,11 @@ def test_collision():
     params.grasp_prob = 0.3
     params.h = 0.05
 
-    prob_rrt = IrsRrtProjection(params, contact_sampler)
+    prob_rrt = IrsRrtProjection(
+        params,
+        contact_sampler,
+        q_sim,
+    )
 
     # Choose some random configuration of u.
     qu = np.array([0.55, 0.0, 0.0])

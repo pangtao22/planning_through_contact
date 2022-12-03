@@ -54,7 +54,7 @@ params.distance_metric = "local_u"
 # params.distance_metric = 'global'  # If using global metric
 params.global_metric = np.array([0.1, 0.1, 0.1, 0.1, 10.0, 10.0, 1.0])
 
-prob_rrt = IrsRrtProjection(params, contact_sampler, q_sim_py)
+prob_rrt = IrsRrtProjection(params, contact_sampler, q_sim, q_sim_py)
 prob_rrt.iterate()
 
 d_batch = prob_rrt.calc_distance_batch(params.goal)

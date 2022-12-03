@@ -15,12 +15,11 @@ class IrsRrtProjection(IrsRrt):
         self,
         rrt_params: IrsRrtParams,
         contact_sampler: ContactSampler,
-        # TODO: get rid of q_sim_py once visualization is supported in
-        #  QuasistaticVisualizerCpp.
+        q_sim,
         q_sim_py: QuasistaticSimulator,
     ):
         self.contact_sampler = contact_sampler
-        super().__init__(rrt_params, contact_sampler.q_sim, q_sim_py)
+        super().__init__(rrt_params, q_sim, q_sim_py)
         self.solver = GurobiSolver()
 
     def select_closest_node(

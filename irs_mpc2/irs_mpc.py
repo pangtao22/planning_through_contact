@@ -3,7 +3,12 @@ from typing import Dict, List
 
 import numpy as np
 import matplotlib.pyplot as plt
-from pydrake.all import ModelInstanceIndex, GurobiSolver, PiecewisePolynomial
+from pydrake.all import (
+    ModelInstanceIndex,
+    GurobiSolver,
+    OsqpSolver,
+    PiecewisePolynomial,
+)
 
 from qsim.parser import QuasistaticParser
 from qsim_cpp import (
@@ -37,7 +42,7 @@ class IrsMpcQuasistatic:
         self.q_sim_batch = parser.make_batch_simulator()
 
         self.plant = self.q_sim.get_plant()
-        self.solver = GurobiSolver()
+        self.solver = OsqpSolver()
 
         # unpack various parameters for convenience.
         self.dim_x = self.q_sim.get_plant().num_positions()

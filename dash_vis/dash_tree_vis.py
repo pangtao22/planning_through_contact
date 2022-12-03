@@ -122,7 +122,7 @@ for i in range(n_nodes):
     node = tree.nodes[i]["node"]
     cov_inv_u = node.covinv_u
     p_center = node.q[idx_q_u_into_x]
-    e_points, volume = make_ellipsoid_plotly(cov_inv_u, p_center, 0.08, 10)
+    e_points, volume = make_ellipsoid_plotly(cov_inv_u, p_center, 0.08, 8)
     ellipsoid_mesh_points.append(e_points)
     ellipsoid_volumes.append(volume)
 

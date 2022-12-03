@@ -110,7 +110,7 @@ params.grasp_prob = 0.3
 
 #%%
 for i in range(5):
-    irs_rrt = IrsRrtProjection3D(params, contact_sampler)
+    irs_rrt = IrsRrtProjection3D(params, contact_sampler, q_sim, )
     irs_rrt.iterate()
 
     d_batch = irs_rrt.calc_distance_batch(params.goal)

@@ -94,7 +94,7 @@ params.grasp_prob = 0.1
 
 
 for i in range(5):
-    prob_rrt = IrsRrtProjection(params, contact_sampler)
+    prob_rrt = IrsRrtProjection(params, contact_sampler, q_sim, )
     prob_rrt.iterate()
 
     prob_rrt.save_tree(

@@ -1,17 +1,15 @@
 import numpy as np
 
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
-
 from irs_rrt.irs_rrt import IrsNode
 from irs_rrt.irs_rrt_projection_3d import IrsRrtProjection3D
-from irs_rrt.rrt_params import IrsRrtTrajOptParams, IrsRrtProjectionParams
+from irs_rrt.rrt_params import IrsRrtProjectionParams
 
 from qsim_cpp import ForwardDynamicsMode
 from qsim.parser import QuasistaticParser
-from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
-from allegro_hand_setup import *
 from irs_rrt.contact_sampler_allegro import AllegroHandContactSampler
+from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
+
+from allegro_hand_setup import *
 
 from pydrake.math import RollPitchYaw
 
@@ -77,11 +75,6 @@ joint_limits = {
     idx_a: np.zeros([num_joints, 2]),
 }
 
-q_a_limits_dict = q_sim.get_actuated_joint_limits()
-joint_limits[idx_a][:, 0] = q_a_limits_dict[idx_a]["lower"]
-joint_limits[idx_a][:, 0] = q_a_limits_dict[idx_a]["upper"]
-
-
 #%% RRT testing
 # IrsRrt params
 rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits)
@@ -109,7 +102,7 @@ rrt_params.h = 0.1
 
 #%% draw the goals
 for i in range(5):
-    prob_rrt = IrsRrtProjection3D(rrt_params, contact_sampler, q_sim_py)
+    prob_rrt = IrsRrtProjection3D(rrt_params, contact_sampler, q_sim, q_sim_py)
     q_vis.draw_object_triad(
         length=0.1, radius=0.001, opacity=1, path="sphere/sphere"
     )

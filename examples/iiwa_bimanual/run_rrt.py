@@ -100,7 +100,11 @@ params.distance_metric = "local_u"
 params.grasp_prob = 0.1
 params.h = 0.1
 
-prob_rrt = IrsRrtProjection3D(params, contact_sampler)
+prob_rrt = IrsRrtProjection3D(
+    params,
+    contact_sampler,
+    q_sim,
+)
 q_sim_py = prob_rrt.q_dynamics.q_sim_py
 AddTriad(
     vis=q_sim_py.viz.vis,

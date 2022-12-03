@@ -3,6 +3,7 @@ import numpy as np
 from pydrake.all import RollPitchYaw, Quaternion, RotationMatrix
 
 from qsim.simulator import QuasistaticSimulator
+from qsim_cpp import QuasistaticSimulatorCpp
 
 from irs_rrt.rrt_params import IrsRrtProjectionParams
 from irs_rrt.irs_rrt_3d import IrsRrt3D
@@ -15,9 +16,10 @@ class IrsRrtProjection3D(IrsRrtProjection):
         self,
         rrt_params: IrsRrtProjectionParams,
         contact_sampler: ContactSampler,
+        q_sim: QuasistaticSimulatorCpp,
         q_sim_py: QuasistaticSimulator,
     ):
-        super().__init__(rrt_params, contact_sampler, q_sim_py)
+        super().__init__(rrt_params, contact_sampler, q_sim, q_sim_py)
         self.irs_rrt_3d = IrsRrt3D(rrt_params, self.q_sim, q_sim_py)
 
     def sample_subgoal(self):
