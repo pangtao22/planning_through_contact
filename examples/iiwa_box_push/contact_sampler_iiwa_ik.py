@@ -91,11 +91,10 @@ class ContactSamplerBoxIK:
         # Get the nominal surface normal direction.
         edge_normal_rpy = edge_normals[edge_id]
         # Normalize the quaternion in the box pose.
-        normalized_Q_WB = q_box[0:4] / np.linalg.norm(q_box[0:4])
         # Represent the orientation of the box as a rotation matrix.
-        box_r = RotationMatrix(Quaternion(normalized_Q_WB)).matrix()
+        box_r = RollPitchYaw(0, 0, q_box[2]).ToRotationMatrix().matrix()
         # Apply the box's transformation to the sampled pose.
-        sample_p = box_r @ sample_p + q_box[4:7]
+        sample_p = box_r @ sample_p + np.array([q_box[0], q_box[1], 0])
         # Rotate the surface normal per box's orientation.
         sample_r = box_r @ edge_normal_rpy.ToRotationMatrix().matrix()
         # Return the resulting target end-effector pose.
@@ -200,16 +199,17 @@ if __name__ == "__main__":
     # %%
     # Create a visualizer for the plant.
     q_parser = QuasistaticParser(q_model_path_no_ground)
-    q_sim = q_parser.make_simulator_cpp()
-    q_sim_py = q_parser.make_simulator_py(internal_vis=True)
-    q_vis = QuasistaticVisualizer(q_sim, q_sim_py)
+    q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
+    q_sim, q_sim_py = q_vis.q_sim, q_vis.q_sim_py
+    plant = q_sim.get_plant()
+
+    idx_a = plant.GetModelInstanceByName(robot_name)
+    idx_u = plant.GetModelInstanceByName(object_name)
 
     # Initial box pose.
-    p_WB = np.array([0.4, 0, 0.089])
-    Q_WB = RollPitchYaw(0.0, 0.0, np.pi / 8).ToQuaternion().wxyz()
-    q_box0 = np.hstack([Q_WB, p_WB])
+    q_box0 = np.hstack([0.7, 0, 0])
     # Stack the arm and box configurations.
-    q0 = np.hstack((q_arm0, q_box0))
+    q0 = q_sim.get_q_vec_from_dict({idx_a: q_arm0, idx_u: q_box0})
     # Plot the initial configuration
     q_vis.draw_configuration(q0)
     # input("Ready?")

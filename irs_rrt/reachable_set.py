@@ -132,7 +132,6 @@ class ReachableSet:
     def calc_bundled_Bc_analytic(self, q, ubar):
         self.sim_params.gradient_mode = GradientMode.kBOnly
         self.sim_params.forward_mode = ForwardDynamicsMode.kLogIcecream
-
         q_next = self.q_sim.calc_dynamics(
             q=q, u=ubar, sim_params=self.sim_params
         )

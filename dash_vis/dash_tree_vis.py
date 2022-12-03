@@ -53,9 +53,6 @@ if args.two_d:
 z_height = 0.25
 q_goal = tree.graph["irs_rrt_params"].goal
 q_u_goal = q_goal[q_sim.get_q_u_indices_into_q()]
-X_WG = RigidTransform(
-    RollPitchYaw(0, 0, q_u_goal[2]), np.hstack([[0.25], q_u_goal[:2]])
-)
 
 q_vis.draw_configuration(tree.nodes[0]["node"].q)
 q_vis.draw_object_triad(
