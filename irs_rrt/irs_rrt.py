@@ -8,10 +8,15 @@ from pydrake.all import Quaternion, AngleAxis
 
 from qsim_cpp import ForwardDynamicsMode
 
-from irs_mpc.irs_mpc_params import BundleMode
 from irs_rrt.reachable_set import ReachableSet
 from irs_rrt.rrt_base import Node, Edge, Rrt
 from irs_rrt.rrt_params import IrsRrtParams
+from irs_mpc2.irs_mpc_params import (
+    kNoSmoothingModes,
+    k0RandomizedSmoothingModes,
+    k1RandomizedSmoothingModes,
+    kAnalyticSmoothingModes,
+)
 
 from qsim.simulator import QuasistaticSimulator, InternalVisualizationType
 from qsim_cpp import QuasistaticSimulatorCpp
@@ -187,24 +192,23 @@ class IrsRrt(Rrt):
         node.ubar = node.q[self.q_sim.get_q_a_indices_into_q()]
 
         # For q_u and q_a.
-        if self.rrt_params.bundle_mode == BundleMode.kFirstExact:
+        if self.rrt_params.smoothing_mode in kNoSmoothingModes:
             Bhat, chat = self.reachable_set.calc_exact_Bc(node.q, node.ubar)
-        elif self.rrt_params.bundle_mode == BundleMode.kFirstRandomized:
+        elif self.rrt_params.smoothing_mode in k1RandomizedSmoothingModes:
             Bhat, chat = self.reachable_set.calc_bundled_Bc_randomized(
                 node.q, node.ubar
             )
-        elif self.rrt_params.bundle_mode == BundleMode.kFirstAnalytic:
+        elif self.rrt_params.smoothing_mode in kAnalyticSmoothingModes:
             Bhat, chat = self.reachable_set.calc_bundled_Bc_analytic(
                 node.q, node.ubar
             )
-        elif self.rrt_params.bundle_mode == BundleMode.kZeroB:
+        elif self.rrt_params.smoothing_mode == k0RandomizedSmoothingModes:
             Bhat, chat = self.reachable_set.calc_bundled_Bc_randomized_zero(
                 node.q, node.ubar
             )
-
         else:
             raise NotImplementedError(
-                f"{self.rrt_params.bundle_mode} is not supported."
+                f"{self.rrt_params.smoothing_mode} is not supported."
             )
 
         node.Bhat = Bhat

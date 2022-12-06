@@ -6,12 +6,12 @@ from qsim.parser import QuasistaticParser
 
 from pydrake.all import RigidTransform
 
-from irs_mpc.irs_mpc_params import BundleMode
 from irs_rrt.irs_rrt import IrsNode
 from irs_rrt.irs_rrt_projection_3d import IrsRrtProjection3D
 from irs_rrt.irs_rrt_projection import IrsRrtProjection
 from irs_rrt.rrt_params import IrsRrtProjectionParams
 from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
+from irs_mpc2.irs_mpc_params import SmoothingMode
 
 from contact_sampler_iiwa_ik import ContactSamplerBoxIK
 from iiwa_box_setup import *
@@ -50,7 +50,7 @@ joint_limits = {
 }
 
 rrt_params = IrsRrtProjectionParams(q_model_path_no_ground, joint_limits)
-rrt_params.bundle_mode = BundleMode.kFirstAnalytic
+rrt_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
 rrt_params.root_node = IrsNode(x0)
 rrt_params.max_size = 2000
 

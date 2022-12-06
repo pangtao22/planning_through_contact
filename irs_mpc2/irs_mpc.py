@@ -22,8 +22,8 @@ from .irs_mpc_params import (
     IrsMpcQuasistaticParameters,
     SmoothingMode,
     kSmoothingMode2ForwardDynamicsModeMap,
-    RandomizedSmoothingModes,
-    AnalyticSmoothingModes,
+    k1RandomizedSmoothingModes,
+    kAnalyticSmoothingModes,
 )
 from .quasistatic_visualizer import QuasistaticVisualizer
 from .mpc import solve_mpc
@@ -260,7 +260,7 @@ class IrsMpcQuasistatic:
         """
         T = len(u_trj)
         sim_p = copy.deepcopy(self.sim_params)
-        if self.irs_mpc_params.smoothing_mode in RandomizedSmoothingModes:
+        if self.irs_mpc_params.smoothing_mode in k1RandomizedSmoothingModes:
             std_u = self.irs_mpc_params.calc_std_u(
                 self.irs_mpc_params.std_u_initial, self.current_iter + 1
             )
@@ -276,7 +276,7 @@ class IrsMpcQuasistatic:
                 self.irs_mpc_params.n_samples_randomized,
                 None,
             )
-        elif self.irs_mpc_params.smoothing_mode in AnalyticSmoothingModes:
+        elif self.irs_mpc_params.smoothing_mode in kAnalyticSmoothingModes:
             sim_p.log_barrier_weight = (
                 self.irs_mpc_params.calc_log_barrier_weight(
                     self.irs_mpc_params.log_barrier_weight_initial,
@@ -332,7 +332,7 @@ class IrsMpcQuasistatic:
         :return: A(n_x, n_x), B(n_x, n_u), c(n_x,), x_next_nominal(n_x,).
         """
         sim_p = copy.deepcopy(self.sim_params)
-        if self.irs_mpc_params.smoothing_mode in RandomizedSmoothingModes:
+        if self.irs_mpc_params.smoothing_mode in k1RandomizedSmoothingModes:
             std_u = self.irs_mpc_params.calc_std_u(
                 self.irs_mpc_params.std_u_initial, self.current_iter + 1
             )
@@ -357,7 +357,7 @@ class IrsMpcQuasistatic:
             B = B_batch[is_valid].mean(axis=0)
             x_next_smooth = x_next_batch[is_valid].mean(axis=0)
 
-        elif self.irs_mpc_params.smoothing_mode in AnalyticSmoothingModes:
+        elif self.irs_mpc_params.smoothing_mode in kAnalyticSmoothingModes:
             sim_p.log_barrier_weight = (
                 self.irs_mpc_params.calc_log_barrier_weight(
                     self.irs_mpc_params.log_barrier_weight_initial,

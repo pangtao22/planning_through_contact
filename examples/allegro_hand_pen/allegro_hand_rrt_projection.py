@@ -84,7 +84,7 @@ joint_limits[idx_a][2, :] = joint_limits[idx_u][6, :]
 #%% RRT testing
 # IrsRrt params
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
-params.bundle_mode = BundleMode.kFirstRandomized
+params.smoothing_mode = BundleMode.kFirstRandomized
 params.root_node = IrsNode(x0)
 params.max_size = 2000
 params.goal = np.copy(x0)

@@ -1,5 +1,5 @@
 import numpy as np
-from irs_mpc.irs_mpc_params import BundleMode
+from irs_mpc2.irs_mpc_params import SmoothingMode
 
 
 class RrtParams:
@@ -36,7 +36,7 @@ class IrsRrtParams(RrtParams):
         self.q_model_path = q_model_path
         self.std_u = 0.1
 
-        self.bundle_mode = BundleMode.kFirstRandomized
+        self.smoothing_mode = None
 
         # When self.bundle_mode == BundleMode.kFirstAnalytic,
         #  this log_barrier_weight is used in

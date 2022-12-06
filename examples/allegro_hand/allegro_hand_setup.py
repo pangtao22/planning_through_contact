@@ -1,7 +1,6 @@
 import os
 import numpy as np
 
-from irs_mpc.irs_mpc_params import BundleMode, ParallelizationMode
 from qsim.model_paths import models_dir
 from qsim_cpp import ForwardDynamicsMode, GradientMode
 
@@ -18,11 +17,6 @@ object_name = "sphere"
 
 # environment
 h = 0.1
-
-# gradient computation
-bundle_mode = BundleMode.kFirstRandomized
-parallel_mode = ParallelizationMode.kCppBundledB
-decouple_AB = True
 
 # IrsLqr
 num_iters = 10

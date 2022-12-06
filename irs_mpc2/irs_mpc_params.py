@@ -10,31 +10,42 @@ class SmoothingMode(enum.Enum):
     kNonePyramid = enum.auto()
     kNoneIcecream = enum.auto()
     # use randomized gradient.
-    kFirstRandomizedPyramid = enum.auto()
-    kFirstRandomizedIcecream = enum.auto()
+    k1RandomizedPyramid = enum.auto()
+    k1RandomizedIcecream = enum.auto()
     # use analytic gradient.
-    kFirstAnalyticPyramid = enum.auto()
-    kFirstAnalyticIcecream = enum.auto()
+    k1AnalyticPyramid = enum.auto()
+    k1AnalyticIcecream = enum.auto()
     # TODO: consider supporting zero-order smoothing modes.
+    k0Pyramid = enum.auto()
+    k0Icecream = enum.auto()
 
 
 kSmoothingMode2ForwardDynamicsModeMap = {
     SmoothingMode.kNonePyramid: ForwardDynamicsMode.kQpMp,
     SmoothingMode.kNoneIcecream: ForwardDynamicsMode.kSocpMp,
-    SmoothingMode.kFirstRandomizedPyramid: ForwardDynamicsMode.kQpMp,
-    SmoothingMode.kFirstRandomizedIcecream: ForwardDynamicsMode.kSocpMp,
-    SmoothingMode.kFirstAnalyticPyramid: ForwardDynamicsMode.kLogPyramidMy,
-    SmoothingMode.kFirstAnalyticIcecream: ForwardDynamicsMode.kLogIcecream,
+    SmoothingMode.k1RandomizedPyramid: ForwardDynamicsMode.kQpMp,
+    SmoothingMode.k1RandomizedIcecream: ForwardDynamicsMode.kSocpMp,
+    SmoothingMode.k1AnalyticPyramid: ForwardDynamicsMode.kLogPyramidMy,
+    SmoothingMode.k1AnalyticIcecream: ForwardDynamicsMode.kLogIcecream,
+    SmoothingMode.k0Pyramid: ForwardDynamicsMode.kQpMp,
+    SmoothingMode.k0Icecream: ForwardDynamicsMode.kSocpMp,
 }
 
-RandomizedSmoothingModes = {
-    SmoothingMode.kFirstRandomizedPyramid,
-    SmoothingMode.kFirstRandomizedIcecream,
+kNoSmoothingModes = {SmoothingMode.kNonePyramid, SmoothingMode.kNoneIcecream}
+
+k0RandomizedSmoothingModes = {
+    SmoothingMode.k0Pyramid,
+    SmoothingMode.k0Icecream,
 }
 
-AnalyticSmoothingModes = {
-    SmoothingMode.kFirstAnalyticPyramid,
-    SmoothingMode.kFirstAnalyticIcecream,
+k1RandomizedSmoothingModes = {
+    SmoothingMode.k1RandomizedPyramid,
+    SmoothingMode.k1RandomizedIcecream,
+}
+
+kAnalyticSmoothingModes = {
+    SmoothingMode.k1AnalyticPyramid,
+    SmoothingMode.k1AnalyticIcecream,
 }
 
 
@@ -53,7 +64,7 @@ class IrsMpcQuasistaticParameters:
         self.u_bounds_rel = None
 
         # Smoothing.
-        self.smoothing_mode = SmoothingMode.kFirstAnalyticIcecream
+        self.smoothing_mode = SmoothingMode.k1AnalyticIcecream
         self.use_A = False
 
         """

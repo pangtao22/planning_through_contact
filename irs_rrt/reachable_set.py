@@ -14,6 +14,14 @@ from qsim.simulator import (
 from qsim.parser import QuasistaticParser
 from qsim_cpp import QuasistaticSimulatorCpp
 
+from irs_mpc2.irs_mpc_params import (
+    kSmoothingMode2ForwardDynamicsModeMap,
+    kNoSmoothingModes,
+    k0RandomizedSmoothingModes,
+    k1RandomizedSmoothingModes,
+    kAnalyticSmoothingModes,
+)
+
 
 class ReachableSet:
     """
@@ -30,7 +38,6 @@ class ReachableSet:
         self.plant = q_sim.get_plant()
 
         self.sim_params = copy.deepcopy(sim_params)
-        self.sim_params.gradient_mode = GradientMode.kBOnly
 
         parser = QuasistaticParser(rrt_params.q_model_path)
         self.q_sim_batch = parser.make_batch_simulator()
@@ -49,7 +56,11 @@ class ReachableSet:
         """
         Compute exact dynamics.
         """
-        self.sim_params.forward_mode = ForwardDynamicsMode.kQpMp
+        assert self.rrt_params.smoothing_mode in kNoSmoothingModes
+        self.sim_params.gradient_mode = GradientMode.kBOnly
+        self.sim_params.forward_mode = kSmoothingMode2ForwardDynamicsModeMap[
+            self.rrt_params.smoothing_mode
+        ]
 
         x = q[None, :]
         u = ubar[None, :]
@@ -65,8 +76,11 @@ class ReachableSet:
         return B, c
 
     def calc_bundled_Bc_randomized(self, q, ubar):
+        assert self.rrt_params.smoothing_mode in k1RandomizedSmoothingModes
         self.sim_params.gradient_mode = GradientMode.kBOnly
-        self.sim_params.forward_mode = ForwardDynamicsMode.kSocpMp
+        self.sim_params.forward_mode = kSmoothingMode2ForwardDynamicsModeMap[
+            self.rrt_params.smoothing_mode
+        ]
 
         x_batch = np.tile(q[None, :], (self.n_samples, 1))
         u_batch = np.random.normal(
@@ -93,8 +107,11 @@ class ReachableSet:
         return Bhat, chat
 
     def calc_bundled_Bc_randomized_zero_numpy(self, q, ubar):
+        assert self.rrt_params.smoothing_mode in k0RandomizedSmoothingModes
         self.sim_params.gradient_mode = GradientMode.kNone
-        self.sim_params.forward_mode = ForwardDynamicsMode.kSocpMp
+        self.sim_params.forward_mode = kSmoothingMode2ForwardDynamicsModeMap[
+            self.rrt_params.smoothing_mode
+        ]
 
         x_batch = np.tile(q[None, :], (self.n_samples, 1))
         u_batch = np.random.normal(
@@ -123,6 +140,10 @@ class ReachableSet:
         return Bhat, chat
 
     def calc_bundled_Bc_randomized_zero(self, q, ubar):
+        raise RuntimeError(
+            "this method is buggy and should not be used "
+            "without further investigation."
+        )
         Bhat, chat = self.q_sim_batch.calc_Bc_lstsq(
             q, ubar, self.sim_params, self.std_u, self.rrt_params.n_samples
         )
@@ -130,8 +151,11 @@ class ReachableSet:
         return Bhat, chat
 
     def calc_bundled_Bc_analytic(self, q, ubar):
+        assert self.rrt_params.smoothing_mode in kAnalyticSmoothingModes
         self.sim_params.gradient_mode = GradientMode.kBOnly
-        self.sim_params.forward_mode = ForwardDynamicsMode.kLogIcecream
+        self.sim_params.forward_mode = kSmoothingMode2ForwardDynamicsModeMap[
+            self.rrt_params.smoothing_mode
+        ]
         q_next = self.q_sim.calc_dynamics(
             q=q, u=ubar, sim_params=self.sim_params
         )

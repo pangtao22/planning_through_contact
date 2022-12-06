@@ -124,7 +124,7 @@ u_bounds = np.ones(dim_u) * u_size * params.h
 # u_bounds[:3] *= 0.2
 params.u_bounds_abs = np.array([-u_bounds, u_bounds])
 
-params.smoothing_mode = SmoothingMode.kFirstRandomizedPyramid
+params.smoothing_mode = SmoothingMode.k1RandomizedPyramid
 # sampling-based bundling
 params.calc_std_u = lambda u_initial, i: u_initial / (i)
 params.std_u_initial = np.ones(dim_u) * 0.05

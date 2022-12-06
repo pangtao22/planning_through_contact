@@ -438,7 +438,7 @@ def test_collision():
     q_u_goal = np.array([0.5, 0, -np.pi])
 
     params = IrsRrtProjectionParams(q_model_path_planar, joint_limits)
-    params.bundle_mode = BundleMode.kFirstAnalytic
+    params.smoothing_mode = BundleMode.kFirstAnalytic
     params.root_node = IrsNode(x0)
     params.max_size = 40000
     params.goal = np.copy(x0)

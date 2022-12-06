@@ -64,7 +64,7 @@ params.u_bounds_abs = np.array(
 )
 
 
-params.smoothing_mode = SmoothingMode.kFirstAnalyticIcecream
+params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
 # sampling-based bundling
 params.calc_std_u = lambda u_initial, i: u_initial / (i**0.8)
 params.std_u_initial = np.ones(dim_u) * 0.2

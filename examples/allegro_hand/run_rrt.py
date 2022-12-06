@@ -8,7 +8,7 @@ from qsim_cpp import ForwardDynamicsMode
 from qsim.parser import QuasistaticParser
 from irs_rrt.contact_sampler_allegro import AllegroHandContactSampler
 from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
-
+from irs_mpc2.irs_mpc_params import SmoothingMode
 from allegro_hand_setup import *
 
 from pydrake.math import RollPitchYaw
@@ -78,7 +78,7 @@ joint_limits = {
 #%% RRT testing
 # IrsRrt params
 rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits)
-rrt_params.bundle_mode = BundleMode.kFirstAnalytic
+rrt_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
 rrt_params.root_node = IrsNode(q0)
 rrt_params.max_size = 1000
 rrt_params.goal = np.copy(q0)

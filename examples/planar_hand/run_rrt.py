@@ -7,7 +7,7 @@ from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 
 from irs_rrt.irs_rrt import IrsNode
 from irs_rrt.irs_rrt_projection import IrsRrtProjection
-from irs_rrt.rrt_params import IrsRrtProjectionParams
+from irs_rrt.rrt_params import IrsRrtProjectionParams, SmoothingMode
 from planar_hand_setup import *
 
 from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
@@ -37,7 +37,7 @@ joint_limits = {idx_u: np.array([[-0.3, 0.3], [0.3, 0.5], [-0.01, np.pi]])}
 
 # %% RRT testing
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
-params.bundle_mode = BundleMode.kFirstAnalytic
+params.smoothing_mode = SmoothingMode.k1AnalyticPyramid
 params.log_barrier_weight_for_bundling = 100
 params.root_node = IrsNode(x0)
 params.max_size = 1000
