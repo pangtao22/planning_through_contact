@@ -28,7 +28,6 @@ from iiwa_bimanual_setup import (
     iiwa_r_name,
     iiwa_l_name,
     object_name,
-    draw_goal_and_object_triads_2d,
 )
 
 #%%

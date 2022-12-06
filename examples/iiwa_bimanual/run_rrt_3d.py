@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 from pydrake.all import RigidTransform
 from pydrake.math import RollPitchYaw
-from pydrake.systems.meshcat_visualizer import AddTriad
 from qsim.parser import QuasistaticParser
 
-from irs_mpc.irs_mpc_params import BundleMode
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.irs_rrt import IrsNode
 from irs_rrt.irs_rrt_projection_3d import IrsRrtProjection3D
 from irs_rrt.rrt_params import IrsRrtProjectionParams

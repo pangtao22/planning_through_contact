@@ -1,6 +1,8 @@
 from typing import List, Tuple
 import copy
 import pickle
+import os
+import warnings
 
 import networkx
 import numpy as np
@@ -21,6 +23,7 @@ from irs_mpc2.irs_mpc_params import (
 from qsim.simulator import QuasistaticSimulator, InternalVisualizationType
 from qsim_cpp import QuasistaticSimulatorCpp
 from qsim.parser import QuasistaticParser
+from qsim.model_paths import package_paths_dict
 
 
 class IrsNode(Node):
@@ -83,7 +86,7 @@ class IrsRrt(Rrt):
         self.sim_params.forward_mode = ForwardDynamicsMode.kSocpMp
 
         # TODO(pang): what does self.load_params() do?
-        self.rrt_params = self.load_params(rrt_params)
+        self.rrt_params = self.load_joint_limits_dict(rrt_params)
         self.reachable_set = ReachableSet(
             q_sim=q_sim, rrt_params=rrt_params, sim_params=self.sim_params
         )
@@ -111,34 +114,7 @@ class IrsRrt(Rrt):
 
         super().__init__(rrt_params)
 
-    @staticmethod
-    def make_from_pickled_tree(
-        tree: networkx.DiGraph, internal_vis: InternalVisualizationType
-    ):
-        # Factory method for making an IrsRrt object from a pickled tree.
-        rrt_param = tree.graph["irs_rrt_params"]
-        parser = QuasistaticParser(rrt_param.q_model_path)
-        parser.set_sim_params(**tree.graph["q_sim_params"])
-
-        prob_rrt = IrsRrt(
-            rrt_params=rrt_param,
-            q_sim=parser.make_simulator_cpp(),
-            q_sim_py=parser.make_simulator_py(internal_vis=internal_vis),
-        )
-        prob_rrt.graph = tree
-        prob_rrt.size = tree.number_of_nodes()
-
-        for i_node in tree.nodes:
-            node = tree.nodes[i_node]["node"]
-            prob_rrt.Bhat_tensor[i_node] = node.Bhat
-            prob_rrt.covinv_tensor[i_node] = node.covinv
-            prob_rrt.chat_matrix[i_node] = node.chat
-            prob_rrt.covinv_u_tensor[i_node] = node.covinv_u
-            prob_rrt.q_matrix[i_node] = node.q
-
-        return prob_rrt
-
-    def load_params(self, params: IrsRrtParams) -> IrsRrtParams:
+    def load_joint_limits_dict(self, params: IrsRrtParams) -> IrsRrtParams:
         """
         This function makes sure that joint limits are keyed by model
         instance indices.
@@ -400,12 +376,73 @@ class IrsRrt(Rrt):
                 f"distance metric {distance_metric} is not " f"supported."
             )
 
+    @staticmethod
+    def load_q_model_path(tree: networkx.DiGraph):
+        if "model_file_package_name" in tree.graph:
+            q_model_path = os.path.join(
+                package_paths_dict[tree.graph["model_file_package_name"]],
+                tree.graph["model_file_path_in_package"],
+            )
+            return q_model_path
+
+        warnings.warn(
+            "q_model_path is an absolute path and therefore "
+            "may not work on other machines."
+        )
+        return tree.graph["irs_rrt_params"].q_model_path
+
+    @staticmethod
+    def make_from_pickled_tree(
+        tree: networkx.DiGraph, internal_vis: InternalVisualizationType
+    ):
+        # Factory method for making an IrsRrt object from a pickled tree.
+        parser = QuasistaticParser(IrsRrt.load_q_model_path(tree))
+
+        rrt_param = tree.graph["irs_rrt_params"]
+        parser.set_sim_params(**tree.graph["q_sim_params"])
+
+        prob_rrt = IrsRrt(
+            rrt_params=rrt_param,
+            q_sim=parser.make_simulator_cpp(),
+            q_sim_py=parser.make_simulator_py(internal_vis=internal_vis),
+        )
+        prob_rrt.graph = tree
+        prob_rrt.size = tree.number_of_nodes()
+
+        for i_node in tree.nodes:
+            node = tree.nodes[i_node]["node"]
+            prob_rrt.Bhat_tensor[i_node] = node.Bhat
+            prob_rrt.covinv_tensor[i_node] = node.covinv
+            prob_rrt.chat_matrix[i_node] = node.chat
+            prob_rrt.covinv_u_tensor[i_node] = node.covinv_u
+            prob_rrt.q_matrix[i_node] = node.q
+
+        return prob_rrt
+
     def save_tree(self, filename):
         """
         self.params.joint_limits are keyed by ModelInstanceIndex,
          which pickle does not like. Here we create a copy of self.params
          with a joint_limits dictionary keyed by model instance names.
         """
+        found_package = False
+        for name, path in package_paths_dict.items():
+            if self.rrt_params.q_model_path.find(path) == -1:
+                continue
+            # found path at the beginning of q_model_path
+            found_package = True
+            self.graph.graph["model_file_package_name"] = name
+            self.graph.graph[
+                "model_file_path_in_package"
+            ] = self.rrt_params.q_model_path[len(path) + 1 :]
+            # + 1 to skip the '/' between package and model paths.
+
+        if not found_package:
+            raise RuntimeError(
+                f"q_model_path {self.sim_params.q_model_path} "
+                f"cannot be found in package_paths_dict."
+            )
+
         picklable_params_dict = {
             key: copy.deepcopy(value)
             for key, value in self.rrt_params.__dict__.items()
