@@ -1,15 +1,14 @@
 import os
 
 import numpy as np
-import meshcat
 
 from pydrake.all import MultibodyPlant, RigidTransform, RollPitchYaw
 
 from qsim.model_paths import models_dir
 from qsim_cpp import ForwardDynamicsMode, GradientMode
+from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 
 from control.controller_system import ControllerParams
-
 
 q_model_path = os.path.join(models_dir, "q_sys", "iiwa_bimanual_box.yml")
 q_model_path_planar = os.path.join(
@@ -24,11 +23,9 @@ q_model_path_cylinder = os.path.join(
     models_dir, "q_sys", "iiwa_bimanual_cylinder.yml"
 )
 
-
 iiwa_l_name = "iiwa_left"
 iiwa_r_name = "iiwa_right"
 object_name = "box"
-
 
 controller_params_3d = ControllerParams(
     forward_mode=ForwardDynamicsMode.kLogIcecream,
@@ -61,3 +58,18 @@ def calc_z_height(plant: MultibodyPlant):
         context_plant, plant.world_frame(), plant.GetFrameByName(object_name)
     )
     return X_WB.translation()[2]
+
+
+def draw_goal_and_object_triads_2d(
+    q_vis: QuasistaticVisualizer, plant: MultibodyPlant, q_u_goal: np.ndarray
+):
+    q_vis.draw_object_triad(length=0.4, radius=0.005, opacity=1, path="box/box")
+    q_vis.draw_goal_triad(
+        length=0.4,
+        radius=0.01,
+        opacity=0.7,
+        X_WG=RigidTransform(
+            RollPitchYaw(0, 0, q_u_goal[2]),
+            np.hstack([q_u_goal[:2], [calc_z_height(plant)]]),
+        ),
+    )

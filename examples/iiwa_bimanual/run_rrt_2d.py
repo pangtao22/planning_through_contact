@@ -62,16 +62,8 @@ rrt_params.distance_metric = "local_u"
 rrt_params.grasp_prob = 0.5
 rrt_params.h = 0.05
 
-q_vis.draw_object_triad(length=0.4, radius=0.005, opacity=1, path="box/box")
-q_vis.draw_goal_triad(
-    length=0.4,
-    radius=0.01,
-    opacity=0.7,
-    X_WG=RigidTransform(
-        RollPitchYaw(0, 0, q_u_goal[2]),
-        np.hstack([q_u_goal[:2], [calc_z_height(plant)]]),
-    ),
-)
+#%%
+draw_goal_and_object_triads_2d(q_vis, plant, q_u_goal)
 
 prob_rrt = IrsRrtProjection(rrt_params, contact_sampler, q_sim, q_sim_py)
 prob_rrt.iterate()

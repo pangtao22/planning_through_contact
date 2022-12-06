@@ -28,6 +28,7 @@ from iiwa_bimanual_setup import (
     iiwa_r_name,
     iiwa_l_name,
     object_name,
+    draw_goal_and_object_triads_2d,
 )
 
 #%%
@@ -45,7 +46,7 @@ with open(pickled_tree_path, "rb") as f:
     tree = pickle.load(f)
 
 prob_rrt = IrsRrt.make_from_pickled_tree(tree)
-q_dynamics = prob_rrt.q_dynamics
+
 q_dynamics.update_default_sim_params(forward_mode=ForwardDynamicsMode.kSocpMp)
 q_sim = q_dynamics.q_sim
 
