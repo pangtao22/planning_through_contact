@@ -8,8 +8,6 @@ import networkx
 import numpy as np
 from pydrake.all import Quaternion, AngleAxis
 
-from qsim_cpp import ForwardDynamicsMode
-
 from irs_rrt.reachable_set import ReachableSet
 from irs_rrt.rrt_base import Node, Edge, Rrt
 from irs_rrt.rrt_params import IrsRrtParams
@@ -18,6 +16,7 @@ from irs_mpc2.irs_mpc_params import (
     k0RandomizedSmoothingModes,
     k1RandomizedSmoothingModes,
     kAnalyticSmoothingModes,
+    kSmoothingMode2ForwardDynamicsModeMap,
 )
 
 from qsim.simulator import QuasistaticSimulator, InternalVisualizationType
@@ -83,7 +82,9 @@ class IrsRrt(Rrt):
         self.sim_params.log_barrier_weight = (
             rrt_params.log_barrier_weight_for_bundling
         )
-        self.sim_params.forward_mode = ForwardDynamicsMode.kSocpMp
+        self.sim_params.forward_mode = kSmoothingMode2ForwardDynamicsModeMap[
+            rrt_params.smoothing_mode
+        ]
 
         # TODO(pang): what does self.load_params() do?
         self.rrt_params = self.load_joint_limits_dict(rrt_params)
@@ -396,9 +397,11 @@ class IrsRrt(Rrt):
         tree: networkx.DiGraph, internal_vis: InternalVisualizationType
     ):
         # Factory method for making an IrsRrt object from a pickled tree.
-        parser = QuasistaticParser(IrsRrt.load_q_model_path(tree))
+        q_model_path = IrsRrt.load_q_model_path(tree)
+        parser = QuasistaticParser(q_model_path)
 
         rrt_param = tree.graph["irs_rrt_params"]
+        rrt_param.q_model_path = q_model_path
         parser.set_sim_params(**tree.graph["q_sim_params"])
 
         prob_rrt = IrsRrt(
@@ -445,7 +448,7 @@ class IrsRrt(Rrt):
 
         picklable_params_dict = {
             key: copy.deepcopy(value)
-            for key, value in self.rrt_params.__dict__.items()
+            for key, value in vars(self.rrt_params).items()
             if key != "joint_limits"
         }
         model_name_to_joint_limits_map = {

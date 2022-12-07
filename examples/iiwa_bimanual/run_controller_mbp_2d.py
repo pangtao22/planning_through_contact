@@ -11,11 +11,9 @@ from pydrake.all import (
     Quaternion,
     AngleAxis,
     Simulator,
-    AddTriad,
 )
 
 from qsim.parser import QuasistaticParser
-from qsim.model_paths import models_dir, add_package_paths_local
 from robotics_utilities.iiwa_controller.utils import (
     create_iiwa_controller_plant,
 )

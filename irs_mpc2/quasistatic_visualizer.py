@@ -140,6 +140,7 @@ class QuasistaticVisualizer:
 
     def publish_trajectory(self, x_knots: np.ndarray, h: float):
         if self.q_sim_py.internal_vis == InternalVisualizationType.Cpp:
+            self.meshcat_vis.DeleteRecording()
             self.meshcat_vis.StartRecording(False)
             for i, t in enumerate(np.arange(len(x_knots)) * h):
                 self.q_sim_py.context.SetTime(t)

@@ -41,9 +41,9 @@ joint_limits = {
 q_u_goal = np.array([0.5, 0, -np.pi])
 
 rrt_params = IrsRrtProjectionParams(q_model_path_planar, joint_limits)
-rrt_params.smoothing_mode = SmoothingMode.k1AnalyticPyramid
+rrt_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
 rrt_params.root_node = IrsNode(q0)
-rrt_params.max_size = 1000
+rrt_params.max_size = 3000
 rrt_params.goal = np.copy(q0)
 rrt_params.goal[q_sim.get_q_u_indices_into_q()] = q_u_goal
 
@@ -62,11 +62,18 @@ rrt_params.distance_metric = "local_u"
 rrt_params.grasp_prob = 0.5
 rrt_params.h = 0.05
 
+rrt_params.enforce_robot_joint_limits = True
+
 #%%
 draw_goal_and_object_triads_2d(q_vis, plant, q_u_goal)
 
 prob_rrt = IrsRrtProjection(rrt_params, contact_sampler, q_sim, q_sim_py)
 prob_rrt.iterate()
 
-prob_rrt.find_node_closest_to_goal()
+q_knots_trimmed, u_knots_trimmed = prob_rrt.get_trimmed_q_and_u_knots_to_goal()
+q_vis.publish_trajectory(q_knots_trimmed, h=rrt_params.h)
+
 prob_rrt.save_tree("bimanual_planar.pkl")
+
+
+#%%
