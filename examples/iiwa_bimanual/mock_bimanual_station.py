@@ -5,7 +5,6 @@ import numpy as np
 from pydrake.all import (
     MultibodyPlant,
     DiagramBuilder,
-    ConnectMeshcatVisualizer,
     LcmSubscriberSystem,
     LcmPublisherSystem,
     LcmInterfaceSystem,

@@ -246,7 +246,7 @@ class ControllerSystem(LeafSystem):
         # Periodic state update
         self.control_period = controller_params.control_period
         self.closed_loop = closed_loop
-        self.DeclarePeriodicDiscreteUpdate(self.control_period)
+        self.DeclarePeriodicDiscreteUpdateNoHandler(self.control_period)
 
         # The object configuration is declared as part of the state, but not
         # used, so that indexing becomes easier.

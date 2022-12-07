@@ -12,7 +12,7 @@ def get_cost_array(irs_rrt, global_metric):
     n_nodes = len(irs_rrt.graph.nodes)
     costs = np.zeros(n_nodes)
 
-    irs_rrt.params.global_metric = global_metric
+    irs_rrt.rrt_params.global_metric = global_metric
     for n in range(1, n_nodes):
         costs[n] = np.min(
             irs_rrt.calc_distance_batch_global(

@@ -20,7 +20,8 @@ class EuclideanRrt(Rrt):
     def sample_subgoal(self):
         subgoal = np.random.rand(2)
         subgoal = (
-            self.params.x_lb + (self.params.x_ub - self.params.x_lb) * subgoal
+            self.rrt_params.x_lb
+            + (self.rrt_params.x_ub - self.rrt_params.x_lb) * subgoal
         )
         return subgoal
 
@@ -30,10 +31,10 @@ class EuclideanRrt(Rrt):
         return np.linalg.norm(x_parent - x_child)
 
     def extend_towards_q(self, node: Node, q: np.array):
-        if np.linalg.norm(q - node.q) < self.params.radius:
+        if np.linalg.norm(q - node.q) < self.rrt_params.radius:
             child_q = q
         else:
-            child_q = node.q + self.params.radius * (
+            child_q = node.q + self.rrt_params.radius * (
                 q - node.q
             ) / np.linalg.norm(q - node.q)
         return Node(child_q)

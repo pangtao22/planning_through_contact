@@ -84,7 +84,7 @@ joint_limits[idx_a][2, :] = joint_limits[idx_u][6, :]
 #%% RRT testing
 # IrsRrt params
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
-params.bundle_mode = BundleMode.kFirstRandomized
+params.smoothing_mode = BundleMode.kFirstRandomized
 params.root_node = IrsNode(x0)
 params.max_size = 2000
 params.goal = np.copy(x0)
@@ -112,7 +112,11 @@ params.std_u = std_u
 params.grasp_prob = 0.1
 
 for i in range(5):
-    irs_rrt = IrsRrtProjection3D(params, contact_sampler)
+    irs_rrt = IrsRrtProjection3D(
+        params,
+        contact_sampler,
+        q_sim,
+    )
     irs_rrt.iterate()
 
     d_batch = irs_rrt.calc_distance_batch(params.goal)

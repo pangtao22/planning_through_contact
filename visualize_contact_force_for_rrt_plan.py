@@ -36,7 +36,7 @@ q_sim = q_dynamics.q_sim
 
 q_vis = QuasistaticVisualizer(q_sim=q_sim, q_sim_py=q_dynamics.q_sim_py)
 
-qu_goal = prob_rrt.params.goal[q_dynamics.get_q_u_indices_into_x()]
+qu_goal = prob_rrt.rrt_params.goal[q_dynamics.get_q_u_indices_into_x()]
 Q_WB_d = Quaternion(qu_goal[:4])
 p_WB_d = qu_goal[4:]
 dim_q = prob_rrt.dim_q
@@ -154,7 +154,7 @@ folder_path_normal_color = os.path.join(
 )
 q_vis.render_trajectory(
     x_traj_knots=q_knots_all,
-    h=prob_rrt.params.h,
+    h=prob_rrt.rrt_params.h,
     folder_path=folder_path_normal_color,
     fps=120,
 )

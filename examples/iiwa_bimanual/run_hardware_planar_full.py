@@ -11,7 +11,10 @@ from plan_runner_client.zmq_client import PlanManagerZmqClient
 
 
 from qsim.parser import QuasistaticParser
-from control.drake_sim import load_ref_trajectories, calc_u_extended_and_t_knots
+from control.drake_sim import (
+    load_ref_trajectories,
+    calc_q_and_u_extended_and_t_knots,
+)
 from control.controller_planar_iiwa_bimanual import kQIiwa0, kIndices3Into7
 from control.systems_utils import wait_for_msg
 
@@ -52,13 +55,15 @@ for i in range(len(u_knots_ref_list) - 1):
     else:
         u_knot_ref_start = u_knots_ref_list[i - 1][-1]
 
-    u_knots_ref_2d_i, t_knots = calc_u_extended_and_t_knots(
+    u_knots_ref_2d_i, t_knots = calc_q_and_u_extended_and_t_knots(
+        None,
         u_knots_ref=u_knots_ref_list[i],
         u_knot_ref_start=u_knot_ref_start,
         v_limit=0.1,
     )
 
-    u_knots_ref_2d_i1, _ = calc_u_extended_and_t_knots(
+    u_knots_ref_2d_i1, _ = calc_q_and_u_extended_and_t_knots(
+        None,
         u_knots_ref=u_knots_ref_list[i + 1],
         u_knot_ref_start=u_knots_ref_list[i][-1],
         v_limit=0.1,
@@ -94,7 +99,8 @@ for i in range(len(u_knots_ref_list)):
         v_limit = 0.4
 
     q_knots_ref_2d = q_knots_ref_list[i]
-    u_knots_ref_2d, t_knots = calc_u_extended_and_t_knots(
+    u_knots_ref_2d, t_knots = calc_q_and_u_extended_and_t_knots(
+        None,
         u_knots_ref=u_knots_ref_list[i],
         u_knot_ref_start=u_knot_ref_start,
         v_limit=v_limit,

@@ -1,5 +1,5 @@
 import numpy as np
-from irs_mpc.irs_mpc_params import BundleMode
+from irs_mpc2.irs_mpc_params import SmoothingMode
 
 
 class RrtParams:
@@ -16,6 +16,15 @@ class RrtParams:
         self.termination_tolerance = 0.1
         self.rewire = False
         self.stepsize = 0.1
+        # TODO (pang): the QuasistaticSimulator does not support joint limits
+        #  yet. Therefore the distance metric does not reflect being close
+        #  to joint limits. As a result, clipping the commanded positions
+        #  using the joint limits without a distance metric that supports
+        #  joint limits will lead to inefficient exploration.
+        #  enforce_robot_joint_limits should be False in order to reproduce
+        #  the results in the TR-O paper. But it should be set to True for
+        #  hardware demos, such as the iiwa_bimanual example.
+        self.enforce_robot_joint_limits = False
 
 
 class IrsRrtParams(RrtParams):
@@ -27,7 +36,7 @@ class IrsRrtParams(RrtParams):
         self.q_model_path = q_model_path
         self.std_u = 0.1
 
-        self.bundle_mode = BundleMode.kFirstRandomized
+        self.smoothing_mode = None
 
         # When self.bundle_mode == BundleMode.kFirstAnalytic,
         #  this log_barrier_weight is used in

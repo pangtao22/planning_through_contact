@@ -1,15 +1,12 @@
 import networkx
 import numpy as np
-import meshcat
 import plotly.graph_objects as go
 
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
+from pydrake.all import RigidTransform, RollPitchYaw
+import meshcat
 
 
-#%% meshcat
-X_WG0 = meshcat.transformations.rotation_matrix(np.pi / 2, [0, 0, 1])
-
-
+# %% meshcat
 def set_orthographic_camera_yz(vis: meshcat.Visualizer) -> None:
     # use orthographic camera, show YZ plane.
     camera = meshcat.geometry.OrthographicCamera(
@@ -44,14 +41,11 @@ def calc_X_WG(y: float, z: float, theta: float):
     """
     Goal pose.
     """
-    p_WG = np.array([y, 0, z])
-    X_G0G = meshcat.transformations.translation_matrix(
-        p_WG
-    ) @ meshcat.transformations.rotation_matrix(-theta, [0, 1, 0])
-    return X_WG0 @ X_G0G
+    X_WG = RigidTransform(RollPitchYaw(theta, 0, 0), np.array([0, y, z]))
+    return X_WG
 
 
-#%% hover templates and layout
+# %% hover templates and layout
 hover_template_y_z_theta = (
     "<i>y</i>: %{x:.4f}<br>"
     + "<i>z</i>: %{y:.4f}<br>"
@@ -78,7 +72,7 @@ layout = go.Layout(
 )
 
 
-#%% PCA of reachable set samples
+# %% PCA of reachable set samples
 def calc_principal_points(qu_samples: np.ndarray, r: float):
     qu_mean = qu_samples.mean(axis=0)
     U, sigma, Vh = np.linalg.svd(qu_samples - qu_mean)
@@ -107,7 +101,7 @@ def create_pca_plots(principal_points: np.ndarray):
     return principal_axes_plots
 
 
-#%% plotly figure components
+# %% plotly figure components
 def make_large_point_3d(
     p: np.ndarray, name="q_u0", symbol="cross", color="magenta"
 ):
@@ -196,7 +190,6 @@ def trace_path_to_root_from_node(
     q_u_nodes: np.ndarray,
     q_nodes: np.ndarray,
     tree: networkx.DiGraph,
-    q_dynamics: QuasistaticDynamics,
 ):
     node_idx_path = trace_nodes_to_root_from(i_node, tree)
     q_u_path = q_u_nodes[node_idx_path]
@@ -213,7 +206,8 @@ def trace_path_to_root_from_node(
             x_trj_list.append(x_trj_i)
             x_trj_sizes_list.append(len(x_trj_i))
 
-        x_trj = np.zeros((np.sum(x_trj_sizes_list), q_dynamics.dim_x))
+        dim_x = q_nodes.shape[1]
+        x_trj = np.zeros((np.sum(x_trj_sizes_list), dim_x))
         i_start = 0
         for x_trj_i, size_i in zip(x_trj_list, x_trj_sizes_list):
             x_trj[i_start : i_start + size_i] = x_trj_i

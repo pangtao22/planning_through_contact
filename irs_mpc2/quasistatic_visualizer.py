@@ -4,12 +4,15 @@ from typing import Dict, Set, List
 
 from matplotlib import cm
 import numpy as np
-from pydrake.all import ModelInstanceIndex, MultibodyPlant
-
-from qsim.simulator import QuasistaticSimulator
-from qsim_cpp import QuasistaticSimulatorCpp
-
+from pydrake.all import ModelInstanceIndex, MultibodyPlant, RigidTransform
 from pydrake.all import PiecewisePolynomial, ContactResults, BodyIndex
+
+from manipulation.meshcat_utils import AddMeshcatTriad
+
+from qsim.simulator import QuasistaticSimulator, InternalVisualizationType
+from qsim.meshcat_visualizer_old import MeshcatVisualizer, AddTriad
+from qsim.parser import QuasistaticParser
+from qsim_cpp import QuasistaticSimulatorCpp
 
 
 class QuasistaticVisualizer:
@@ -19,7 +22,7 @@ class QuasistaticVisualizer:
         self.q_sim_py = q_sim_py
         self.q_sim = q_sim
         self.plant = self.q_sim.get_plant()
-        self.meshcat_vis = self.q_sim_py.viz.vis
+        self.meshcat_vis = self.q_sim_py.viz
 
         self.body_id_meshcat_name_map = self.get_body_id_to_meshcat_name_map()
 
@@ -32,6 +35,14 @@ class QuasistaticVisualizer:
             velocity_indices_a=self.q_sim.get_velocity_indices(),
             velocity_indices_b=self.q_sim.get_velocity_indices(),
         )
+
+    @staticmethod
+    def make_visualizer(q_parser: QuasistaticParser):
+        q_sim = q_parser.make_simulator_cpp()
+        q_sim_py = q_parser.make_simulator_py(
+            internal_vis=InternalVisualizationType.Cpp
+        )
+        return QuasistaticVisualizer(q_sim, q_sim_py)
 
     def get_body_id_to_meshcat_name_map(self):
         body_id_meshcat_name_map = {}
@@ -72,9 +83,81 @@ class QuasistaticVisualizer:
         self.q_sim_py.update_mbp_positions_from_vector(q)
         self.q_sim_py.draw_current_configuration()
 
+    def draw_goal_triad(
+        self,
+        length: float,
+        radius: float,
+        opacity: float,
+        X_WG: RigidTransform,
+        name: str = "goal",
+    ):
+        if self.q_sim_py.internal_vis == InternalVisualizationType.Cpp:
+            AddMeshcatTriad(
+                meshcat=self.q_sim_py.meshcat,
+                path=f"{name}/frame",
+                length=length,
+                radius=radius,
+                opacity=opacity,
+                X_PT=X_WG,
+            )
+        elif self.q_sim_py.internal_vis == InternalVisualizationType.Python:
+            AddTriad(
+                vis=self.meshcat_vis.vis,
+                name="frame",
+                prefix=name,
+                length=length,
+                radius=radius,
+                opacity=opacity,
+            )
+            self.meshcat_vis.vis[name].set_transform(X_WG.GetAsMatrix4())
+
+        return name
+
+    def draw_object_triad(
+        self,
+        length: float,
+        radius: float,
+        opacity: float,
+        path: str,
+    ):
+        if self.q_sim_py.internal_vis == InternalVisualizationType.Cpp:
+            AddMeshcatTriad(
+                meshcat=self.q_sim_py.meshcat,
+                path=f"visualizer/{path}/frame",
+                length=length,
+                radius=radius,
+                opacity=opacity,
+            )
+        elif self.q_sim_py.internal_vis == InternalVisualizationType.Python:
+            AddTriad(
+                vis=self.meshcat_vis.vis,
+                name="frame",
+                prefix=f"drake/plant/{path}",
+                length=length,
+                radius=radius,
+                opacity=opacity,
+            )
+
     def publish_trajectory(self, x_knots: np.ndarray, h: float):
-        q_dict_knots = [self.q_sim.get_q_dict_from_vec(x) for x in x_knots]
-        self.q_sim_py.animate_system_trajectory(h, q_dict_traj=q_dict_knots)
+        if self.q_sim_py.internal_vis == InternalVisualizationType.Cpp:
+            self.meshcat_vis.DeleteRecording()
+            self.meshcat_vis.StartRecording(False)
+            for i, t in enumerate(np.arange(len(x_knots)) * h):
+                self.q_sim_py.context.SetTime(t)
+                self.q_sim_py.update_mbp_positions_from_vector(x_knots[i])
+                self.meshcat_vis.ForcedPublish(self.q_sim_py.context_meshcat)
+
+            self.meshcat_vis.StopRecording()
+            self.meshcat_vis.PublishRecording()
+        elif self.q_sim_py.internal_vis == InternalVisualizationType.Python:
+            self.meshcat_vis.draw_period = h
+            self.meshcat_vis.reset_recording()
+            self.meshcat_vis.start_recording()
+            for x_i in x_knots:
+                self.draw_configuration(x_i)
+
+            self.meshcat_vis.stop_recording()
+            self.meshcat_vis.publish_recording()
 
     def normalize_quaternions_in_x(self, x: np.ndarray):
         for model in self.q_sim_py.models_unactuated:

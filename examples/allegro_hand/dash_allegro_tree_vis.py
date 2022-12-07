@@ -14,17 +14,16 @@ from dash_vis.dash_common import (
     hover_template_y_z_theta,
     layout,
     make_large_point_3d,
-    make_ellipsoid_plotly,
     hover_template_trj,
     trace_path_to_root_from_node,
-    set_orthographic_camera_yz,
 )
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_rrt.reachable_set import ReachableSet
-from matplotlib import cm
-import matplotlib.pyplot as plt
 
-from pydrake.all import AngleAxis, Quaternion, AddTriad, RigidTransform
+from pydrake.all import RollPitchYaw, Quaternion, RigidTransform
+
+from qsim.simulator import InternalVisualizationType
+
+from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
+from irs_rrt.irs_rrt import IrsRrt
 
 parser = argparse.ArgumentParser()
 parser.add_argument("tree_file_path")
@@ -34,40 +33,32 @@ args = parser.parse_args()
 # %% Construct computational tools.
 with open(args.tree_file_path, "rb") as f:
     tree = pickle.load(f)
-irs_rrt_param = tree.graph["irs_rrt_params"]
-q_model_path = irs_rrt_param.q_model_path
 
-h = irs_rrt_param.h
-q_dynamics = QuasistaticDynamics(
-    h=h, q_model_path=q_model_path, internal_viz=True
+irs_rrt_obj = IrsRrt.make_from_pickled_tree(
+    tree, internal_vis=InternalVisualizationType.Python
 )
-reachable_set = ReachableSet(q_dynamics, irs_rrt_param)
-q_sim_py = q_dynamics.q_sim_py
-# set_orthographic_camera_yz(q_dynamics.q_sim_py.viz.vis)
+
+reachable_set = irs_rrt_obj.reachable_set
+q_sim, q_sim_py = irs_rrt_obj.q_sim, irs_rrt_obj.q_sim_py
+plant = q_sim.get_plant()
+q_vis = QuasistaticVisualizer(q_sim=q_sim, q_sim_py=q_sim_py)
+meshcat_vis = q_sim_py.viz.vis  # meshcat.Visualizer (from meshcat-python)
+
 
 #%% visualize goal.
-AddTriad(
-    vis=q_dynamics.q_sim_py.viz.vis,
-    name="frame",
-    prefix="drake/plant/sphere/sphere",
-    length=0.1,
-    radius=0.001,
-    opacity=1,
+q_goal = tree.graph["irs_rrt_params"].goal
+q_u_goal = q_goal[q_sim.get_q_u_indices_into_q()]
+
+q_vis.draw_configuration(tree.nodes[0]["node"].q)
+q_vis.draw_object_triad(
+    length=0.1, radius=0.001, opacity=1, path="sphere/sphere"
 )
 
-AddTriad(
-    vis=q_dynamics.q_sim_py.viz.vis,
-    name="frame",
-    prefix="goal",
+kGoalVisPrefix = q_vis.draw_goal_triad(
     length=0.1,
     radius=0.005,
-    opacity=0.5,
-)
-
-q_goal = irs_rrt_param.goal
-q_u_goal = q_goal[q_dynamics.get_q_u_indices_into_x()]
-q_dynamics.q_sim_py.viz.vis["goal"].set_transform(
-    RigidTransform(Quaternion(q_u_goal[:4]), q_u_goal[4:]).GetAsMatrix4()
+    opacity=0.7,
+    X_WG=RigidTransform(Quaternion(q_u_goal[:4]), q_u_goal[4:]),
 )
 
 # %%
@@ -75,18 +66,24 @@ q_dynamics.q_sim_py.viz.vis["goal"].set_transform(
 This visualizer works for 3D allegro hand with [roll, pitch, yaw].
 """
 n_nodes = len(tree.nodes)
-q_nodes = np.zeros((n_nodes, q_dynamics.dim_x))
+n_q_u = q_sim.num_unactuated_dofs()
+n_q = plant.num_positions()
+q_nodes = np.zeros((n_nodes, n_q))
 
 # node coordinates.
 for i in range(n_nodes):
     node = tree.nodes[i]["node"]
     q_nodes[i] = node.q
 
-q_u_nodes = q_nodes[:, q_dynamics.get_q_u_indices_into_x()]
+idx_q_u_into_x = q_sim.get_q_u_indices_into_q()
+q_u_nodes = q_nodes[:, idx_q_u_into_x]
 q_u_nodes_rot = np.zeros((n_nodes, 3))
 for i in range(n_nodes):
-    aa = AngleAxis(Quaternion(q_u_nodes[i][:4]))
-    q_u_nodes_rot[i] = aa.axis() * aa.angle()
+    rpy = RollPitchYaw(Quaternion(q_u_nodes[i][:4]))
+    rpy_values = rpy.vector()
+    if rpy_values[2] < -np.pi / 2:
+        rpy_values[2] += np.pi * 2
+    q_u_nodes_rot[i] = rpy_values
 
 # edges.
 x_edges = []
@@ -185,7 +182,7 @@ app.layout = dbc.Container(
                 ),
                 dbc.Col(
                     html.Iframe(
-                        src="http://127.0.0.1:7000/static/",
+                        src=meshcat_vis.url(),
                         height=800,
                         width=1000,
                     ),
@@ -304,7 +301,6 @@ def click_callback(click_data, relayout_data):
         q_u_nodes=q_u_nodes_rot,
         q_nodes=q_nodes,
         tree=tree,
-        q_dynamics=q_dynamics,
     )
 
     fig.update_traces(
@@ -319,7 +315,7 @@ def click_callback(click_data, relayout_data):
         pass
 
     # show path in meshcat
-    q_dynamics.publish_trajectory(x_trj, h=irs_rrt_param.h)
+    q_vis.publish_trajectory(x_trj, h=irs_rrt_obj.rrt_params.h)
 
     return fig
 
@@ -340,4 +336,4 @@ def slider_callback(num_nodes, relayout_data):
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run_server(debug=False)

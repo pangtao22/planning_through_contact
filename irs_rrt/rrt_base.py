@@ -45,7 +45,7 @@ class Rrt:
         self.root_node = params.root_node
         self.termination_tolerance = params.termination_tolerance
         self.subgoal_prob = params.goal_as_subgoal_prob
-        self.params = params
+        self.rrt_params = params
 
         self.dim_q = len(self.root_node.q)
 
@@ -129,7 +129,7 @@ class Rrt:
         self.value_lst[edge.child.value] = edge.child.value
 
     def cointoss_for_goal(self):
-        if np.random.rand() < self.params.goal_as_subgoal_prob:
+        if np.random.rand() < self.rrt_params.goal_as_subgoal_prob:
             return True
         return False
 
@@ -150,7 +150,9 @@ class Rrt:
         return selected_node
 
     def find_node_closest_to_goal(self):
-        return self.select_closest_node(self.params.goal, print_distance=True)
+        return self.select_closest_node(
+            self.rrt_params.goal, print_distance=True
+        )
 
     def trace_nodes_to_root_from(self, i_node: int):
         return trace_nodes_to_root_from(i_node, self.graph)
@@ -176,8 +178,8 @@ class Rrt:
         """
         Evaluate termination criteria for RRT using global distance metric.
         """
-        dist_batch = self.calc_distance_batch(self.params.goal)
-        return np.min(dist_batch) < self.params.termination_tolerance
+        dist_batch = self.calc_distance_batch(self.rrt_params.goal)
+        return np.min(dist_batch) < self.rrt_params.termination_tolerance
 
     def rewire(self, parent_node: Node, child_node: Node):
         """
@@ -206,12 +208,12 @@ class Rrt:
         """
         pbar = tqdm(total=self.max_size)
 
-        while self.size < self.params.max_size:
+        while self.size < self.rrt_params.max_size:
             pbar.update(1)
 
             # 1. Sample a subgoal.
             if self.cointoss_for_goal():
-                subgoal = self.params.goal
+                subgoal = self.rrt_params.goal
             else:
                 subgoal = self.sample_subgoal()
 
@@ -222,7 +224,7 @@ class Rrt:
             child_node, edge = self.extend(parent_node, subgoal)
 
             # 4. Attempt to rewire a candidate child node.
-            if self.params.rewire:
+            if self.rrt_params.rewire:
                 parent_node, child_node, edge = self.rewire(
                     parent_node, child_node
                 )
@@ -245,7 +247,7 @@ class Rrt:
 
     def save_final_path(self, filename):
         # Find closest to the goal.
-        q_final = self.select_closest_node(self.params.goal)
+        q_final = self.select_closest_node(self.rrt_params.goal)
 
         # Find path from root to goal.
         path = nx.shortest_path(

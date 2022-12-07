@@ -11,10 +11,10 @@ class ReachableSet3D(ReachableSet):
     def __init__(
         self,
         q_dynamics: QuasistaticDynamics,
-        params: IrsRrtParams,
+        rrt_params: IrsRrtParams,
         q_dynamics_p: QuasistaticDynamicsParallel = None,
     ):
-        super().__init__(q_dynamics, params, q_dynamics_p)
+        super().__init__(q_dynamics, rrt_params, q_dynamics_p)
         # Notation: Throughout implementation in their child class, q stands
         # for quaternions and x stands for the state. Position is denoted
         # using p.
@@ -160,7 +160,7 @@ class ReachableSet3D(ReachableSet):
         """
         x_batch = np.tile(x[None, :], (self.n_samples, 1))
         u_batch = np.random.normal(
-            ubar, self.std_u, (self.params.n_samples, self.q_dynamics.dim_u)
+            ubar, self.std_u, (self.rrt_params.n_samples, self.q_dynamics.dim_u)
         )
 
         (

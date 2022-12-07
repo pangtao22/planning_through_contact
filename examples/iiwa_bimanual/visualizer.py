@@ -30,7 +30,7 @@ from control.systems_utils import wait_for_msg, add_triad
 from control.drake_sim import (
     add_mbp_scene_graph,
     load_ref_trajectories,
-    calc_u_extended_and_t_knots,
+    calc_q_and_u_extended_and_t_knots,
 )
 
 from iiwa_bimanual_setup import q_model_path_planar, q_model_path_cylinder

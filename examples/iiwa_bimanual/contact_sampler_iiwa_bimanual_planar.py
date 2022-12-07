@@ -13,7 +13,6 @@ from pydrake.all import (
     ModelInstanceIndex,
 )
 from pydrake.math import RollPitchYaw
-from pydrake.systems.meshcat_visualizer import AddTriad
 
 from qsim.parser import QuasistaticParser
 from qsim.simulator import QuasistaticSimulator, GradientMode

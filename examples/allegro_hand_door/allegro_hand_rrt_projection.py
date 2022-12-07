@@ -74,7 +74,7 @@ joint_limits = {
 
 #%% RRT testing
 params = IrsRrtProjectionParams(q_model_path, joint_limits)
-params.bundle_mode = BundleMode.kFirstAnalytic
+params.smoothing_mode = BundleMode.kFirstAnalytic
 params.root_node = IrsNode(x0)
 params.max_size = 1000
 params.goal = np.copy(x0)
@@ -94,7 +94,7 @@ params.grasp_prob = 0.1
 
 
 for i in range(5):
-    prob_rrt = IrsRrtProjection(params, contact_sampler)
+    prob_rrt = IrsRrtProjection(params, contact_sampler, q_sim, )
     prob_rrt.iterate()
 
     prob_rrt.save_tree(
