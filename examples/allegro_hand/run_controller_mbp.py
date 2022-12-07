@@ -11,7 +11,6 @@ from pydrake.all import (
     Quaternion,
     AngleAxis,
     Simulator,
-    AddTriad,
 )
 
 from qsim.parser import QuasistaticParser

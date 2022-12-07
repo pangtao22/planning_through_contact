@@ -88,6 +88,10 @@ idx_u = plant.GetModelInstanceByName(object_name)
 
 # traj-opt parameters
 impc_params = IrsMpcQuasistaticParameters()
+impc_params.enforce_joint_limits = (
+    prob_rrt.rrt_params.enforce_robot_joint_limits
+)
+
 impc_params.h = h_small
 impc_params.Q_dict = {
     idx_u: np.array([10, 10, 10, 10, 50, 50, 50.0]),
@@ -110,7 +114,7 @@ impc_params.u_bounds_abs = np.array(
     ]
 )
 
-impc_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
+impc_params.smoothing_mode = SmoothingMode.k1RandomizedIcecream
 # sampling-based bundling
 impc_params.calc_std_u = lambda u_initial, i: u_initial / (i**0.8)
 impc_params.std_u_initial = np.ones(dim_u) * 0.3
@@ -118,7 +122,7 @@ impc_params.num_samples = 100
 # analytic bundling
 impc_params.log_barrier_weight_initial = 100
 log_barrier_weight_final = 6000
-max_iterations = 10
+max_iterations = 15
 
 base = (
     np.log(log_barrier_weight_final / impc_params.log_barrier_weight_initial)

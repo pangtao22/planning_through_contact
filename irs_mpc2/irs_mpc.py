@@ -42,7 +42,7 @@ class IrsMpcQuasistatic:
         self.q_sim_batch = parser.make_batch_simulator()
 
         self.plant = self.q_sim.get_plant()
-        self.solver = OsqpSolver()
+        self.solver = GurobiSolver()
 
         # unpack various parameters for convenience.
         self.dim_x = self.q_sim.get_plant().num_positions()

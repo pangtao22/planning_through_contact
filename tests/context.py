@@ -5,4 +5,4 @@ sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 )
 
-import examples, irs_mpc, irs_rrt
+import examples, irs_rrt

@@ -87,3 +87,5 @@ class IrsMpcQuasistaticParameters:
         #  (log_barrier_weight_initial, iteration)
         self.log_barrier_weight_initial = None
         self.calc_log_barrier_weight = None
+
+        self.enforce_joint_limits = False
