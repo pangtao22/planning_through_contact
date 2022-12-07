@@ -8,13 +8,8 @@ import cProfile
 
 from pydrake.all import PiecewisePolynomial
 
-from qsim.simulator import QuasistaticSimulator, GradientMode
 from qsim_cpp import QuasistaticSimulatorCpp
-
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
-from irs_mpc.irs_mpc_quasistatic import IrsMpcQuasistatic
-from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
+from qsim.simulator import QuasistaticSimulator
 
 from irs_rrt.irs_rrt import IrsRrt, IrsNode, IrsRrtParams
 from irs_rrt.contact_sampler import ContactSampler
@@ -23,16 +18,19 @@ from planar_pushing_setup import *
 
 
 class PlanarPushingContactSampler(ContactSampler):
-    def __init__(self, q_dynamics: QuasistaticDynamics):
-        super().__init__(q_dynamics)
+    def __init__(self, 
+        q_sim: QuasistaticSimulatorCpp, 
+        q_sim_py: QuasistaticSimulator):
+        super().__init__(q_sim=q_sim, q_sim_py=q_sim_py)
         """
         This class samples contact for the planar system.
         """
-
-        q_sim_py = q_dynamics.q_sim_py
         self.cw = 0.6  # cspace width
+        self.q_sim = q_sim
 
-    def sample_contact(self, q_u):
+    def sample_contact(self, q):
+
+        q_u = q[self.q_sim.get_q_u_indices_into_q()]
 
         # 1. Sample a contact from the surface of the box.
         side = np.random.randint(4)
