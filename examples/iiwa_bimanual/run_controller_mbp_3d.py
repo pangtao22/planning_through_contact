@@ -10,7 +10,7 @@ from robotics_utilities.iiwa_controller.utils import (
 )
 
 from control.drake_sim import (
-    calc_u_extended_and_t_knots,
+    calc_q_and_u_extended_and_t_knots,
     make_controller_mbp_diagram,
 )
 from control.systems_utils import render_system_with_graphviz
@@ -36,7 +36,8 @@ q_sim = q_parser.make_simulator_cpp()
 with open("box_flipping_trj.pkl", "rb") as f:
     trj_dict = pickle.load(f)
 q_knots_ref = trj_dict["x_trj"]
-u_knots_ref, t_knots = calc_u_extended_and_t_knots(
+u_knots_ref, t_knots = calc_q_and_u_extended_and_t_knots(
+    None,
     u_knots_ref=trj_dict["u_trj"],
     u_knot_ref_start=q_knots_ref[0, q_sim.get_q_a_indices_into_q()],
     v_limit=0.1,

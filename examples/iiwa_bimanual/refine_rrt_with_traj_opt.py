@@ -90,7 +90,7 @@ idx_u = plant.GetModelInstanceByName(object_name)
 params = IrsMpcQuasistaticParameters()
 params.h = h_small
 params.Q_dict = {
-    idx_u: np.array([1, 1, 1]),
+    idx_u: np.array([2, 2, 1]),
     idx_a_l: np.ones(3) * 1e-3,
     idx_a_r: np.ones(3) * 1e-3,
 }
@@ -115,7 +115,7 @@ params.std_u_initial = np.ones(dim_u) * 0.3
 params.num_samples = 100
 # analytic bundling
 params.log_barrier_weight_initial = 100
-log_barrier_weight_final = 5000
+log_barrier_weight_final = 4000
 max_iterations = 20
 
 base = (

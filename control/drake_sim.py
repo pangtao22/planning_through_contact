@@ -5,17 +5,16 @@ import numpy as np
 from pydrake.all import (
     MultibodyPlant,
     DiagramBuilder,
+    StartMeshcat,
     Demultiplexer,
     LogVectorOutput,
     ModelInstanceIndex,
+    MeshcatVisualizer,
+    ContactVisualizer,
 )
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.primitives import TrajectorySource
 from pydrake.trajectories import PiecewisePolynomial
-from pydrake.systems.meshcat_visualizer import (
-    ConnectMeshcatVisualizer,
-    MeshcatContactVisualizer,
-)
 
 from qsim.parser import QuasistaticParser
 from qsim.simulator import QuasistaticSimulator
@@ -30,7 +29,8 @@ from .controller_planar_iiwa_bimanual import IiwaBimanualPlanarControllerSystem
 CreateControllerPlantFunction = Callable[[np.ndarray], MultibodyPlant]
 
 
-def calc_u_extended_and_t_knots(
+def calc_q_and_u_extended_and_t_knots(
+    q_knots_ref,
     u_knots_ref: np.ndarray,
     u_knot_ref_start: Union[np.ndarray, None],
     v_limit: float,
@@ -57,7 +57,11 @@ def calc_u_extended_and_t_knots(
     t_knots = np.hstack([[0], np.cumsum(dt[indices_to_keep]).tolist()])
 
     indices_to_keep.append(len(u_knots_ref_extended) - 1)
-    return u_knots_ref_extended[indices_to_keep], t_knots
+    return (
+        q_knots_ref[indices_to_keep],
+        u_knots_ref_extended[indices_to_keep],
+        t_knots,
+    )
 
 
 def load_ref_trajectories(file_path: str, v_limit: float):
@@ -66,7 +70,9 @@ def load_ref_trajectories(file_path: str, v_limit: float):
     q_knots_ref = trj_dict["x_trj"]
     u_knots_ref = trj_dict["u_trj"]
 
-    return calc_u_extended_and_t_knots(q_knots_ref, u_knots_ref, v_limit)
+    return calc_q_and_u_extended_and_t_knots(
+        None, q_knots_ref, u_knots_ref, v_limit
+    )
 
 
 def add_mbp_scene_graph(
@@ -151,7 +157,8 @@ def make_controller_mbp_diagram(
     )
 
     # Add visualizer.
-    meshcat_vis = ConnectMeshcatVisualizer(builder, scene_graph)
+    meshcat = StartMeshcat()
+    meshcat_vis = MeshcatVisualizer.AddToBuilder(builder, scene_graph, meshcat)
 
     # Impedance (PD) controller for robots, with gravity compensation.
     models_actuated = q_sim_mbp.get_actuated_models()
@@ -192,13 +199,7 @@ def make_controller_mbp_diagram(
         )
 
     # Contact Viusalizer
-
-    contact_viz = MeshcatContactVisualizer(meshcat_vis, plant=plant)
-    builder.AddSystem(contact_viz)
-    builder.Connect(
-        plant.get_contact_results_output_port(),
-        contact_viz.GetInputPort("contact_results"),
-    )
+    contact_viz = ContactVisualizer.AddToBuilder(builder, plant, meshcat)
 
     # Logging
     h_ctrl = controller_params.control_period
@@ -228,6 +229,7 @@ def make_controller_mbp_diagram(
         "q_ref_trj": q_ref_trj,
         "u_ref_trj": u_ref_trj,
         "loggers_contact_torque": loggers_contact_torque,
+        "meshcat": meshcat,
     }
 
 

@@ -59,7 +59,7 @@ rrt_params.std_u = std_u
 rrt_params.stepsize = 0.1
 rrt_params.rewire = False
 rrt_params.distance_metric = "local_u"
-rrt_params.grasp_prob = 0.5
+rrt_params.grasp_prob = 0.3
 rrt_params.h = 0.05
 
 rrt_params.enforce_robot_joint_limits = True

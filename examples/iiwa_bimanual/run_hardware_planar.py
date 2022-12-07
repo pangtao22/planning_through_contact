@@ -14,7 +14,7 @@ from control.controller_planar_iiwa_bimanual import (
     kIndices3Into7,
     IiwaBimanualPlanarControllerSystem,
 )
-from control.drake_sim import calc_u_extended_and_t_knots
+from control.drake_sim import calc_q_and_u_extended_and_t_knots
 from control.systems_utils import wait_for_msg
 from iiwa_bimanual_setup import (
     q_model_path_planar,
@@ -60,7 +60,8 @@ u_knots_ref_list = trj_dict["u_trj_list"]
 # pick one segment for now.
 idx_trj_segment = 1
 q_knots_ref_2d = q_knots_ref_list[idx_trj_segment]
-u_knots_ref_2d, t_knots = calc_u_extended_and_t_knots(
+u_knots_ref_2d, t_knots = calc_q_and_u_extended_and_t_knots(
+    None,
     u_knots_ref=u_knots_ref_list[idx_trj_segment],
     u_knot_ref_start=q_knots_ref_2d[0, q_sim_2d.get_q_a_indices_into_q()],
     v_limit=0.05,

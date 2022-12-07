@@ -11,7 +11,10 @@ from pydrake.all import (
     Quaternion,
     AngleAxis,
     Simulator,
+    RigidTransform,
+    RollPitchYaw,
 )
+from manipulation.meshcat_utils import AddMeshcatTriad
 
 from qsim.parser import QuasistaticParser
 from robotics_utilities.iiwa_controller.utils import (
@@ -24,18 +27,17 @@ from iiwa_bimanual_setup import (
     iiwa_l_name,
     iiwa_r_name,
     controller_params_2d,
-    draw_goal_and_object_triads_2d,
+    calc_z_height,
 )
 from control.drake_sim import (
     load_ref_trajectories,
     make_controller_mbp_diagram,
-    calc_u_extended_and_t_knots,
+    calc_q_and_u_extended_and_t_knots,
 )
 from control.controller_planar_iiwa_bimanual import kIndices3Into7
 from control.systems_utils import render_system_with_graphviz
 
-
-#%%
+# %%
 h_ref_knot = 1.0
 h_ctrl = 0.005
 controller_params_2d.control_period = h_ctrl
@@ -45,7 +47,7 @@ q_parser_3d = QuasistaticParser(q_model_path_cylinder)
 q_sim_2d = q_parser_2d.make_simulator_cpp()
 q_sim_3d = q_parser_3d.make_simulator_cpp()
 
-#%% Trajectory.
+# %% Trajectory.
 file_path = "./bimanual_optimized_q_and_u_trj.pkl"
 with open(file_path, "rb") as f:
     trj_dict = pickle.load(f)
@@ -54,11 +56,13 @@ q_knots_ref_list = trj_dict["q_trj_list"]
 u_knots_ref_list = trj_dict["u_trj_list"]
 
 # pick one segment for now.
-idx_trj_segment = 1
-q_knots_ref = q_knots_ref_list[idx_trj_segment]
-u_knots_ref, t_knots = calc_u_extended_and_t_knots(
+idx_trj_segment = 2
+q_knots_ref, u_knots_ref, t_knots = calc_q_and_u_extended_and_t_knots(
+    q_knots_ref=q_knots_ref_list[idx_trj_segment],
     u_knots_ref=u_knots_ref_list[idx_trj_segment],
-    u_knot_ref_start=q_knots_ref[0, q_sim_2d.get_q_a_indices_into_q()],
+    u_knot_ref_start=q_knots_ref_list[idx_trj_segment][
+        0, q_sim_2d.get_q_a_indices_into_q()
+    ],
     v_limit=0.1,
 )
 
@@ -90,6 +94,7 @@ q_ref_trj = diagram_and_contents["q_ref_trj"]
 u_ref_trj = diagram_and_contents["u_ref_trj"]
 logger_x = diagram_and_contents["logger_x"]
 loggers_contact_torque = diagram_and_contents["loggers_contact_torque"]
+meshcat = diagram_and_contents["meshcat"]
 
 render_system_with_graphviz(diagram)
 model_a_l_3d = plant_3d.GetModelInstanceByName(iiwa_l_name)
@@ -119,16 +124,31 @@ context_controller.SetDiscreteState(q0)
 
 sim.Initialize()
 
-draw_goal_and_object_triads_2d(
-    vis=meshcat_vis.vis, plant=plant_2d, q_u_goal=q_knots_ref[-1]
+AddMeshcatTriad(
+    meshcat=meshcat,
+    path="visualizer/box/box/frame",
+    length=0.4,
+    radius=0.005,
+    opacity=1,
+)
+q_u_goal = q_knots_ref[-1]
+AddMeshcatTriad(
+    meshcat=meshcat,
+    path="goal/frame",
+    length=0.4,
+    radius=0.01,
+    opacity=0.7,
+    X_PT=RigidTransform(
+        RollPitchYaw(0, 0, q_u_goal[2]),
+        np.hstack([q_u_goal[:2], [calc_z_height(plant_2d)]]),
+    ),
 )
 
 sim.set_target_realtime_rate(1.0)
-meshcat_vis.reset_recording()
-meshcat_vis.start_recording()
-sim.AdvanceTo(t_knots[-1] + 5.0)
-meshcat_vis.publish_recording()
-
+meshcat_vis.DeleteRecording()
+meshcat_vis.StartRecording()
+sim.AdvanceTo(t_knots[-1] * 1.05)
+meshcat_vis.PublishRecording()
 
 # %% plots
 # 1. cmd vs nominal u.
@@ -214,7 +234,7 @@ for i_axes, model in enumerate(sorted(q_sim_3d.get_actuated_models())):
 
 plt.show()
 
-#%%
+# %%
 t, indices = controller_robots.controller.calc_t_and_indices_for_q(
     q_knots_ref[-1]
 )
