@@ -14,6 +14,8 @@ class RrtParams:
         self.root_node = None
         self.goal_as_subgoal_prob = 0.5
         self.termination_tolerance = 0.1
+        # TODO: rewire is not properly supported. Bad things can happen if it
+        #  is set to True. We need to either remove or support this.
         self.rewire = False
         self.stepsize = 0.1
         # TODO (pang): the QuasistaticSimulator does not support joint limits

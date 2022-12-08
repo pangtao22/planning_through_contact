@@ -573,14 +573,14 @@ class IrsRrt(Rrt):
         return segments
 
     @staticmethod
-    def calc_q_u_diff_2d(q_u_0, q_u_1):
+    def calc_q_u_diff_SE2(q_u_0, q_u_1):
         """
         q_u := [x, y, theta].
         """
         return abs(q_u_0[2] - q_u_1[2]), np.linalg.norm(q_u_0[:2] - q_u_1[:2])
 
     @staticmethod
-    def calc_q_u_diff_3d(q_u_0, q_u_1):
+    def calc_q_u_diff_SE3(q_u_0, q_u_1):
         """
         q_u_0 and q_u_1 are 7-vectors. The first 4 elements represent a
          quaternion and the last three a position.
@@ -593,10 +593,13 @@ class IrsRrt(Rrt):
         return aa.angle(), np.linalg.norm(q_u_0[4:] - q_u_1[4:])
 
     def get_calc_q_u_diff(self):
+
         if self.dim_q_u == 3:
-            return self.calc_q_u_diff_2d
+            return self.calc_q_u_diff_SE2
         elif self.dim_q_u == 7:
-            return self.calc_q_u_diff_3d
+            return self.calc_q_u_diff_SE3
+        elif self.dim_q_u == 1:
+            return lambda q_u0, q_u1: q_u0 - q_u1
         else:
             raise RuntimeError("dim_q_u needs to equal 3 (2D) or 7 (3D).")
 
