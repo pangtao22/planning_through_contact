@@ -62,21 +62,6 @@ class IrsRrtParams(RrtParams):
         self.stepsize = 0.3
 
 
-class IrsRrtParams3D(IrsRrtParams):
-    def __init__(self, q_model_path, joint_limits):
-        super().__init__(q_model_path, joint_limits)
-        # Distance metric for defining an adequate notion of distance for
-        # quaternions. Should be a scalar.
-        self.quat_metric = np.nan
-
-
-class IrsRrtRolloutParams(IrsRrtParams):
-    def __init__(self, q_model_path, joint_limits):
-        super().__init__(q_model_path, joint_limits)
-        # Rollout horizon to use for reaching the point with a long stepsize.
-        self.rollout_horizon = 3
-
-
 class IrsRrtProjectionParams(IrsRrtParams):
     def __init__(self, q_model_path, joint_limits):
         super().__init__(q_model_path, joint_limits)
