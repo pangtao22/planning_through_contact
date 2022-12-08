@@ -6,6 +6,9 @@ import plotly.graph_objects as go
 from irs_rrt.irs_rrt import IrsRrt
 from irs_mpc2.quasistatic_visualizer import InternalVisualizationType
 
+import plotly.io as pio
+
+pio.renderers.default = "browser"  # see plotly charts in pycharm.
 
 #%%
 tree_file_path = "tree_2000_good.pkl"
@@ -48,15 +51,65 @@ layout = go.Layout(
         aspectmode="data",
         aspectratio=dict(x=1.0, y=1.0, z=1.0),
     ),
+    showlegend=True,
 )
 
+x_a_nodes = q_nodes[:, 1]
+y_a_nodes = q_nodes[:, 2]
+x_u_nodes = q_nodes[:, 0]
+
 q_plot = go.Scatter3d(
-    x=q_nodes[:, 1],
-    y=q_nodes[:, 2],
-    z=q_nodes[:, 0],
+    x=x_a_nodes,
+    y=y_a_nodes,
+    z=x_u_nodes,
     mode="markers",
     marker=dict(size=3, color=v_normalized, colorscale="jet", showscale=True),
 )
 
-fig = go.Figure(data=[q_plot], layout=layout)
+# draw goal plane
+x_a_min = np.min(x_a_nodes)
+x_a_max = np.max(x_a_nodes)
+y_a_min = np.min(y_a_nodes)
+y_a_max = np.max(y_a_nodes)
+plane_corners = np.array(
+    [
+        [x_a_min, y_a_min],
+        [x_a_min, y_a_max],
+        [x_a_max, y_a_min],
+        [x_a_max, y_a_max],
+    ]
+)
+
+n_points = 5
+x_a_line = np.linspace(x_a_min, x_a_max, 10)
+y_a_line = np.linspace(y_a_min, y_a_max, 10)
+
+bright_blue = [[0, "#7DF9FF"], [1, "#7DF9FF"]]
+bright_pink = [[0, "#FF007F"], [1, "#FF007F"]]
+light_yellow = [[0, "#FFDB58"], [1, "#FFDB58"]]
+
+z_goal = np.ones((n_points, n_points)) * rrt_obj.goal[0]
+goal_plane_plot = go.Surface(
+    z=z_goal,
+    x=plane_corners[:, 0],
+    y=plane_corners[:, 1],
+    opacity=0.2,
+    showscale=False,
+    colorscale=bright_blue,
+    surfacecolor=np.ones((n_points, n_points)) * 0.8,
+)
+
+z_start = np.zeros((n_points, n_points))
+start_plane_plot = go.Surface(
+    z=z_start,
+    x=plane_corners[:, 0],
+    y=plane_corners[:, 1],
+    opacity=0.2,
+    showscale=False,
+    colorscale=bright_pink,
+    surfacecolor=np.ones((n_points, n_points)) * 0.2,
+)
+
+
+fig = go.Figure(data=[start_plane_plot, goal_plane_plot, q_plot], layout=layout)
 fig.show()
