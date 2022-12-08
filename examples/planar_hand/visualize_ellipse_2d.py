@@ -17,17 +17,11 @@ from pydrake.all import PiecewisePolynomial
 from qsim.simulator import QuasistaticSimulator, GradientMode
 from qsim_cpp import QuasistaticSimulatorCpp
 
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
-from irs_mpc.quasistatic_dynamics_parallel import QuasistaticDynamicsParallel
-from irs_mpc.irs_mpc_quasistatic import IrsMpcQuasistatic
-from irs_mpc.irs_mpc_params import IrsMpcQuasistaticParameters
-
 from irs_rrt.irs_rrt import IrsRrt, IrsNode
 from irs_rrt.rrt_params import IrsRrtParams
 from irs_rrt.irs_rrt_projection import IrsRrtProjection
 
 from planar_hand_setup import *
-from contact_sampler import PlanarHandContactSampler2D
 
 parser = argparse.ArgumentParser()
 parser.add_argument("tree_file_path")

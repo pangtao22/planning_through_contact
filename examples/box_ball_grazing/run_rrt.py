@@ -39,13 +39,13 @@ rrt_params.h = 0.1
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticPyramid
 rrt_params.log_barrier_weight_for_bundling = 100
 rrt_params.root_node = IrsNode(q0)
-rrt_params.max_size = 2000
+rrt_params.max_size = 5000
 rrt_params.goal = np.copy(q0)
 rrt_params.goal[q_sim.get_q_u_indices_into_q()] = [0.66]
 rrt_params.termination_tolerance = 0.01
 rrt_params.goal_as_subgoal_prob = 0.2
 rrt_params.regularization = 1e-4
-rrt_params.grasp_prob = 0.3
+rrt_params.grasp_prob = 0.0
 rrt_params.distance_threshold = np.inf
 rrt_params.distance_metric = "local_u"
 
@@ -54,3 +54,6 @@ prob_rrt.iterate()
 
 q_knots_trimmed, u_knots_trimmed = prob_rrt.get_trimmed_q_and_u_knots_to_goal()
 q_vis.publish_trajectory(q_knots_trimmed, h=rrt_params.h)
+
+
+prob_rrt.save_tree(f"tree_{rrt_params.max_size}_no_regrasp.pkl")
