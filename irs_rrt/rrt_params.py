@@ -75,14 +75,6 @@ class IrsRrtRolloutParams(IrsRrtParams):
         self.rollout_horizon = 3
 
 
-class IrsRrtTrajOptParams(IrsRrtParams):
-    def __init__(self, q_model_path, joint_limits):
-        super().__init__(q_model_path, joint_limits)
-        # Subgoals further away from any node in the tree than
-        # distance_threshold will be rejected.
-        self.distance_threshold = np.inf
-
-
 class IrsRrtProjectionParams(IrsRrtParams):
     def __init__(self, q_model_path, joint_limits):
         super().__init__(q_model_path, joint_limits)
