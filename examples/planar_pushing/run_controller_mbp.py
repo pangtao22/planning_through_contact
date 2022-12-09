@@ -14,7 +14,7 @@ from pydrake.all import (
     Quaternion,
     AngleAxis,
     Simulator,
-    plot_system_graphviz
+    plot_system_graphviz,
 )
 from manipulation.meshcat_utils import AddMeshcatTriad
 
@@ -22,11 +22,14 @@ from qsim.parser import QuasistaticParser
 from qsim.model_paths import models_dir, add_package_paths_local
 
 from control.drake_sim import (
-    load_ref_trajectories, make_controller_mbp_diagram,
-    calc_q_and_u_extended_and_t_knots)
+    load_ref_trajectories,
+    make_controller_mbp_diagram,
+    calc_q_and_u_extended_and_t_knots,
+)
 from control.systems_utils import render_system_with_graphviz
 
 from planar_pushing_setup import *
+
 
 def create_controller_plant(gravity: np.ndarray):
     plant = MultibodyPlant(1e-3)
@@ -63,8 +66,9 @@ idx_trj_segment = 1
 q_knots_ref, u_knots_ref, t_knots = calc_q_and_u_extended_and_t_knots(
     q_knots_ref=q_knots_ref_list[idx_trj_segment],
     u_knots_ref=u_knots_ref_list[idx_trj_segment],
-    u_knot_ref_start=q_knots_ref_list[idx_trj_segment][0, 
-        q_sim.get_q_a_indices_into_q()],
+    u_knot_ref_start=q_knots_ref_list[idx_trj_segment][
+        0, q_sim.get_q_a_indices_into_q()
+    ],
     v_limit=0.1,
 )
 
@@ -76,9 +80,7 @@ diagram_and_contents = make_controller_mbp_diagram(
     u_knots_ref=u_knots_ref,
     q_knots_ref=q_knots_ref,
     controller_params=controller_params,
-    create_controller_plant_functions={
-        robot_name: create_controller_plant
-    },
+    create_controller_plant_functions={robot_name: create_controller_plant},
     closed_loop=False,
 )
 
@@ -99,8 +101,7 @@ plot_system_graphviz(diagram)
 plt.show()
 
 
-
-# render_system_with_graphviz(diagram)
+render_system_with_graphviz(diagram)
 model_a = plant.GetModelInstanceByName(robot_name)
 
 
@@ -119,6 +120,10 @@ context_plant = plant.GetMyContextFromRoot(context)
 q0 = copy.copy(q_knots_ref[0])
 # q0[-3] += 0.003
 plant.SetPositions(context_plant, q0)
+
+context_controller = controller_robots.GetMyContextFromRoot(context)
+context_controller.SetDiscreteState(q0)
+
 
 sim.Initialize()
 

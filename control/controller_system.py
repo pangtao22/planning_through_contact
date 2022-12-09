@@ -306,7 +306,7 @@ class ControllerSystem(LeafSystem):
             indices_closest,
         ) = self.controller.find_closest_on_nominal_path(q)
 
-        q_goal, u_goal = self.calc_along_arc(t_value, indices_closest, 0.05)
+        # q_goal, u_goal = self.calc_along_arc(t_value, indices_closest, 0.05)
 
         if self.closed_loop:
             u = self.controller.calc_u(
