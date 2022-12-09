@@ -284,15 +284,15 @@ class PlanarHandContactSampler(ContactSampler):
     def cointoss_for_grasp(self):
         return 1 if np.random.rand() > self.pinch_prob else 0
 
-    def sample_contact(self, q_goal: np.ndarray):
+    def sample_contact(self, q: np.ndarray):
         """
-        Given a q_goal, sample a grasp using the contact sampler.
+        Given a q, sample a grasp using the contact sampler.
         """
-        q_u_goal = q_goal[self.q_sim.get_q_u_indices_into_q()]
+        q_u = q[self.q_sim.get_q_u_indices_into_q()]
         pinch_grasp = self.cointoss_for_grasp()
         if pinch_grasp:
             try:
-                q_dict = self.sample_pinch_grasp(q_u_goal, n_samples=50)[0]
+                q_dict = self.sample_pinch_grasp(q_u, n_samples=50)[0]
             except RuntimeError as err:
                 logging.warning(err)
                 # In this case, the quality of the enveloping grasp is
@@ -300,9 +300,9 @@ class PlanarHandContactSampler(ContactSampler):
                 # reachability ellipsoid. This node will be considered
                 # distance from other subgoals and not being connected to,
                 # i.e. becoming a "minor" node.
-                q_dict = self.calc_enveloping_grasp(q_u_goal)
+                q_dict = self.calc_enveloping_grasp(q_u)
         else:
-            q_dict = self.calc_enveloping_grasp(q_u_goal)
+            q_dict = self.calc_enveloping_grasp(q_u)
 
         return self.q_sim.get_q_vec_from_dict(q_dict)
 

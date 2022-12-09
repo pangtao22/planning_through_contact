@@ -17,7 +17,7 @@ class ContactSampler:
 
     def sample_contact(self, q):
         """
-        Given a q_u, return a state vector that corresponds to a grasp
+        Given a q, return a state vector that corresponds to a grasp
         configuration.
         """
         raise NotImplementedError("This method is virtual.")
