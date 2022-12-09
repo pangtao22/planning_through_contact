@@ -89,8 +89,8 @@ impc_params.enforce_joint_limits = (
 
 impc_params.h = h_small
 impc_params.Q_dict = {
-    idx_u: np.array([20, 20, 30]),
-    idx_a: np.ones(dim_u) * 1e-3,
+    idx_u: np.array([2, 2, 3]),
+    idx_a: np.ones(dim_u) * 1e-4,
 }
 
 impc_params.Qd_dict = {}
@@ -99,24 +99,24 @@ for model in q_sim.get_actuated_models():
 for model in q_sim.get_unactuated_models():
     impc_params.Qd_dict[model] = impc_params.Q_dict[model] * 100
 
-impc_params.R_dict = {idx_a: 10 * np.ones(dim_u)}
+impc_params.R_dict = {idx_a: 1 * np.ones(dim_u)}
 
-u_size = 2.0
+u_size = 200.0
 impc_params.u_bounds_abs = np.array(
     [
-        -np.ones(dim_u) * u_size * impc_params.h,
-        np.ones(dim_u) * u_size * impc_params.h,
+        -np.ones(dim_u) * u_size,
+        np.ones(dim_u) * u_size
     ]
 )
 
-impc_params.smoothing_mode = SmoothingMode.k1RandomizedIcecream
+impc_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
 # sampling-based bundling
 impc_params.calc_std_u = lambda u_initial, i: u_initial / (i**0.8)
 impc_params.std_u_initial = np.ones(dim_u) * 0.2
 impc_params.num_samples = 100
 # analytic bundling
-impc_params.log_barrier_weight_initial = 10
-log_barrier_weight_final = 300
+impc_params.log_barrier_weight_initial = 100
+log_barrier_weight_final = 2000
 max_iterations = 10
 
 base = (
@@ -127,7 +127,7 @@ base = np.exp(base)
 impc_params.calc_log_barrier_weight = lambda kappa0, i: kappa0 * (base**i)
 
 impc_params.use_A = False
-impc_params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
+impc_params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kQpMp
 prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=impc_params)
 
 # %% traj-opt for segment
@@ -164,7 +164,10 @@ for i_s, (t_start, t_end) in enumerate(sub_segments):
     if i_s == len(sub_segments) - 1:
         q_final[indices_q_u_into_x] = q_u_goal
 
-    n_steps_per_h = max(2, int(np.ceil(10 / len(u_trj))))
+    #n_steps_per_h = max(4, int(np.ceil(10 / len(u_trj))))
+    #print(int(np.ceil(10 / len(u_trj))))
+
+    n_steps_per_h = 10
 
     (
         q_trj_optimized,
@@ -181,6 +184,9 @@ for i_s, (t_start, t_end) in enumerate(sub_segments):
 
     q_trj_optimized_list.append(q_trj_optimized)
     u_trj_optimized_list.append(u_trj_optimized)
+
+    print(u_trj)
+    print(u_trj_optimized)
 
     prob_mpc.plot_costs()
     q_vis.publish_trajectory(q_trj_optimized, h_small)
