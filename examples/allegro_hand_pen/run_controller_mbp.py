@@ -4,8 +4,6 @@ import pickle
 
 import numpy as np
 import matplotlib.pyplot as plt
-import pydot
-
 from pydrake.all import (
     MultibodyPlant,
     Parser,
@@ -14,7 +12,6 @@ from pydrake.all import (
     Quaternion,
     AngleAxis,
     Simulator,
-    plot_system_graphviz,
 )
 from manipulation.meshcat_utils import AddMeshcatTriad
 
@@ -24,31 +21,30 @@ from qsim.model_paths import models_dir, add_package_paths_local
 from control.drake_sim import (
     load_ref_trajectories,
     make_controller_mbp_diagram,
-    calc_q_and_u_extended_and_t_knots,
-)
+    calc_q_and_u_extended_and_t_knots)
 from control.systems_utils import render_system_with_graphviz
 
-from planar_pushing_setup import *
+from allegro_hand_setup import *
 
-
-def create_controller_plant(gravity: np.ndarray):
+def create_allegro_controller_plant(gravity: np.ndarray):
     plant = MultibodyPlant(1e-3)
     parser = Parser(plant=plant)
     add_package_paths_local(parser)
     ProcessModelDirectives(
-        LoadModelDirectives(os.path.join(models_dir, "box_pushing.yml")),
+        LoadModelDirectives(os.path.join(models_dir, "allegro_hand_pen.yml")),
         plant,
         parser,
     )
     plant.mutable_gravity_field().set_gravity_vector(gravity)
+
     plant.Finalize()
 
     return plant
 
 
 #%%
-h_ref_knot = 0.1
-h_ctrl = 0.01
+h_ref_knot = 0.2
+h_ctrl = 0.02
 controller_params.control_period = h_ctrl
 
 q_parser = QuasistaticParser(q_model_path)
@@ -62,7 +58,7 @@ q_knots_ref_list = trj_dict["q_trj_list"]
 u_knots_ref_list = trj_dict["u_trj_list"]
 
 # pick one segment for now.
-idx_trj_segment = 1
+idx_trj_segment = 0
 q_knots_ref, u_knots_ref, t_knots = calc_q_and_u_extended_and_t_knots(
     q_knots_ref=q_knots_ref_list[idx_trj_segment],
     u_knots_ref=u_knots_ref_list[idx_trj_segment],
@@ -80,7 +76,9 @@ diagram_and_contents = make_controller_mbp_diagram(
     u_knots_ref=u_knots_ref,
     q_knots_ref=q_knots_ref,
     controller_params=controller_params,
-    create_controller_plant_functions={robot_name: create_controller_plant},
+    create_controller_plant_functions={
+        robot_name: create_allegro_controller_plant
+    },
     closed_loop=False,
 )
 
@@ -90,13 +88,13 @@ controller_robots = diagram_and_contents["controller_robots"]
 robot_internal_controllers = diagram_and_contents["robot_internal_controllers"]
 plant = diagram_and_contents["plant"]
 meshcat_vis = diagram_and_contents["meshcat_vis"]
+meshcat = diagram_and_contents["meshcat"]
 loggers_cmd = diagram_and_contents["loggers_cmd"]
 q_ref_trj = diagram_and_contents["q_ref_trj"]
 u_ref_trj = diagram_and_contents["u_ref_trj"]
 logger_x = diagram_and_contents["logger_x"]
-meshcat = diagram_and_contents["meshcat"]
 
-render_system_with_graphviz(diagram)
+#render_system_with_graphviz(diagram)
 model_a = plant.GetModelInstanceByName(robot_name)
 
 
@@ -119,14 +117,13 @@ plant.SetPositions(context_plant, q0)
 context_controller = controller_robots.GetMyContextFromRoot(context)
 context_controller.SetDiscreteState(q0)
 
-
 sim.Initialize()
 
 AddMeshcatTriad(
     meshcat=meshcat,
-    path="drake/plant/box/box",
-    length=0.6,
-    radius=0.01,
+    path="drake/plant/pen/pen",
+    length=0.1,
+    radius=0.001,
     opacity=1,
 )
 
@@ -149,7 +146,6 @@ u_diff = np.linalg.norm(u_nominals[:-1] - u_log.data().T[1:], axis=1)
 #%% 2. q_u_nominal vs q_u.
 x_log = logger_x.FindLog(context)
 q_log = x_log.data()[: plant.num_positions()].T
-q_a_log = q_log[:, q_sim.get_q_a_indices_into_q()]
 q_u_log = q_log[:, q_sim.get_q_u_indices_into_q()]
 angle_error = []
 position_error = []
@@ -158,20 +154,21 @@ position_error = []
 def get_quaternion(q_unnormalized: np.ndarray):
     return Quaternion(q_unnormalized / np.linalg.norm(q_unnormalized))
 
-
 q_a_ref_mat = []
 q_u_ref_mat = []
 
 for i, t in enumerate(x_log.sample_times()):
-    q_a_ref = q_ref_trj.value(t).squeeze()[q_sim.get_q_a_indices_into_q()]
     q_u_ref = q_ref_trj.value(t).squeeze()[q_sim.get_q_u_indices_into_q()]
+    q_a_ref = q_ref_trj.value(t).squeeze()[q_sim.get_q_u_indices_into_q()]    
     q_u = q_u_log[i]
 
     q_a_ref_mat.append(q_a_ref)
     q_u_ref_mat.append(q_u_ref)
     
-    angle_error.append(np.abs(q_u[2] - q_u_ref[2]))
-    position_error.append(np.linalg.norm(q_u_ref[:2] - q_u[:2]))
+    Q_WB_ref = get_quaternion(q_u_ref[:4])
+    Q_WB = get_quaternion(q_u[:4])
+    angle_error.append(AngleAxis(Q_WB.inverse().multiply(Q_WB_ref)).angle())
+    position_error.append(np.linalg.norm(q_u_ref[4:] - q_u[4:]))
 
 
 fig, axes = plt.subplots(1, 2, figsize=(8, 4))
@@ -187,7 +184,6 @@ axes[1].plot(angle_error, label="angle")
 axes[1].plot(position_error, label="pos")
 axes[1].set_xlabel(x_axis_label)
 axes[1].legend()
-
 plt.show()
 
 
