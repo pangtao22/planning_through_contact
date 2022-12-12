@@ -1,35 +1,42 @@
 import numpy as np
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics, GradientMode
+import copy
+from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
+
 from irs_rrt.contact_sampler import ContactSampler
 from pydrake.all import Quaternion, RollPitchYaw, RotationMatrix
+
+from qsim_cpp import QuasistaticSimulatorCpp
+from qsim_cpp import ForwardDynamicsMode, GradientMode
+from qsim.simulator import QuasistaticSimulator
 
 from allegro_hand_setup import *
 
 
 class AllegroHandPlateContactSampler(ContactSampler):
-    def __init__(self, q_dynamics: QuasistaticDynamics):
-        super().__init__(q_dynamics)
+    def __init__(self, q_sim: QuasistaticSimulatorCpp, q_sim_py: QuasistaticSimulator):
+        super().__init__(q_sim=q_sim, q_sim_py=q_sim_py)
 
-        q_sim_py = q_dynamics.q_sim_py
+        self.q_sim = q_sim
+        self.q_sim_py = q_sim_py
+        self.q_vis = QuasistaticVisualizer(self.q_sim, self.q_sim_py)
+
         plant = q_sim_py.get_plant()
         self.idx_a = plant.GetModelInstanceByName(robot_name)
         self.idx_u = plant.GetModelInstanceByName(object_name)
-        self.idx_a_vec = q_dynamics.get_q_a_indices_into_x()
+        self.idx_a_vec = q_sim.get_q_a_indices_into_q()
 
         self.T = 20
 
         # Basis vectors for generating eigengrasps.
         self.qdot_torsion = np.zeros(19)
-        self.qdot_torsion[[3, 8, 11, 15]] = 1.0
+        self.qdot_torsion[[3, 16, 7, 11]] = 1.0
 
         self.qdot_anti_torsion = np.zeros(19)
         self.qdot_anti_torsion[3] = -1.0
-        self.qdot_anti_torsion[15] = 1.0
+        self.qdot_anti_torsion[11] = 1.0
 
         self.qdot_enveloping_flexion = np.zeros(19)
-        self.qdot_enveloping_flexion[
-            [4, 5, 6, 6, 9, 10, 12, 13, 14, 16, 17, 18]
-        ] = 1.0
+        self.qdot_enveloping_flexion[[4, 5, 6, 15, 17, 18, 8, 9, 10, 12, 13, 14]] = 1.0
 
         self.qdot_pinch_flexion = np.zeros(19)
         self.qdot_pinch_flexion[[6, 10, 14, 18]] = 1.0
@@ -38,54 +45,46 @@ class AllegroHandPlateContactSampler(ContactSampler):
         self.q_a0[0] = 0.0
         self.q_a0[1] = 0.5
         self.q_a0[2] = 0.5
-        self.q_a0[8] = np.pi / 2  # Default configuraiton.
+        self.q_a0[16] = np.pi / 2  # Default configuraiton.
+
+        # simulation parameters
+        self.sim_params = copy.deepcopy(self.q_sim.get_sim_params())
+        self.sim_params.unactuated_mass_scale = 0.0
+        self.sim_params.forward_mode = ForwardDynamicsMode.kSocpMp
+        self.sim_params.gradient_mode = GradientMode.kNone
+        self.sim_params.calc_contact_forces = False
+        self.sim_params.h = h
 
     def simulate_qdot(self, x0, qdot, T):
         x = np.copy(x0)
-        q_dict_lst = []
+        q_lst = []
+
         for t in range(T):
             ubar = x[self.idx_a_vec]
-            q_dict = self.q_dynamics.get_q_dict_from_x(x)
-            self.q_sim.update_mbp_positions(q_dict)
-            q_a_cmd_dict = self.q_dynamics.get_q_a_cmd_dict_from_u(ubar + qdot)
-            tau_ext_dict = self.q_sim.calc_tau_ext([])
+            x = self.q_sim.calc_dynamics(x, ubar + qdot, self.sim_params)
+            #self.q_vis.draw_configuration(x)
+            q_lst.append(np.copy(x))
 
-            sim_params = self.q_sim.get_sim_params()
-            sim_params.unactuated_mass_scale = 0
-            sim_params.gradient_mode = GradientMode.kNone
+        return x, q_lst
 
-            self.q_sim.step(
-                q_a_cmd_dict=q_a_cmd_dict,
-                tau_ext_dict=tau_ext_dict,
-                sim_params=sim_params,
-            )
-
-            q_next_dict = self.q_sim.get_mbp_positions()
-            x = self.q_dynamics.get_x_from_q_dict(q_next_dict)
-
-            q_dict = self.q_dynamics.get_q_dict_from_x(x)
-            q_dict_lst.append(q_dict)
-        return x, q_dict_lst
-
-    def sample_contact(self, q_u):
+    def sample_contact(self, q):
 
         is_success = False
         while not is_success:
             try:
                 q_a0 = np.zeros(19)
+                q_u = q[self.q_sim.get_q_u_indices_into_q()]
 
-                rpy = RollPitchYaw(RotationMatrix(Quaternion(q_u[0:4])))
+                rpy = RollPitchYaw(RotationMatrix(Quaternion(q_u[0:4])).matrix())
                 roll = rpy.vector()[0]
 
                 q_a0[0] = q_u[4] + 0.05 * (np.random.rand() - 0.5)
                 q_a0[1] = q_u[5] + 0.0
                 q_a0[2] = q_u[6] + 0.06 + 0.1 * np.sin(roll)
-                q_a0[8] = np.pi / 2
+                q_a0[16] = np.pi / 2
 
                 q0_dict = {self.idx_a: q_a0, self.idx_u: q_u}
-                x0 = self.q_dynamics.get_x_from_q_dict(q0_dict)
-                self.q_dynamics.q_sim_py.update_mbp_positions_from_vector(x0)
-                self.q_dynamics.q_sim_py.draw_current_configuration()
+                x0 = self.q_sim.get_q_vec_from_dict(q0_dict)
 
                 w_torsion = 0.03 * (np.random.rand() - 0.5)
                 w_anti_torsion = 0.03 * (np.random.rand() - 0.5)
@@ -101,15 +100,12 @@ class AllegroHandPlateContactSampler(ContactSampler):
                 )
 
                 if np.sin(roll) < 0.2:
-                    qdot[8] = 0.01 + 0.01 * (np.random.rand() - 0.5)
-                    qdot[9] = 0.01 + 0.01 * (np.random.rand() - 0.5)
-                    qdot[10] = 0.01 + 0.01 * (np.random.rand() - 0.5)
+                    qdot[16] = 0.01 + 0.01 * (np.random.rand() - 0.5)
+                    qdot[17] = 0.01 + 0.01 * (np.random.rand() - 0.5)
+                    qdot[18] = 0.01 + 0.01 * (np.random.rand() - 0.5)
 
-                xnext, q_dict_lst = self.simulate_qdot(x0, qdot, self.T)
-                self.q_dynamics.q_sim_py.animate_system_trajectory(
-                    self.q_dynamics.h, q_dict_lst
-                )
-
+                xnext, q_lst = self.simulate_qdot(x0, qdot, self.T)
+                #self.q_vis.publish_trajectory(np.array(q_lst), self.sim_params.h)
                 is_success = True
             except Exception as e:
                 print(e)
