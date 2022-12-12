@@ -23,29 +23,31 @@ idx_a_l = plant.GetModelInstanceByName(robot_l_name)
 idx_a_r = plant.GetModelInstanceByName(robot_r_name)
 idx_u = plant.GetModelInstanceByName(object_name)
 contact_sampler = PlanarHandContactSampler(
-    q_sim=q_sim, q_sim_py=q_sim_py, pinch_prob=0.5
+    q_sim=q_sim, q_sim_py=q_sim_py, pinch_prob=0.1
 )
 
 q_u0 = np.array([0.0, 0.35, 0])
 q0_dict = contact_sampler.calc_enveloping_grasp(q_u0)
 x0 = q_sim.get_q_vec_from_dict(q0_dict)
 
-joint_limits = {idx_u: np.array([[-0.3, 0.3], [0.3, 0.5], [-0.01, np.pi]])}
+joint_limits = {idx_u: np.array([[-0.3, 0.3], [0.3, 0.5],
+    [-0.01, np.pi + 0.01]])}
 
 # %% RRT testing
 rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits)
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticPyramid
 rrt_params.log_barrier_weight_for_bundling = 100
 rrt_params.root_node = IrsNode(x0)
-rrt_params.max_size = 1000
+rrt_params.max_size = 2000
 rrt_params.goal = np.copy(x0)
 rrt_params.goal[2] = np.pi
 rrt_params.termination_tolerance = 0.01
-rrt_params.goal_as_subgoal_prob = 0.2
+rrt_params.goal_as_subgoal_prob = 0.3
 rrt_params.regularization = 1e-4
 rrt_params.rewire = False
-rrt_params.grasp_prob = 0.2
+rrt_params.grasp_prob = 0.1
 rrt_params.distance_threshold = np.inf
+rrt_params.stepsize = 0.35
 rrt_params.distance_metric = "local_u"
 
 # params.distance_metric = 'global'  # If using global metric
@@ -61,7 +63,7 @@ print("minimum distance: ", d_batch.min())
 node_id_closest = np.argmin(d_batch)
 
 # %%
-prob_rrt.save_tree(f"tree_{rrt_params.max_size}_{0}.pkl")
+prob_rrt.save_tree(f"planar_hand_tree_{rrt_params.max_size}_{0}.pkl")
 # prob_rrt.save_tree(os.path.join(
 #     data_folder,
 #     "randomized",
