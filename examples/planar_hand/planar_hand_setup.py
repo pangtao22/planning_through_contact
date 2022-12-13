@@ -18,10 +18,6 @@ object_name = "sphere"
 # environment
 h = 0.1
 
-# IrsMpc
-num_iters = 10
-num_samples = 100
-
 # data collection.
 data_folder = "ptc_data/planar_hand"
 

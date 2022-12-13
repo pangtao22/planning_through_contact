@@ -10,7 +10,7 @@ from planar_hand_setup import *
 
 from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 
-# %% quasistatic dynamical system
+# %% quasistatic system
 q_parser = QuasistaticParser(q_model_path)
 
 q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
@@ -28,13 +28,14 @@ contact_sampler = PlanarHandContactSampler(
 
 q_u0 = np.array([0.0, 0.35, 0])
 q0_dict = contact_sampler.calc_enveloping_grasp(q_u0)
-x0 = q_sim.get_q_vec_from_dict(q0_dict)
+q0 = q_sim.get_q_vec_from_dict(q0_dict)
 
 joint_limits = {idx_u: np.array([[-0.3, 0.3], [0.3, 0.5],
     [-0.01, np.pi + 0.01]])}
 
 # %% RRT testing
 rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits)
+rrt_params.h = h
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticPyramid
 rrt_params.log_barrier_weight_for_bundling = 100
 rrt_params.root_node = IrsNode(x0)

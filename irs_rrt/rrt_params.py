@@ -14,6 +14,8 @@ class RrtParams:
         self.root_node = None
         self.goal_as_subgoal_prob = 0.5
         self.termination_tolerance = 0.1
+        # TODO: rewire is not properly supported. Bad things can happen if it
+        #  is set to True. We need to either remove or support this.
         self.rewire = False
         self.stepsize = 0.1
         # TODO (pang): the QuasistaticSimulator does not support joint limits
@@ -58,29 +60,6 @@ class IrsRrtParams(RrtParams):
         # Stepsize.
         # TODO(terry-suh): the selection of this parameter should be automated.
         self.stepsize = 0.3
-
-
-class IrsRrtParams3D(IrsRrtParams):
-    def __init__(self, q_model_path, joint_limits):
-        super().__init__(q_model_path, joint_limits)
-        # Distance metric for defining an adequate notion of distance for
-        # quaternions. Should be a scalar.
-        self.quat_metric = np.nan
-
-
-class IrsRrtRolloutParams(IrsRrtParams):
-    def __init__(self, q_model_path, joint_limits):
-        super().__init__(q_model_path, joint_limits)
-        # Rollout horizon to use for reaching the point with a long stepsize.
-        self.rollout_horizon = 3
-
-
-class IrsRrtTrajOptParams(IrsRrtParams):
-    def __init__(self, q_model_path, joint_limits):
-        super().__init__(q_model_path, joint_limits)
-        # Subgoals further away from any node in the tree than
-        # distance_threshold will be rejected.
-        self.distance_threshold = np.inf
 
 
 class IrsRrtProjectionParams(IrsRrtParams):

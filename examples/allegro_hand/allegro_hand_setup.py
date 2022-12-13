@@ -15,13 +15,6 @@ q_model_path_hardware = os.path.join(
 robot_name = "allegro_hand_right"
 object_name = "sphere"
 
-# environment
-h = 0.1
-
-# IrsLqr
-num_iters = 10
-num_samples = 100
-
 # data collection.
 data_folder = "ptc_data/allegro_hand"
 
