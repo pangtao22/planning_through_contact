@@ -114,7 +114,7 @@ impc_params.u_bounds_abs = np.array(
     ]
 )
 
-impc_params.smoothing_mode = SmoothingMode.k1RandomizedIcecream
+impc_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
 # sampling-based bundling
 impc_params.calc_std_u = lambda u_initial, i: u_initial / (i**0.8)
 impc_params.std_u_initial = np.ones(dim_u) * 0.3
