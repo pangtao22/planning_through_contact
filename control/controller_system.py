@@ -40,14 +40,16 @@ class Controller:
         self.solver = GurobiSolver()
         self.n_q = self.plant.num_positions()
 
-        self.q_nominal = q_nominal
-        self.u_nominal = u_nominal
-        self.q_segment_lengths = np.linalg.norm(
-            q_nominal[1:] - q_nominal[:-1], axis=1
-        )
-        self.q_segment_lengths_cumsum_normalized = np.cumsum(
-            self.q_segment_lengths
-        ) / np.sum(self.q_segment_lengths)
+        # q_nominal is NOT a placeholder with 1 vector only.
+        if q_nominal.shape[1] > 1:
+            self.q_nominal = q_nominal
+            self.u_nominal = u_nominal
+            self.q_segment_lengths = np.linalg.norm(
+                q_nominal[1:] - q_nominal[:-1], axis=1
+            )
+            self.q_segment_lengths_cumsum_normalized = np.cumsum(
+                self.q_segment_lengths
+            ) / np.sum(self.q_segment_lengths)
 
         # TODO: do not hardcode these parameters. They need to be consistent
         #  with the trajectory optimizer that generates these trajectories.
@@ -298,17 +300,19 @@ class ControllerSystem(LeafSystem):
         super().DoCalcDiscreteVariableUpdates(context, events, discrete_state)
         q_goal = self.q_ref_input_port.Eval(context)
         u_goal = self.u_ref_input_port.Eval(context)
-        q = self.q_input_port.Eval(context)
-        (
-            q_nominal,
-            u_nominal,
-            t_value,
-            indices_closest,
-        ) = self.controller.find_closest_on_nominal_path(q)
-
-        # q_goal, u_goal = self.calc_along_arc(t_value, indices_closest, 0.05)
 
         if self.closed_loop:
+            # TODO: The "control" we were trying to do is not useful.
+            #  Consider removal.
+            q = self.q_input_port.Eval(context)
+            (
+                q_nominal,
+                u_nominal,
+                t_value,
+                indices_closest,
+            ) = self.controller.find_closest_on_nominal_path(q)
+            # q_goal, u_goal = self.calc_along_arc(t_value, indices_closest, 0.05)
+
             u = self.controller.calc_u(
                 q_nominal=q_nominal,
                 u_nominal=u_nominal,
@@ -317,6 +321,7 @@ class ControllerSystem(LeafSystem):
                 u_goal=u_goal,
             )
         else:
+            q_nominal = q_goal
             u = u_goal
 
         q_nominal[self.q_sim.get_q_a_indices_into_q()] = u
