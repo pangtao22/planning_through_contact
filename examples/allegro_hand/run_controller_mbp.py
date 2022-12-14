@@ -12,6 +12,7 @@ from pydrake.all import (
     AngleAxis,
     Simulator,
     PiecewisePolynomial,
+    RigidTransform,
 )
 from manipulation.meshcat_utils import AddMeshcatTriad
 
@@ -25,6 +26,8 @@ from control.drake_sim import (
     kUTrjSrcName,
 )
 from control.systems_utils import render_system_with_graphviz
+
+from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 
 from allegro_hand_setup import (
     robot_name,
@@ -81,20 +84,10 @@ robot_internal_controllers = diagram_and_contents["robot_internal_controllers"]
 plant = diagram_and_contents["plant"]
 meshcat_vis = diagram_and_contents["meshcat_vis"]
 loggers_cmd = diagram_and_contents["loggers_cmd"]
-q_ref_trj = diagram_and_contents["q_ref_trj"]
-u_ref_trj = diagram_and_contents["u_ref_trj"]
 logger_x = diagram_and_contents["logger_x"]
 meshcat = diagram_and_contents["meshcat"]
 q_trj_src = diagram.GetSubsystemByName(kQTrjSrcName)
 u_trj_src = diagram.GetSubsystemByName(kUTrjSrcName)
-
-AddMeshcatTriad(
-    meshcat=meshcat,
-    path="visualizer/sphere/sphere/frame",
-    length=0.1,
-    radius=0.001,
-    opacity=1,
-)
 
 # render_system_with_graphviz(diagram)
 model_a = plant.GetModelInstanceByName(robot_name)
@@ -108,12 +101,10 @@ q_knots_ref_list, u_knots_ref_list, t_knots_list = load_ref_trajectories(
 for q_knots_ref, u_knots_ref, t_knots in zip(
     q_knots_ref_list, u_knots_ref_list, t_knots_list
 ):
-    u_trj_src.UpdateTrajectory(
-        PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
-    )
-    q_trj_src.UpdateTrajectory(
-        PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
-    )
+    q_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
+    u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
+    q_trj_src.UpdateTrajectory(q_ref_trj)
+    u_trj_src.UpdateTrajectory(u_ref_trj)
 
     context = diagram.CreateDefaultContext()
     for model_a in q_sim.get_actuated_models():
@@ -133,57 +124,71 @@ for q_knots_ref, u_knots_ref, t_knots in zip(
     sim = Simulator(diagram, context)
     sim.Initialize()
 
+    AddMeshcatTriad(
+        meshcat=meshcat,
+        path="visualizer/sphere/sphere/frame",
+        length=0.1,
+        radius=0.001,
+        opacity=1,
+    )
+
+    q_u_goal = q_knots_ref[-1, q_sim.get_q_u_indices_into_q()]
+    AddMeshcatTriad(
+        meshcat=meshcat,
+        path="goal/frame",
+        length=0.1,
+        radius=0.003,
+        opacity=0.5,
+        X_PT=RigidTransform(Quaternion(q_u_goal[:4]), q_u_goal[4:]),
+    )
+
     meshcat_vis.DeleteRecording()
     meshcat_vis.StartRecording()
     sim.AdvanceTo(t_knots[-1] * 1.05)
     meshcat_vis.PublishRecording()
 
+    # %% plots
+    # 1. cmd vs nominal u.
+    logger_cmd = loggers_cmd[model_a]
+    u_log = logger_cmd.FindLog(context)
+    u_nominals = np.array(
+        [u_ref_trj.value(t).squeeze() for t in u_log.sample_times()]
+    )
+
+    u_diff = np.linalg.norm(u_nominals[:-1] - u_log.data().T[1:], axis=1)
+
+    # %% 2. q_u_nominal vs q_u.
+    x_log = logger_x.FindLog(context)
+    q_log = x_log.data()[: plant.num_positions()].T
+    q_u_log = q_log[:, q_sim.get_q_u_indices_into_q()]
+    angle_error = []
+    position_error = []
+
+    def get_quaternion(q_unnormalized: np.ndarray):
+        return Quaternion(q_unnormalized / np.linalg.norm(q_unnormalized))
+
+    for i, t in enumerate(x_log.sample_times()):
+        q_u_ref = q_ref_trj.value(t).squeeze()[q_sim.get_q_u_indices_into_q()]
+        q_u = q_u_log[i]
+
+        Q_WB_ref = get_quaternion(q_u_ref[:4])
+        Q_WB = get_quaternion(q_u[:4])
+        angle_error.append(AngleAxis(Q_WB.inverse().multiply(Q_WB_ref)).angle())
+        position_error.append(np.linalg.norm(q_u_ref[4:] - q_u[4:]))
+
+    fig, axes = plt.subplots(2, 1, figsize=(4, 9))
+    x_axis_label = "Time steps"
+    axes[0].plot(u_diff)
+    axes[0].grid(True)
+    axes[0].set_title("||u - u_ref||")
+    axes[0].set_xlabel(x_axis_label)
+
+    axes[1].set_title("||q_u - q_u_ref||")
+    axes[1].grid(True)
+    axes[1].plot(angle_error, label="angle")
+    axes[1].plot(position_error, label="pos")
+    axes[1].set_xlabel(x_axis_label)
+    axes[1].legend()
+    plt.show()
+
     input("Next?")
-
-# %% plots
-# 1. cmd vs nominal u.
-logger_cmd = loggers_cmd[model_a]
-u_log = logger_cmd.FindLog(context)
-u_nominals = np.array(
-    [u_ref_trj.value(t).squeeze() for t in u_log.sample_times()]
-)
-
-u_diff = np.linalg.norm(u_nominals[:-1] - u_log.data().T[1:], axis=1)
-
-# %% 2. q_u_nominal vs q_u.
-x_log = logger_x.FindLog(context)
-q_log = x_log.data()[: plant.num_positions()].T
-q_u_log = q_log[:, q_sim.get_q_u_indices_into_q()]
-angle_error = []
-position_error = []
-
-
-def get_quaternion(q_unnormalized: np.ndarray):
-    return Quaternion(q_unnormalized / np.linalg.norm(q_unnormalized))
-
-
-for i, t in enumerate(x_log.sample_times()):
-    q_u_ref = q_ref_trj.value(t).squeeze()[q_sim.get_q_u_indices_into_q()]
-    q_u = q_u_log[i]
-
-    Q_WB_ref = get_quaternion(q_u_ref[:4])
-    Q_WB = get_quaternion(q_u[:4])
-    angle_error.append(AngleAxis(Q_WB.inverse().multiply(Q_WB_ref)).angle())
-    position_error.append(np.linalg.norm(q_u_ref[4:] - q_u[4:]))
-
-fig, axes = plt.subplots(1, 2, figsize=(8, 4))
-x_axis_label = "Time steps"
-axes[0].plot(u_diff)
-axes[0].grid(True)
-axes[0].set_title("||u - u_ref||")
-axes[0].set_xlabel(x_axis_label)
-
-axes[1].set_title("||q_u - q_u_ref||")
-axes[1].grid(True)
-axes[1].plot(angle_error, label="angle")
-axes[1].plot(position_error, label="pos")
-axes[1].set_xlabel(x_axis_label)
-axes[1].legend()
-plt.show()
-
-# 3. v_u, i.e. object velocity.
