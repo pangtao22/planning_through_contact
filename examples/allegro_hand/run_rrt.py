@@ -13,7 +13,7 @@ from allegro_hand_setup import *
 
 from pydrake.math import RollPitchYaw
 
-#%% quasistatic dynamical system
+# %% quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path)
 q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
 q_sim, q_sim_py = q_vis.q_sim, q_vis.q_sim_py
@@ -75,7 +75,7 @@ joint_limits = {
     idx_a: np.zeros([num_joints, 2]),
 }
 
-#%% RRT testing
+# %% RRT testing
 # IrsRrt params
 rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits)
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
@@ -109,11 +109,13 @@ for i in range(5):
 
     prob_rrt.iterate()
 
-    d_batch = prob_rrt.calc_distance_batch(prob_rrt.rrt_params.goal)
-    node_id_closest = np.argmin(d_batch)
-    print("closest distance to goal", d_batch[node_id_closest])
+    (
+        q_knots_trimmed,
+        u_knots_trimmed,
+    ) = prob_rrt.get_trimmed_q_and_u_knots_to_goal()
+    q_vis.publish_trajectory(q_knots_trimmed, h=rrt_params.h)
 
-    #%%
+    # %%
     prob_rrt.save_tree(
         os.path.join(
             data_folder, "randomized", f"tree_{rrt_params.max_size}_{i}.pkl"
