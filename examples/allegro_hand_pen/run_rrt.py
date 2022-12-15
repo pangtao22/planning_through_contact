@@ -96,7 +96,7 @@ rrt_params.goal[q_sim.get_q_u_indices_into_q()[:4]] = Q_WB_d.wxyz()
 rrt_params.goal[q_sim.get_q_u_indices_into_q()[4]] = 0.15
 rrt_params.goal[q_sim.get_q_u_indices_into_q()[5]] = 0.15
 rrt_params.goal[q_sim.get_q_u_indices_into_q()[6]] = 0.15
-rrt_params.termination_tolerance = 0.01
+rrt_params.termination_tolerance = 0.1
 rrt_params.goal_as_subgoal_prob = 0.3
 rrt_params.rewire = False
 rrt_params.regularization = 1e-4
@@ -110,7 +110,7 @@ rrt_params.stepsize = 0.2
 std_u = 0.1 * np.ones(19)
 std_u[0:3] = 0.03
 rrt_params.std_u = std_u
-rrt_params.grasp_prob = 0.1
+rrt_params.grasp_prob = 0.3
 
 prob_rrt = IrsRrtProjection3D(rrt_params, contact_sampler, q_sim, q_sim_py)
 q_vis.draw_object_triad(
@@ -125,4 +125,4 @@ node_id_closest = np.argmin(d_batch)
 print("closest distance to goal", d_batch[node_id_closest])
 
 # %%
-prob_rrt.save_tree(f"tree_{rrt_params.max_size}.pkl")
+prob_rrt.save_tree(f"examples/allegro_hand_pen/pen_tree_{rrt_params.max_size}_4.pkl")

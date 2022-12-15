@@ -52,7 +52,7 @@ class AllegroHandPenContactSampler(ContactSampler):
         # simulation parameters
         self.sim_params = copy.deepcopy(self.q_sim.get_sim_params())
         self.sim_params.unactuated_mass_scale = 0.0
-        self.sim_params.forward_mode = ForwardDynamicsMode.kQpMp
+        self.sim_params.forward_mode = ForwardDynamicsMode.kSocpMp
         self.sim_params.gradient_mode = GradientMode.kNone
         self.sim_params.calc_contact_forces = False
         self.sim_params.h = h        
@@ -79,7 +79,6 @@ class AllegroHandPenContactSampler(ContactSampler):
                 rpy = RollPitchYaw(
                     RotationMatrix(Quaternion(q_u[0:4])).matrix()
                 )
-                rpy_vec = rpy.vector()
 
                 q_a0[0] = -q_u[5] - (0.01 * (np.random.rand() - 0.5))
                 q_a0[1] = -q_u[4] - (+0.07 + 0.02 * (np.random.rand() - 0.5))

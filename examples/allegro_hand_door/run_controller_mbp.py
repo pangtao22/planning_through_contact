@@ -31,7 +31,7 @@ def create_allegro_controller_plant(gravity: np.ndarray):
     parser = Parser(plant=plant)
     add_package_paths_local(parser)
     ProcessModelDirectives(
-        LoadModelDirectives(os.path.join(models_dir, "allegro_hand_pen.yml")),
+        LoadModelDirectives(os.path.join(models_dir, "allegro_hand_door.yml")),
         plant,
         parser,
     )
@@ -43,14 +43,14 @@ def create_allegro_controller_plant(gravity: np.ndarray):
 
 
 #%%
-h_ref_knot = 0.2
-h_ctrl = 0.02
+h_ref_knot = 0.05
+h_ctrl = 0.01
 controller_params.control_period = h_ctrl
 
 q_parser = QuasistaticParser(q_model_path)
 q_sim = q_parser.make_simulator_cpp()
 
-file_path = "examples/allegro_hand_pen/pen_optimized_q_and_u_trj_3.pkl"
+file_path = "examples/allegro_hand_door/door_optimized_q_and_u_trj_1.pkl"
 with open(file_path, "rb") as f:
     trj_dict = pickle.load(f)
 
@@ -59,7 +59,7 @@ u_knots_ref_list = trj_dict["u_trj_list"]
 
 # pick one segment for now.
 
-idx_trj_segment = 2
+idx_trj_segment = 4
 
 q_knots_ref, u_knots_ref, t_knots = calc_q_and_u_extended_and_t_knots(
     q_knots_ref=q_knots_ref_list[idx_trj_segment],
@@ -123,7 +123,7 @@ sim.Initialize()
 
 AddMeshcatTriad(
     meshcat=meshcat,
-    path="drake/plant/pen/pen",
+    path="drake/plant/door/sphere",
     length=0.1,
     radius=0.001,
     opacity=1,
@@ -147,14 +147,10 @@ u_diff = np.linalg.norm(u_nominals[:-1] - u_log.data().T[1:], axis=1)
 
 #%% 2. q_u_nominal vs q_u.
 x_log = logger_x.FindLog(context)
+print(np.array(x_log.data()))
 q_log = x_log.data()[: plant.num_positions()].T
 q_u_log = q_log[:, q_sim.get_q_u_indices_into_q()]
-angle_error = []
-position_error = []
-
-
-def get_quaternion(q_unnormalized: np.ndarray):
-    return Quaternion(q_unnormalized / np.linalg.norm(q_unnormalized))
+error = []
 
 q_a_ref_mat = []
 q_u_ref_mat = []
@@ -166,12 +162,9 @@ for i, t in enumerate(x_log.sample_times()):
 
     q_a_ref_mat.append(q_a_ref)
     q_u_ref_mat.append(q_u_ref)
-    
-    Q_WB_ref = get_quaternion(q_u_ref[:4])
-    Q_WB = get_quaternion(q_u[:4])
-    angle_error.append(AngleAxis(Q_WB.inverse().multiply(Q_WB_ref)).angle())
-    position_error.append(np.linalg.norm(q_u_ref[4:] - q_u[4:]))
 
+    error.append(np.linalg.norm(q_u_ref - q_u))
+   
 
 fig, axes = plt.subplots(1, 2, figsize=(8, 4))
 x_axis_label = "Time steps"
@@ -182,11 +175,12 @@ axes[0].set_xlabel(x_axis_label)
 
 axes[1].set_title("||q_u - q_u_ref||")
 axes[1].grid(True)
-axes[1].plot(angle_error, label="angle")
-axes[1].plot(position_error, label="pos")
+axes[1].plot(error, label="angle")
 axes[1].set_xlabel(x_axis_label)
 axes[1].legend()
 plt.show()
+
+# 3. Save files
 
 log_dict = {
     "q_a_ref"    : np.array(q_a_ref_mat), # q_a ref trajectory for visualization.
@@ -198,6 +192,6 @@ log_dict = {
 }
 
 data_index = 9
-filename = "ptc_data/allegro_hand_pen/sim2real/{:02d}.pkl".format(data_index)
+filename = "ptc_data/allegro_hand_door/sim2real/{:02d}.pkl".format(data_index)
 with open(filename, "wb") as f:
     pickle.dump(log_dict, f)
