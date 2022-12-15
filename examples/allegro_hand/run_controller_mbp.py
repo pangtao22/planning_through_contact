@@ -31,6 +31,7 @@ from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 
 from allegro_hand_setup import (
     robot_name,
+    object_name,
     q_model_path_hardware,
     controller_params,
 )
@@ -91,6 +92,7 @@ u_trj_src = diagram.GetSubsystemByName(kUTrjSrcName)
 
 # render_system_with_graphviz(diagram)
 model_a = plant.GetModelInstanceByName(robot_name)
+model_u = plant.GetModelInstanceByName(object_name)
 
 # %% Run sim.
 # Load trajectories.
@@ -176,19 +178,32 @@ for q_knots_ref, u_knots_ref, t_knots in zip(
         angle_error.append(AngleAxis(Q_WB.inverse().multiply(Q_WB_ref)).angle())
         position_error.append(np.linalg.norm(q_u_ref[4:] - q_u[4:]))
 
-    fig, axes = plt.subplots(2, 1, figsize=(4, 9))
+    v_data = x_log.data()[plant.num_positions() :, :]
+    v_u = np.array(
+        [
+            plant.GetVelocitiesFromArray(model_u, v_data[:, i])
+            for i in range(v_data.shape[1])
+        ]
+    )
+    v_u_norm = np.linalg.norm(v_u, axis=1)
+
+    fig, axes = plt.subplots(3, 1, figsize=(4, 12))
     x_axis_label = "Time steps"
     axes[0].plot(u_diff)
     axes[0].grid(True)
     axes[0].set_title("||u - u_ref||")
-    axes[0].set_xlabel(x_axis_label)
 
     axes[1].set_title("||q_u - q_u_ref||")
     axes[1].grid(True)
     axes[1].plot(angle_error, label="angle")
     axes[1].plot(position_error, label="pos")
-    axes[1].set_xlabel(x_axis_label)
     axes[1].legend()
-    plt.show()
 
-    input("Next?")
+    axes[2].set_title("||v_u||")
+    axes[2].grid(True)
+    axes[2].plot(v_u_norm)
+    axes[2].axhline(np.mean(v_u_norm), linestyle="--", color="r")
+    axes[2].set_xlabel(x_axis_label)
+    axes[2].set_yscale("log")
+
+    plt.show()
