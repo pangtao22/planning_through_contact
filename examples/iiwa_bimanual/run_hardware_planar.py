@@ -50,7 +50,7 @@ q_sim_2d = q_parser_2d.make_simulator_cpp()
 q_sim_3d = q_parser_3d.make_simulator_cpp()
 h_ref_knot = 0.5
 
-file_path = "./bimanual_optimized_q_and_u_trj.pkl"
+file_path = "bimanual_optimized_q_and_u_trj_0.pkl"
 with open(file_path, "rb") as f:
     trj_dict = pickle.load(f)
 
@@ -60,8 +60,8 @@ u_knots_ref_list = trj_dict["u_trj_list"]
 # pick one segment for now.
 idx_trj_segment = 1
 q_knots_ref_2d = q_knots_ref_list[idx_trj_segment]
-u_knots_ref_2d, t_knots = calc_q_and_u_extended_and_t_knots(
-    None,
+_, u_knots_ref_2d, t_knots = calc_q_and_u_extended_and_t_knots(
+    q_knots_ref=q_knots_ref_list[idx_trj_segment],
     u_knots_ref=u_knots_ref_list[idx_trj_segment],
     u_knot_ref_start=q_knots_ref_2d[0, q_sim_2d.get_q_a_indices_into_q()],
     v_limit=0.05,
@@ -70,17 +70,6 @@ u_knots_ref_2d, t_knots = calc_q_and_u_extended_and_t_knots(
 q_ref_2d_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref_2d.T)
 u_ref_2d_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref_2d.T)
 
-# Controller
-controller_params_2d.control_period = 0.005
-control_sys = IiwaBimanualPlanarControllerSystem(
-    q_nominal=np.copy(q_knots_ref_2d),
-    u_nominal=np.copy(u_knots_ref_2d),
-    q_sim_2d=q_sim_2d,
-    q_sim_3d=q_sim_3d,
-    controller_params=controller_params_2d,
-    closed_loop=True,
-)
-controller = control_sys.controller
 
 # 3d trajectories.
 u_knots_ref_3d = np.array([q_a_2d_to_q_a_3d(u) for u in u_knots_ref_2d])
@@ -110,49 +99,10 @@ def calc_iiwa_command(channel, data):
 
     t = q_msg.utime / 1e6 - first_status_msg_time
 
-    if t < t_transition * 2:
-        u = u_ref_3d_trj.value(t).squeeze()
-    else:
-        t = t - t_transition * 2
-        q_goal_2d = q_ref_2d_trj.value(t).squeeze()
-        u_goal_2d = u_ref_2d_trj.value(t).squeeze()
-
-        q_3d = np.array(q_msg.value)
-        q_2d = control_sys.calc_q_2d_from_q_3d(q_3d)
-
-        (
-            q_nominal_2d,
-            u_nominal_2d,
-            t_value,
-            indices,
-        ) = controller.find_closest_on_nominal_path(q_2d)
-        s = controller.calc_arc_length(t_value, indices)
-        q_goal_2d_arc, u_goal_2d_arc = controller.calc_q_and_u_from_arc_length(
-            s + 0.03
-        )
-        arc_length_list.append(s)
-        print(f"s = {s}")
-        if np.linalg.norm(q_goal_2d_arc - q_2d) < np.linalg.norm(
-            q_goal_2d - q_2d
-        ):
-            q_goal_2d = q_goal_2d_arc
-            u_goal_2d = u_goal_2d_arc
-            oh_no_times.append(t)
-            print("===========================oh no!==========================")
-
-        u_2d = controller.calc_u(
-            q_nominal=q_nominal_2d,
-            u_nominal=u_nominal_2d,
-            q=q_2d,
-            q_goal=q_goal_2d,
-            u_goal=u_goal_2d,
-        )
-        u = q_a_2d_to_q_a_3d(u_2d)
-
     cmd_msg = lcmt_iiwa_command()
     cmd_msg.utime = q_msg.utime
-    cmd_msg.num_joints = len(u)
-    cmd_msg.joint_position = u
+    cmd_msg.joint_position = u_ref_3d_trj.value(t).squeeze()
+    cmd_msg.num_joints = len(cmd_msg.joint_position)
 
     lc.publish("IIWA_COMMAND", cmd_msg.encode())
 

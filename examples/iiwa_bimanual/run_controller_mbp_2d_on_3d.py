@@ -48,7 +48,7 @@ q_sim_2d = q_parser_2d.make_simulator_cpp()
 q_sim_3d = q_parser_3d.make_simulator_cpp()
 
 # %% Trajectory.
-file_path = "./bimanual_optimized_q_and_u_trj.pkl"
+file_path = "bimanual_optimized_q_and_u_trj_0.pkl"
 with open(file_path, "rb") as f:
     trj_dict = pickle.load(f)
 
