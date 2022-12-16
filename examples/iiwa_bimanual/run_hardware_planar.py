@@ -50,7 +50,7 @@ q_sim_2d = q_parser_2d.make_simulator_cpp()
 q_sim_3d = q_parser_3d.make_simulator_cpp()
 h_ref_knot = 0.5
 
-file_path = "bimanual_optimized_q_and_u_trj_0.pkl"
+file_path = "bimanual_optimized_q_and_u_trj_1.pkl"
 with open(file_path, "rb") as f:
     trj_dict = pickle.load(f)
 
@@ -58,7 +58,7 @@ q_knots_ref_list = trj_dict["q_trj_list"]
 u_knots_ref_list = trj_dict["u_trj_list"]
 
 # pick one segment for now.
-idx_trj_segment = 1
+idx_trj_segment = 2
 q_knots_ref_2d = q_knots_ref_list[idx_trj_segment]
 _, u_knots_ref_2d, t_knots = calc_q_and_u_extended_and_t_knots(
     q_knots_ref=q_knots_ref_list[idx_trj_segment],
@@ -67,7 +67,6 @@ _, u_knots_ref_2d, t_knots = calc_q_and_u_extended_and_t_knots(
     v_limit=0.05,
 )
 
-q_ref_2d_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref_2d.T)
 u_ref_2d_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref_2d.T)
 
 
