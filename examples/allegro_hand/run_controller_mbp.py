@@ -1,5 +1,7 @@
 import os
 import copy
+import pickle
+from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -31,9 +33,12 @@ from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 
 from allegro_hand_setup import (
     robot_name,
+    object_name,
     q_model_path_hardware,
     controller_params,
 )
+
+kPtcDataRepoPath = Path.home()
 
 
 def create_allegro_controller_plant(gravity: np.ndarray):
@@ -50,6 +55,10 @@ def create_allegro_controller_plant(gravity: np.ndarray):
     plant.Finalize()
 
     return plant
+
+
+def get_quaternion(q_unnormalized: np.ndarray):
+    return Quaternion(q_unnormalized / np.linalg.norm(q_unnormalized))
 
 
 # %%
@@ -91,6 +100,7 @@ u_trj_src = diagram.GetSubsystemByName(kUTrjSrcName)
 
 # render_system_with_graphviz(diagram)
 model_a = plant.GetModelInstanceByName(robot_name)
+model_u = plant.GetModelInstanceByName(object_name)
 
 # %% Run sim.
 # Load trajectories.
@@ -98,8 +108,8 @@ q_knots_ref_list, u_knots_ref_list, t_knots_list = load_ref_trajectories(
     file_path="hand_optimized_q_and_u_trj.pkl", v_limit=0.1
 )
 
-for q_knots_ref, u_knots_ref, t_knots in zip(
-    q_knots_ref_list, u_knots_ref_list, t_knots_list
+for idx_segment, (q_knots_ref, u_knots_ref, t_knots) in enumerate(
+    zip(q_knots_ref_list, u_knots_ref_list, t_knots_list)
 ):
     q_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
     u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
@@ -164,9 +174,6 @@ for q_knots_ref, u_knots_ref, t_knots in zip(
     angle_error = []
     position_error = []
 
-    def get_quaternion(q_unnormalized: np.ndarray):
-        return Quaternion(q_unnormalized / np.linalg.norm(q_unnormalized))
-
     for i, t in enumerate(x_log.sample_times()):
         q_u_ref = q_ref_trj.value(t).squeeze()[q_sim.get_q_u_indices_into_q()]
         q_u = q_u_log[i]
@@ -176,19 +183,56 @@ for q_knots_ref, u_knots_ref, t_knots in zip(
         angle_error.append(AngleAxis(Q_WB.inverse().multiply(Q_WB_ref)).angle())
         position_error.append(np.linalg.norm(q_u_ref[4:] - q_u[4:]))
 
-    fig, axes = plt.subplots(2, 1, figsize=(4, 9))
+    v_data = x_log.data()[plant.num_positions() :, :]
+    v_u = np.array(
+        [
+            plant.GetVelocitiesFromArray(model_u, v_data[:, i])
+            for i in range(v_data.shape[1])
+        ]
+    )
+    v_u_norm = np.linalg.norm(v_u, axis=1)
+
+    fig, axes = plt.subplots(3, 1, figsize=(4, 12))
     x_axis_label = "Time steps"
     axes[0].plot(u_diff)
     axes[0].grid(True)
     axes[0].set_title("||u - u_ref||")
-    axes[0].set_xlabel(x_axis_label)
 
     axes[1].set_title("||q_u - q_u_ref||")
     axes[1].grid(True)
     axes[1].plot(angle_error, label="angle")
     axes[1].plot(position_error, label="pos")
-    axes[1].set_xlabel(x_axis_label)
     axes[1].legend()
+
+    axes[2].set_title("||v_u||")
+    axes[2].grid(True)
+    axes[2].plot(v_u_norm)
+    axes[2].axhline(np.mean(v_u_norm), linestyle="--", color="r")
+    axes[2].set_xlabel(x_axis_label)
+    axes[2].set_yscale("log")
+
     plt.show()
 
-    input("Next?")
+    #%% logging
+    log_dict = {
+        "q_a_ref": q_knots_ref[:, q_sim.get_q_a_indices_into_q()],
+        # q_a ref trajectory for visualization.
+        "q_u_ref": q_knots_ref[:, q_sim.get_q_u_indices_into_q()],
+        # q_u ref trajectory,
+        "u_ref": u_knots_ref,
+        "t_knots": np.array(t_knots),
+        "q_u_mbp": np.array(q_u_log),  # q_u mbp trajectory,
+        "x_log_data": np.array(x_log.data()),  # logger state,
+        "x_log_time": np.array(x_log.sample_times()),  # logger state,
+    }
+
+    filename = Path(
+        Path.home(),
+        "ptc_data",
+        "allegro_hand",
+        "sim2real",
+        f"{idx_segment:03}.pkl",
+    )
+
+    with open(filename, "wb") as f:
+        pickle.dump(log_dict, f)
