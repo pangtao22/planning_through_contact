@@ -13,7 +13,8 @@ from allegro_hand_setup import *
 
 
 class AllegroHandPlateContactSampler(ContactSampler):
-    def __init__(self, q_sim: QuasistaticSimulatorCpp, q_sim_py: QuasistaticSimulator):
+    def __init__(self, q_sim: QuasistaticSimulatorCpp,
+    q_sim_py: QuasistaticSimulator):
         super().__init__(q_sim=q_sim, q_sim_py=q_sim_py)
 
         self.q_sim = q_sim
@@ -36,7 +37,8 @@ class AllegroHandPlateContactSampler(ContactSampler):
         self.qdot_anti_torsion[11] = 1.0
 
         self.qdot_enveloping_flexion = np.zeros(19)
-        self.qdot_enveloping_flexion[[4, 5, 6, 15, 17, 18, 8, 9, 10, 12, 13, 14]] = 1.0
+        self.qdot_enveloping_flexion[
+            [4, 5, 6, 15, 17, 18, 8, 9, 10, 12, 13, 14]] = 1.0
 
         self.qdot_pinch_flexion = np.zeros(19)
         self.qdot_pinch_flexion[[6, 10, 14, 18]] = 1.0

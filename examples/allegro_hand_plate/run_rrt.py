@@ -126,4 +126,5 @@ d_batch = prob_rrt.calc_distance_batch(prob_rrt.rrt_params.goal)
 node_id_closest = np.argmin(d_batch)
 print("closest distance to goal", d_batch[node_id_closest])
 
-prob_rrt.save_tree(f"allegro_plate_tree_{rrt_params.max_size}.pkl")
+prob_rrt.save_tree(
+    f"examples/allegro_hand_plate/plate_tree_{rrt_params.max_size}_{3}.pkl")
