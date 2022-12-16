@@ -46,7 +46,50 @@ def recover_q_u_knots_ref_from_q_u_ref(
     return q_u_knots_ref
 
 
-def calc_X_WB_ref_trj_length(q_u_knots_ref: np.ndarray):
+def calc_errors_for_segment_3d(
+    q_u_knots_ref: np.ndarray,
+    t_knots: np.ndarray,
+    x_log_time: np.ndarray,
+    q_u_mbp: np.ndarray,
+):
+    Q_WB_trj_ref, p_WB_trj_ref = get_X_WB_ref_trj(q_u_knots_ref, t_knots)
+    Q_WB_refs = np.array([Q_WB_trj_ref.value(t).squeeze() for t in x_log_time])
+    p_WB_refs = np.array([p_WB_trj_ref.value(t).squeeze() for t in x_log_time])
+
+    orientation_error_for_segment = []
+    for Q_WB_ref, Q_WB in zip(Q_WB_refs, q_u_mbp[:, :4]):
+        Q_WB_ref = Quaternion(Q_WB_ref)
+        Q_WB = get_quaternion(Q_WB)
+        orientation_error_for_segment.append(
+            AngleAxis(Q_WB_ref.inverse().multiply(Q_WB)).angle()
+        )
+
+    position_error_for_segment = np.linalg.norm(
+        p_WB_refs - q_u_mbp[:, 4:], axis=1
+    )
+
+    return position_error_for_segment, orientation_error_for_segment
+
+
+def calc_errors_for_segment_2d(
+    q_u_knots_ref: np.ndarray,
+    t_knots: np.ndarray,
+    x_log_time: np.ndarray,
+    q_u_mbp: np.ndarray,
+):
+    q_u_trj_ref = PiecewisePolynomial.FirstOrderHold(t_knots, q_u_knots_ref.T)
+    q_u_ref = np.array([q_u_trj_ref.value(t).squeeze() for t in x_log_time])
+
+    orientation_error_for_segment = np.abs(q_u_ref[2] - q_u_mbp[2])
+
+    position_error_for_segment = np.linalg.norm(
+        q_u_ref[:, :2] - q_u_mbp[:, :2], axis=1
+    )
+
+    return position_error_for_segment, orientation_error_for_segment
+
+
+def calc_X_WB_ref_trj_length_3d(q_u_knots_ref: np.ndarray):
     Q_WB_list = [get_quaternion(q_u[:4]) for q_u in q_u_knots_ref]
     T = len(q_u_knots_ref) - 1
     total_angular_displacement = 0
@@ -60,6 +103,18 @@ def calc_X_WB_ref_trj_length(q_u_knots_ref: np.ndarray):
         )
         total_angular_displacement += d_angle
         total_position_displacement += d_position
+
+    return total_angular_displacement, total_position_displacement
+
+
+def calc_X_WB_ref_trj_length_2d(q_u_knots_ref: np.ndarray):
+    angles = q_u_knots_ref[:, 2]
+    positions = q_u_knots_ref[:, :2]
+
+    total_angular_displacement = np.abs(angles[1:] - angles[:-1]).sum()
+    total_position_displacement = np.linalg.norm(
+        positions[1:] - positions[:-1], axis=1
+    ).sum()
 
     return total_angular_displacement, total_position_displacement
 
@@ -88,26 +143,34 @@ def calc_errors_and_path_lengths(file_paths):
                 q_u_knots_ref, x_log_time, t_knots
             )
 
-        Q_WB_trj_ref, p_WB_trj_ref = get_X_WB_ref_trj(q_u_knots_ref, t_knots)
-        Q_WB_refs = np.array(
-            [Q_WB_trj_ref.value(t).squeeze() for t in x_log_time]
-        )
-        p_WB_refs = np.array(
-            [p_WB_trj_ref.value(t).squeeze() for t in x_log_time]
-        )
+        dim_q_u = q_u_knots_ref.shape[1]
+        calc_errors_for_segment = None
+        calc_X_WB_ref_trj_length = None
+        if dim_q_u == 7:
+            # SE(3)
+            calc_errors_for_segment = calc_errors_for_segment_3d
+            calc_X_WB_ref_trj_length = calc_X_WB_ref_trj_length_3d
+        elif dim_q_u == 3:
+            # SE(2)
+            calc_errors_for_segment = calc_errors_for_segment_2d
+            calc_X_WB_ref_trj_length = calc_X_WB_ref_trj_length_2d
+        elif dim_q_u == 2:
+            # door
+            calc_errors_for_segment = calc_errors_for_segment_door
+            calc_X_WB_ref_trj_length = calc_X_WB_ref_trj_length_door
 
-        orientation_error_for_segment = []
-        for Q_WB_ref, Q_WB in zip(Q_WB_refs, q_u_mbp[:, :4]):
-            Q_WB_ref = Quaternion(Q_WB_ref)
-            Q_WB = get_quaternion(Q_WB)
-            orientation_error_for_segment.append(
-                AngleAxis(Q_WB_ref.inverse().multiply(Q_WB)).angle()
-            )
+        (
+            position_error_for_segment,
+            orientation_error_for_segment,
+        ) = calc_errors_for_segment(
+            q_u_knots_ref,
+            t_knots,
+            x_log_time,
+            q_u_mbp,
+        )
 
         angular_errors.append(np.mean(orientation_error_for_segment))
-        position_errors.append(
-            np.linalg.norm(p_WB_refs - q_u_mbp[:, 4:], axis=1).mean()
-        )
+        position_errors.append(np.mean(position_error_for_segment))
         angular_length, position_length = calc_X_WB_ref_trj_length(
             q_u_knots_ref
         )
@@ -124,7 +187,13 @@ def calc_errors_and_path_lengths(file_paths):
 
 # %%
 results_dict = {}
-system_names = ["allegro_hand", "allegro_hand_pen", "allegro_hand_plate"]
+system_names = [
+    "allegro_hand",
+    "allegro_hand_pen",
+    "allegro_hand_plate",
+    "planar_pushing",
+    "planar_hand",
+]
 
 for system_name in system_names:
     data_dir_path = Path(Path.home(), "ptc_data", system_name, "sim2real")
@@ -147,16 +216,25 @@ for system_name in system_names:
     axes[0].scatter(position_path_lengths, position_errors, label=system_name)
     axes[1].scatter(angular_path_lengths, angular_errors, label=system_name)
 
+# reference line
+x = np.linspace(1e-3, 5, 10)
+y = 0.1 * x
+
 axes[0].set_xlabel("path length [m]")
 axes[0].set_ylabel("Average position error [m]")
 axes[0].set_xscale("log")
 axes[0].set_yscale("log")
 axes[0].legend()
+axes[0].axis("equal")
+axes[0].plot(x, y, color='b', linestyle='--')
 
 axes[1].set_xlabel("path length [rad]")
 axes[1].set_ylabel("Average angular error [rad]")
 axes[1].set_xscale("log")
 axes[1].set_yscale("log")
 axes[1].legend()
+axes[1].axis("equal")
+axes[1].plot(x, y, color='b', linestyle='--')
+
 
 plt.show()
