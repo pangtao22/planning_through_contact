@@ -592,8 +592,21 @@ class IrsRrt(Rrt):
 
         return aa.angle(), np.linalg.norm(q_u_0[4:] - q_u_1[4:])
 
-    def get_calc_q_u_diff(self):
+    @staticmethod
+    def calc_q_u_diff_euclidean(q_u_0, q_u_1):
+        """
+        q_u_0 and q_u_1 are 7-vectors. The first 4 elements represent a
+         quaternion and the last three a position.
+        Returns (angle_diff_in_radians, position_diff_norm)
+        """
+        error = np.linalg.norm(q_u_0 - q_u_1)
+        return error, error
 
+
+    def get_calc_q_u_diff(self):
+        # TODO(terry-suh): this  doesn't seem like the right if statement.
+        # What if there are 3 dofs but they're in joint-space instead of 
+        # SE(2)? ditto for 7.
         if self.dim_q_u == 3:
             return self.calc_q_u_diff_SE2
         elif self.dim_q_u == 7:
@@ -601,7 +614,7 @@ class IrsRrt(Rrt):
         elif self.dim_q_u == 1:
             return lambda q_u0, q_u1: q_u0 - q_u1
         else:
-            raise RuntimeError("dim_q_u needs to equal 3 (2D) or 7 (3D).")
+            return self.calc_q_u_diff_euclidean
 
     def print_segments_displacements(
         self, q_knots_trimmed: np.ndarray, segments: List[Tuple[int, int]]

@@ -12,16 +12,11 @@ from pydrake.all import (
     RollPitchYaw,
     JacobianWrtVariable,
 )
-from pydrake.systems.meshcat_visualizer import AddTriad
-
 from qsim.parser import QuasistaticParser
 from qsim.model_paths import models_dir
 from qsim_cpp import ForwardDynamicsMode, GradientMode
 
 from control.controller_system import ControllerParams
-
-from irs_mpc.irs_mpc_params import BundleMode
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.irs_rrt import IrsNode
 from irs_rrt.irs_rrt_projection import IrsRrtProjection
 from irs_rrt.rrt_params import IrsRrtProjectionParams
@@ -41,13 +36,19 @@ q_parser = QuasistaticParser(q_model_path_planar)
 class CollisionFreeRRT(Rrt):
     def __init__(self, irs_rrt, rrt_params, qu):
         self.irs_rrt = irs_rrt
-        self.q_dynamics = irs_rrt.q_dynamics
-        self.q_sim_py = irs_rrt.q_dynamics.q_sim_py
+        self.q_sim_py = irs_rrt.q_sim_py
         self.q_sim = irs_rrt.q_sim
+        self.plant = self.q_sim.get_plant()
+        self.sg = self.q_sim.get_scene_graph()
 
         self.q_lb = irs_rrt.q_lb
         self.q_ub = irs_rrt.q_ub
         self.qu = qu
+
+        self.ind_q_a = self.q_sim.get_q_a_indices_into_q()
+        self.ind_q_u = self.q_sim.get_q_u_indices_into_q()
+        self.dim_x = self.plant.num_positions()
+        self.dim_u = self.q_sim.num_actuated_dofs()
 
         self.params = rrt_params
         super().__init__(rrt_params)
@@ -56,7 +57,7 @@ class CollisionFreeRRT(Rrt):
         """
         Checks if given configuration vector x is in collision.
         """
-        q_a = x[self.q_sim.get_q_a_indices_into_q()]
+        q_a = x[self.ind_q_a]
         if np.linalg.norm(q_a - self.root_node.q) < 1e-6:
             return False
         self.q_sim_py.update_mbp_positions_from_vector(x)
@@ -85,21 +86,19 @@ class CollisionFreeRRT(Rrt):
 
     def sample_subgoal(self):
         while True:
-            q = np.random.rand(self.q_dynamics.dim_x)
+            q = np.random.rand(self.dim_x)
             q = (self.q_ub - self.q_lb) * q + self.q_lb
 
-            q_goal = np.zeros(self.q_dynamics.dim_x)
-            q_goal[self.q_dynamics.get_q_a_indices_into_x()] = q[
-                self.q_dynamics.get_q_a_indices_into_x()
-            ]
-            q_goal[self.q_dynamics.get_q_u_indices_into_x()] = self.qu
+            q_goal = np.zeros(self.dim_x)
+            q_goal[self.ind_q_a] = q[self.ind_q_a]
+            q_goal[self.ind_q_u] = self.qu
 
             if not (self.is_collision(q_goal)):
-                return q_goal[self.q_dynamics.get_q_a_indices_into_x()]
+                return q_goal[self.ind_q_a]
 
     def calc_distance_batch(self, q_query: np.array):
         error_batch = q_query - self.get_q_matrix_up_to(self.size)
-        metric_mat = np.diag(np.ones(self.q_dynamics.dim_u))
+        metric_mat = np.diag(np.ones(self.dim_u))
 
         intsum = np.einsum("Bi,ij->Bj", error_batch, metric_mat)
         metric_batch = np.einsum("Bi,Bi->B", intsum, error_batch)
@@ -107,9 +106,9 @@ class CollisionFreeRRT(Rrt):
         return metric_batch
 
     def map_qa_to_q(self, qa):
-        q = np.zeros(self.q_dynamics.dim_x)
-        q[self.q_dynamics.get_q_a_indices_into_x()] = qa
-        q[self.q_dynamics.get_q_u_indices_into_x()] = self.qu
+        q = np.zeros(self.dim_x)
+        q[self.ind_q_a] = qa
+        q[self.ind_q_u] = self.qu
         return q
 
     def extend_towards_q(self, parent_node: Node, q: np.array):
@@ -136,9 +135,9 @@ class CollisionFreeRRT(Rrt):
         edge.child = child_node
         edge.cost = 0.0
 
-        q = np.zeros(self.q_dynamics.dim_x)
-        q[self.q_dynamics.get_q_u_indices_into_x()] = self.qu
-        q[self.q_dynamics.get_q_a_indices_into_x()] = xnext
+        q = np.zeros(self.dim_x)
+        q[self.ind_q_u] = self.qu
+        q[self.ind_q_a] = xnext
         # self.q_sim_py.update_mbp_positions_from_vector(q)
         # self.q_sim_py.draw_current_configuration()
 
@@ -219,17 +218,17 @@ class CollisionFreeRRT(Rrt):
 
         path_T = len(path)
 
-        x_trj = np.zeros((path_T, self.q_dynamics.dim_x))
+        x_trj = np.zeros((path_T, self.dim_x))
 
         for i in range(path_T - 1):
             x_trj[
-                i, self.q_dynamics.get_q_a_indices_into_x()
+                i, self.ind_q_a
             ] = self.get_node_from_id(path[i]).q
-            x_trj[i, self.q_dynamics.get_q_u_indices_into_x()] = self.qu
+            x_trj[i, self.ind_q_u] = self.qu
         x_trj[
-            path_T - 1, self.q_dynamics.get_q_a_indices_into_x()
+            path_T - 1, self.ind_q_a
         ] = self.get_node_from_id(path[path_T - 1]).q
-        x_trj[path_T - 1, self.q_dynamics.get_q_u_indices_into_x()] = self.qu
+        x_trj[path_T - 1, self.ind_q_u] = self.qu
 
         return x_trj
 
@@ -252,28 +251,26 @@ class CollisionFreeRRT(Rrt):
             ind_a, ind_b = np.sort(np.random.choice(T, 2, replace=False))
 
             x_a = x_trj_shortcut[
-                ind_a, self.q_dynamics.get_q_a_indices_into_x()
+                ind_a, self.ind_q_a
             ]
             x_b = x_trj_shortcut[
-                ind_b, self.q_dynamics.get_q_a_indices_into_x()
+                ind_b, self.ind_q_a
             ]
 
             if self.segment_has_no_collision(x_a, x_b, 100):
                 x_trj_shortcut[
-                    ind_a:ind_b, self.q_dynamics.get_q_a_indices_into_x()
+                    ind_a:ind_b, self.ind_q_a
                 ] = self.interpolate_traj(x_a, x_b, ind_b - ind_a)
 
         return x_trj_shortcut
 
-
-def step_out(q_dynamics, x, scale=0.06, num_iters=3):
+def step_out(q_sim, q_sim_py, x, scale=0.06, num_iters=3):
     """
     Given a near-contact configuration, give a trajectory that steps out.
     """
-    q_sim_py = q_dynamics.q_sim_py
-    q_sim_py.update_mbp_positions_from_vector(x)
-    idx_qa = q_dynamics.get_q_a_indices_into_x()
-    idx_qu = q_dynamics.get_q_u_indices_into_x()
+    q_sim_py.update_mbp_positions(q_sim.get_q_dict_from_vec(x))
+    idx_qa = q_sim.get_q_a_indices_into_q()
+    idx_qu = q_sim.get_q_u_indices_into_q()
 
     plant = q_sim_py.get_plant()
     sg = q_sim_py.get_scene_graph()
@@ -367,47 +364,39 @@ def find_collision_free_path(irs_rrt, qa_start, qa_end, qu):
     cf_rrt.iterate()
 
 
-def is_collision(q_dynamics, x):
+def is_collision(q_sim, x):
     """
     Checks if given configuration vector x is in collision.
     """
-    q_sim_py = q_dynamics.q_sim_py
-    q_sim_py.update_mbp_positions_from_vector(x)
+    q_sim.update_mbp_positions(q_sim.get_q_dict_from_vec(x))
     # self.q_sim_py.draw_current_configuration()
 
-    sg = q_sim_py.get_scene_graph()
-    query_object = sg.GetOutputPort("query").Eval(q_sim_py.context_sg)
+    sg = q_sim.get_scene_graph()
+    query_object = sg.GetOutputPort("query").Eval(q_sim.context_sg)
     collision_pairs = query_object.ComputePointPairPenetration()
     return len(collision_pairs) > 0
 
 
-def generate_random_configuration(q_dynamics, qu, q_lb, q_ub):
+def generate_random_configuration(q_sim, qu, q_lb, q_ub):
     """
     Generate random configuration of qa.
     """
+    ind_q_u = q_sim.get_q_u_indices_into_q()
+    ind_q_a = q_sim.get_q_a_indices_into_q()
     while True:
-        x = np.random.rand(q_dynamics.dim_x)
+        x = np.random.rand(q_sim.dim_x)
         x = (q_ub - q_lb) * x + q_lb
-        q = np.zeros(q_dynamics.dim_x)
-        q[q_dynamics.get_q_u_indices_into_x()] = qu
-        q[q_dynamics.get_q_a_indices_into_x()] = x[
-            q_dynamics.get_q_a_indices_into_x()
-        ]
+        q = np.zeros(q_sim.dim_x)
+        q[ind_q_u] = qu
+        q[ind_q_a] = x[ind_q_a]
 
-        if not is_collision(q_dynamics, q):
-            q_dynamics.q_sim_py.update_mbp_positions_from_vector(q)
-            q_dynamics.q_sim_py.draw_current_configuration()
-            input()
-            return q[q_dynamics.get_q_a_indices_into_x()]
-
+        if not is_collision(q_sim, q):
+            return q[ind_q_a]
 
 def test_collision():
     h = 0.01
 
     q_parser = QuasistaticParser(q_model_path_planar)
-    q_dynamics = QuasistaticDynamics(
-        h=h, q_model_path=q_model_path_planar, internal_viz=True
-    )
     q_sim = q_parser.make_simulator_cpp()
     plant = q_sim.get_plant()
 
