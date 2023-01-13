@@ -10,7 +10,6 @@ import pickle
 from tqdm import tqdm
 
 from pydrake.all import MultibodyPlant, RigidTransform, RollPitchYaw
-from pydrake.systems.meshcat_visualizer import AddTriad
 
 from qsim.parser import QuasistaticParser
 from qsim.model_paths import models_dir
@@ -18,8 +17,6 @@ from qsim_cpp import ForwardDynamicsMode, GradientMode
 
 from control.controller_system import ControllerParams
 
-from irs_mpc.irs_mpc_params import BundleMode
-from irs_mpc.quasistatic_dynamics import QuasistaticDynamics
 from irs_rrt.irs_rrt import IrsNode, IrsRrt
 from irs_rrt.irs_rrt_projection import IrsRrtProjection
 from irs_rrt.rrt_params import IrsRrtProjectionParams
@@ -47,8 +44,14 @@ with open(pickled_tree_path, "rb") as f:
 with open(qu_trj_path, "rb") as f:
     trj_dict = pickle.load(f)
 
-prob_rrt = IrsRrt.make_from_pickled_tree(tree)
-q_dynamics = prob_rrt.q_dynamics
+prob_rrt = IrsRrt.make_from_pickled_tree(tree, internal_vis=True)
+q_sim = prob_rrt.q_sim
+q_sim_py = prob_rrt.q_sim_py
+q_vis = QuasistaticVisualizer(q_sim, q_sim_py)
+dim_x = prob_rrt.dim_x
+dim_u = prob_rrt.dim_u
+idx_q_a = q_sim.get_q_a_indices_into_q()
+idx_q_u = q_sim.get_q_u_indices_into_q()
 
 q_knots_ref_list = trj_dict["q_trj_list"]
 u_knots_ref_list = trj_dict["u_trj_list"]
@@ -56,17 +59,17 @@ u_knots_ref_list = trj_dict["u_trj_list"]
 q_knots_patched_list = []
 u_knots_patched_list = []
 
-q_knots_total = np.zeros((0, q_dynamics.dim_x))
-u_knots_total = np.zeros((0, q_dynamics.dim_u))
+q_knots_total = np.zeros((0, dim_x))
+u_knots_total = np.zeros((0, dim_u))
 
 n_segment = len(q_knots_ref_list)
 
 for n in range(n_segment - 1):
-    qa_start = q_knots_ref_list[n][-1, q_dynamics.get_q_a_indices_into_x()]
-    qa_end = q_knots_ref_list[n + 1][0, q_dynamics.get_q_a_indices_into_x()]
+    qa_start = q_knots_ref_list[n][-1, idx_q_a]
+    qa_end = q_knots_ref_list[n + 1][0, idx_q_a]
 
-    qu_start = q_knots_ref_list[n][-1, q_dynamics.get_q_u_indices_into_x()]
-    qu_end = q_knots_ref_list[n + 1][0, q_dynamics.get_q_u_indices_into_x()]
+    qu_start = q_knots_ref_list[n][-1, idx_q_u]
+    qu_end = q_knots_ref_list[n + 1][0, idx_q_u]
 
     # q_dynamics.q_sim_py.update_mbp_positions_from_vector(q_knots_ref_list[n][-1])
     # q_dynamics.q_sim_py.draw_current_configuration()
@@ -76,11 +79,11 @@ for n in range(n_segment - 1):
     # input()
 
     ##
-    qin = step_out(q_dynamics, q_knots_ref_list[n][-1])
-    qout = step_out(q_dynamics, q_knots_ref_list[n + 1][0])
+    qin = step_out(q_sim, q_sim_py, q_knots_ref_list[n][-1])
+    qout = step_out(q_sim, q_sim_py, q_knots_ref_list[n + 1][0])
 
-    qa_in = qin[q_dynamics.get_q_a_indices_into_x()]
-    qa_out = qout[q_dynamics.get_q_a_indices_into_x()]
+    qa_in = qin[idx_q_a]
+    qa_out = qout[idx_q_a]
     ##
 
     cf_params = RrtParams()
@@ -92,22 +95,22 @@ for n in range(n_segment - 1):
     cf_params.max_size = 20000
 
     cf_rrt = CollisionFreeRRT(prob_rrt, cf_params, qu_start)
-    cf_rrt.q_lb = np.zeros(q_dynamics.dim_x)
-    cf_rrt.q_lb[q_dynamics.get_q_a_indices_into_x()] = (
+    cf_rrt.q_lb = np.zeros(dim_x)
+    cf_rrt.q_lb[idx_q_a] = (
         np.minimum(qa_start, qa_end) - 0.3
     )
-    cf_rrt.q_lb[q_dynamics.get_q_a_indices_into_x()] = np.maximum(
-        cf_rrt.q_lb[q_dynamics.get_q_a_indices_into_x()],
-        prob_rrt.q_lb[q_dynamics.get_q_a_indices_into_x()],
+    cf_rrt.q_lb[idx_q_a] = np.maximum(
+        cf_rrt.q_lb[idx_q_a],
+        prob_rrt.q_lb[idx_q_a],
     )
 
-    cf_rrt.q_ub = np.zeros(q_dynamics.dim_x)
-    cf_rrt.q_ub[q_dynamics.get_q_a_indices_into_x()] = (
+    cf_rrt.q_ub = np.zeros(dim_x)
+    cf_rrt.q_ub[idx_q_a] = (
         np.maximum(qa_start, qa_end) + 0.3
     )
-    cf_rrt.q_ub[q_dynamics.get_q_a_indices_into_x()] = np.minimum(
-        cf_rrt.q_ub[q_dynamics.get_q_a_indices_into_x()],
-        prob_rrt.q_ub[q_dynamics.get_q_a_indices_into_x()],
+    cf_rrt.q_ub[idx_q_a] = np.minimum(
+        cf_rrt.q_ub[idx_q_a],
+        prob_rrt.q_ub[idx_q_a],
     )
 
     cf_rrt.iterate()
@@ -122,11 +125,8 @@ for n in range(n_segment - 1):
         (patch_trj, np.linspace(qout, q_knots_ref_list[n + 1][0], 20))
     )
 
-    q_dict_lst = []
-    for t in range(patch_trj.shape[0]):
-        q_dict_lst.append(q_dynamics.get_q_dict_from_x(patch_trj[t]))
-    q_dynamics.q_sim_py.animate_system_trajectory(0.1, q_dict_lst)
-    # input()
+    print(patch_trj.shape)
+    q_vis.publish_trajectory(patch_trj, 0.1)
 
     q_knots_total = np.vstack((q_knots_total, q_knots_ref_list[n]))
     q_knots_total = np.vstack((q_knots_total, patch_trj))
@@ -136,18 +136,14 @@ for n in range(n_segment - 1):
 
     u_knots_patched_list.append(u_knots_ref_list[n])
     u_knots_patched_list.append(
-        patch_trj[1:, q_dynamics.get_q_a_indices_into_x()]
+        patch_trj[1:, idx_q_a]
     )
 
 q_knots_total = np.vstack((q_knots_total, q_knots_ref_list[-1]))
 q_knots_patched_list.append(q_knots_ref_list[-1])
 u_knots_patched_list.append(u_knots_ref_list[-1])
 #%%
-q_dict_lst = []
-for t in range(q_knots_total.shape[0]):
-    q_dict_lst.append(q_dynamics.get_q_dict_from_x(q_knots_total[t]))
-
-q_dynamics.q_sim_py.animate_system_trajectory(0.1, q_dict_lst)
+q_vis.publish_trajectory(q_knots_total, 0.1)
 
 #%%
 with open("bimanual_patched_q_and_u_trj.pkl", "wb") as f:

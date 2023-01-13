@@ -18,7 +18,7 @@ from pydrake.all import (
     LcmInterfaceSystem,
     LcmSubscriberSystem,
     LcmScopeSystem,
-    MeshcatVisualizerCpp,
+    MeshcatVisualizer,
     Quaternion,
 )
 
@@ -54,7 +54,7 @@ builder = DiagramBuilder()
 plant, scene_graph, robot_models, object_models = add_mbp_scene_graph(
     parser, builder
 )
-visualizer = MeshcatVisualizerCpp.AddToBuilder(builder, scene_graph, meshcat)
+visualizer = MeshcatVisualizer.AddToBuilder(builder, scene_graph, meshcat)
 diagram = builder.Build()
 
 # Create context for diagram.
@@ -89,7 +89,7 @@ def draw_q(channel, data):
     q_scope_msg = lcmt_scope.decode(data)
     q = np.array(q_scope_msg.value)
     plant.SetPositions(context_plant, q)
-    visualizer.Publish(context_vis)
+    visualizer.ForcedPublish(context_vis)
     q_u = q[q_sim.get_q_u_indices_into_q()]
     X_WB = RigidTransform(Quaternion(q_u[:4]), q_u[4:])
     meshcat.SetTransform("plant/box/box/frame", X_WB)

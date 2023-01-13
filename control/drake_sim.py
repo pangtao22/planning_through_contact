@@ -27,6 +27,8 @@ from .controller_system import ControllerParams, ControllerSystem
 from .controller_planar_iiwa_bimanual import IiwaBimanualPlanarControllerSystem
 
 CreateControllerPlantFunction = Callable[[np.ndarray], MultibodyPlant]
+kQTrjSrcName = "QTrajectorySource"
+kUTrjSrcName = "UTrajectorySource"
 
 
 def calc_q_and_u_extended_and_t_knots(
@@ -67,12 +69,33 @@ def calc_q_and_u_extended_and_t_knots(
 def load_ref_trajectories(file_path: str, v_limit: float):
     with open(file_path, "rb") as f:
         trj_dict = pickle.load(f)
-    q_knots_ref = trj_dict["x_trj"]
-    u_knots_ref = trj_dict["u_trj"]
+    q_knots_ref_list_original = trj_dict["q_trj_list"]
+    u_knots_ref_list_original = trj_dict["u_trj_list"]
 
-    return calc_q_and_u_extended_and_t_knots(
-        None, q_knots_ref, u_knots_ref, v_limit
-    )
+    n_segments = len(q_knots_ref_list_original)
+    assert n_segments == len(u_knots_ref_list_original)
+
+    q_knots_ref_list = []
+    u_knots_ref_list = []
+    t_knots_list = []
+
+    for i in range(n_segments):
+        (
+            q_knots_ref,
+            u_knots_ref,
+            t_knots,
+        ) = calc_q_and_u_extended_and_t_knots(
+            q_knots_ref=q_knots_ref_list_original[i],
+            u_knots_ref=u_knots_ref_list_original[i],
+            u_knot_ref_start=None,
+            v_limit=v_limit,
+        )
+
+        q_knots_ref_list.append(q_knots_ref)
+        u_knots_ref_list.append(u_knots_ref)
+        t_knots_list.append(t_knots)
+
+    return q_knots_ref_list, u_knots_ref_list, t_knots_list
 
 
 def add_mbp_scene_graph(
@@ -138,7 +161,7 @@ def make_controller_mbp_diagram(
     q_parser_mbp: QuasistaticParser,
     q_sim_mbp: QuasistaticSimulatorCpp,
     q_sim_q_control: QuasistaticSimulatorCpp,
-    t_knots: np.ndarray,
+    t_knots: Union[np.ndarray, None],
     u_knots_ref: np.ndarray,
     q_knots_ref: np.ndarray,
     controller_params: ControllerParams,
@@ -146,8 +169,10 @@ def make_controller_mbp_diagram(
     closed_loop: bool,
 ):
     """
-    @param: h_ref_knot: the duration (in seconds) between adjacent know
-        points in the reference trajectory stored in plan_path.
+    @param: t_knots: a list of times for u_knots and q_knots. If it is None,
+    u_knots and q_knots are simply placeholder vectors of the right length.
+    The actual trajectory in the trajectory sources are updated afterwards
+    when running the simulations.
     """
     builder = DiagramBuilder()
 
@@ -170,7 +195,7 @@ def make_controller_mbp_diagram(
         controller_plant_makers=create_controller_plant_functions,
     )
 
-    # Add Quasistatic Robot Controller System and trajectory sources
+    # Add Quasi-static Robot Controller System and trajectory sources.
     controller_robots, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
         builder=builder,
         t_knots=t_knots,
@@ -251,12 +276,17 @@ def add_controller_system_to_diagram(
     |trj_src_u| ---> |                  |
     """
     # Create trajectory sources.
-    u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
-    q_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
+    if t_knots is None:
+        q_ref_trj = PiecewisePolynomial(q_knots_ref)
+        u_ref_trj = PiecewisePolynomial(u_knots_ref)
+    else:
+        u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
+        q_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
+
     trj_src_u = TrajectorySource(u_ref_trj)
     trj_src_q = TrajectorySource(q_ref_trj)
-    trj_src_u.set_name("u_src")
-    trj_src_q.set_name("q_src")
+    trj_src_u.set_name(kUTrjSrcName)
+    trj_src_q.set_name(kQTrjSrcName)
 
     # Allegro controller system.
     if q_sim_mbp == q_sim_q_control:
