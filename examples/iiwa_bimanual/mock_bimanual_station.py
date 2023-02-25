@@ -18,6 +18,8 @@ from pydrake.all import (
     Simulator,
     ModelInstanceIndex,
     LcmScopeSystem,
+    MeshcatVisualizer,
+    StartMeshcat,
 )
 from qsim.parser import QuasistaticParser
 from qsim_cpp import QuasistaticSimulatorCpp
@@ -139,7 +141,8 @@ plant, scene_graph, robot_models, object_models = add_mbp_scene_graph(
 )
 
 # Add visualizer.
-meshcat_vis = ConnectMeshcatVisualizer(builder, scene_graph)
+meshcat = StartMeshcat()
+meshcat_vis = MeshcatVisualizer.AddToBuilder(builder, scene_graph, meshcat)
 
 # Impedance (PD) controller for robots, with gravity compensation.
 models_actuated = q_sim.get_actuated_models()
