@@ -34,6 +34,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("tree_file_path", type=str)
 parser.add_argument("--two_d", default=False, action="store_true")
 parser.add_argument("--draw_ellipsoids", default=False, action="store_true")
+parser.add_argument("--port", default=8050, type=int)
 args = parser.parse_args()
 
 # %% Construct computational tools.
@@ -610,4 +611,4 @@ if __name__ == "__main__":
     plt.hist(ellipsoid_volumes, bins=50)
     plt.title("ellipsoid_volumes")
     plt.show()
-    app.run_server(debug=False)
+    app.run_server(debug=False, port=args.port)

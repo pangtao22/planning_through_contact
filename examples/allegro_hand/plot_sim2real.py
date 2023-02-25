@@ -193,6 +193,7 @@ system_names = [
     "allegro_hand_plate",
     "planar_pushing",
     "planar_hand",
+    "iiwa_bimanual",
 ]
 
 for system_name in system_names:
@@ -226,7 +227,7 @@ axes[0].set_xscale("log")
 axes[0].set_yscale("log")
 axes[0].legend()
 axes[0].axis("equal")
-axes[0].plot(x, y, color='b', linestyle='--')
+axes[0].plot(x, y, color="b", linestyle="--")
 
 axes[1].set_xlabel("path length [rad]")
 axes[1].set_ylabel("Average angular error [rad]")
@@ -234,7 +235,7 @@ axes[1].set_xscale("log")
 axes[1].set_yscale("log")
 axes[1].legend()
 axes[1].axis("equal")
-axes[1].plot(x, y, color='b', linestyle='--')
+axes[1].plot(x, y, color="b", linestyle="--")
 
 
 plt.show()
