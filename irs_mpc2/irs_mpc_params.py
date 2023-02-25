@@ -20,6 +20,23 @@ class SmoothingMode(enum.Enum):
     k0Icecream = enum.auto()
 
 
+class BundleMode(enum.Enum):
+    """
+    This is kept around for backward compatibility with earlier versions of
+    pickled RRT trees. It should NOT be used anywhere in IrsMpc.
+    """
+
+    # This is also used in IrsRrtParams to decide which smoothing scheme to use.
+    kFirstRandomized = enum.auto()
+    kFirstExact = enum.auto()
+    kFirstAnalytic = enum.auto()
+
+    # These have not been updated in a while and we are no longer sure if
+    # they behave...
+    kZeroB = enum.auto()
+    kZeroAB = enum.auto()
+
+
 kSmoothingMode2ForwardDynamicsModeMap = {
     SmoothingMode.kNonePyramid: ForwardDynamicsMode.kQpMp,
     SmoothingMode.kNoneIcecream: ForwardDynamicsMode.kSocpMp,
@@ -89,3 +106,6 @@ class IrsMpcQuasistaticParameters:
         self.calc_log_barrier_weight = None
 
         self.enforce_joint_limits = False
+
+        # backward compatibility
+        self.bundle_mode = BundleMode.kFirstRandomized

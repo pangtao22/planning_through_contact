@@ -1,5 +1,5 @@
 import copy, time
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -24,6 +24,7 @@ from .irs_mpc_params import (
     kSmoothingMode2ForwardDynamicsModeMap,
     k1RandomizedSmoothingModes,
     kAnalyticSmoothingModes,
+    k0RandomizedSmoothingModes,
 )
 from .quasistatic_visualizer import QuasistaticVisualizer
 from .mpc import solve_mpc
@@ -250,6 +251,80 @@ class IrsMpcQuasistatic:
         }
         return result
 
+    def calc_B_zero_order(
+        self,
+        x_nominal: np.ndarray,
+        u_nominal: np.ndarray,
+        n_samples: int,
+        std_u: Union[np.ndarray, float],
+        sim_p: QuasistaticSimParameters,
+    ):
+        """
+        Computes B:=df/du using least-square fit, and A:=df/dx using the
+            exact gradient at x_nominal and u_nominal.
+        :param std_u: standard deviation of the normal distribution when
+            sampling u.
+        """
+        n_x = self.dim_x
+        n_u = self.dim_u
+        x_next_nominal = self.q_sim.calc_dynamics(x_nominal, u_nominal, sim_p)
+        Bhat = np.zeros((n_x, n_u))
+
+        du = np.random.normal(0, std_u, size=[n_samples, self.dim_u])
+        results = self.q_sim_batch.calc_dynamics_parallel(
+            np.tile(x_nominal, (n_samples, 1)), u_nominal + du, sim_p
+        )
+
+        x_next, _, _, is_valid = results
+        dx_next = x_next - x_next_nominal
+
+        x_next_smooth = np.mean(x_next[is_valid], axis=0)
+        Bhat = np.linalg.lstsq(du[is_valid], dx_next[is_valid], rcond=None)[
+            0
+        ].transpose()
+        return Bhat, x_next_smooth
+
+    def calc_AB_zero_order(
+        self,
+        x_nominal: np.ndarray,
+        u_nominal: np.ndarray,
+        n_samples: int,
+        std_u: Union[np.ndarray, float],
+        sim_p: QuasistaticSimParameters,
+    ):
+        """
+        Computes B:=df/du using least-square fit, and A:=df/dx using the
+            exact gradient at x_nominal and u_nominal.
+        :param std_u: standard deviation of the normal distribution when
+            sampling u.
+        """
+        n_x = self.dim_x
+        n_u = self.dim_u
+        x_next_nominal = self.q_sim.calc_dynamics(x_nominal, u_nominal, sim_p)
+
+        dx = np.random.normal(0, 0.001, size=[n_samples, self.dim_x])
+        du = np.random.normal(0, std_u, size=[n_samples, self.dim_u])
+
+        dxdu = np.hstack((dx, du))
+
+        results = self.q_sim_batch.calc_dynamics_parallel(
+            x_nominal + dx, u_nominal + du, sim_p
+        )
+
+        x_next, _, _, is_valid = results
+        dx_next = x_next - x_next_nominal
+
+        x_next_smooth = np.mean(x_next[is_valid], axis=0)
+
+        ABhat = np.linalg.lstsq(dxdu[is_valid], dx_next[is_valid], rcond=None)[
+            0
+        ].transpose()
+
+        Ahat = ABhat[:, n_x]
+        Bhat = ABhat[:, n_x : n_x + n_u]
+
+        return Ahat, Bhat, x_next_smooth
+
     def calc_bundled_ABc_trj(self, x_trj: np.ndarray, u_trj: np.ndarray):
         """
         Computes bundled linearized dynamics for the given x and u trajectories.
@@ -260,6 +335,7 @@ class IrsMpcQuasistatic:
         """
         T = len(u_trj)
         sim_p = copy.deepcopy(self.sim_params)
+        sim_p.calc_contact_forces = False
         if self.irs_mpc_params.smoothing_mode in k1RandomizedSmoothingModes:
             std_u = self.irs_mpc_params.calc_std_u(
                 self.irs_mpc_params.std_u_initial, self.current_iter + 1
@@ -292,6 +368,29 @@ class IrsMpcQuasistatic:
 
             if not all(is_valid):
                 raise RuntimeError("analytic smoothing failed.")
+        elif self.irs_mpc_params.smoothing_mode in k0RandomizedSmoothingModes:
+            std_u = self.irs_mpc_params.calc_std_u(
+                self.irs_mpc_params.std_u_initial, self.current_iter + 1
+            )
+            sim_p.gradient_mode = GradientMode.kNone
+            x_next_smooth_trj = np.zeros((T + 1, self.dim_x))
+            A_trj = np.zeros((T, self.dim_x, self.dim_x))
+            B_trj = np.zeros((T, self.dim_x, self.dim_u))
+
+            for t in range(T):
+                # TODO: handle irs_mpc_params.use_A = True.
+                Bhat, x_next_smooth = self.calc_B_zero_order(
+                    x_trj[t],
+                    u_trj[t],
+                    self.irs_mpc_params.n_samples_randomized,
+                    std_u,
+                    sim_p,
+                )
+                x_next_smooth_trj[t] = x_next_smooth
+
+                A_trj[t] = np.eye(self.dim_x)
+                B_trj[t] = Bhat
+
         else:
             raise NotImplementedError
 
@@ -332,6 +431,7 @@ class IrsMpcQuasistatic:
         :return: A(n_x, n_x), B(n_x, n_u), c(n_x,), x_next_nominal(n_x,).
         """
         sim_p = copy.deepcopy(self.sim_params)
+        sim_p.calc_contact_forces = False
         if self.irs_mpc_params.smoothing_mode in k1RandomizedSmoothingModes:
             std_u = self.irs_mpc_params.calc_std_u(
                 self.irs_mpc_params.std_u_initial, self.current_iter + 1
@@ -371,6 +471,30 @@ class IrsMpcQuasistatic:
             if self.irs_mpc_params.use_A:
                 A = self.q_sim.get_Dq_nextDq()
             B = self.q_sim.get_Dq_nextDqa_cmd()
+
+        elif self.irs_mpc_params.smoothing_mode in k0RandomizedSmoothingModes:
+            std_u = self.irs_mpc_params.calc_std_u(
+                self.irs_mpc_params.std_u_initial, self.current_iter + 1
+            )
+            sim_p.gradient_mode = GradientMode.kNone
+
+            if self.irs_mpc_params.use_A:
+                A, B, x_next_smooth = self.calc_AB_zero_order(
+                    x_nominal,
+                    u_nominal,
+                    self.irs_mpc_params.n_samples_randomized,
+                    std_u,
+                    sim_p,
+                )
+
+            else:
+                B, x_next_smooth = self.calc_B_zero_order(
+                    x_nominal,
+                    u_nominal,
+                    self.irs_mpc_params.n_samples_randomized,
+                    std_u,
+                    sim_p,
+                )
 
         else:
             raise NotImplementedError

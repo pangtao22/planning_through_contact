@@ -68,7 +68,7 @@ params.u_bounds_abs = np.array(
     [-np.ones(dim_u) * u_size * h, np.ones(dim_u) * u_size * h]
 )
 
-params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
+params.smoothing_mode = SmoothingMode.k0Pyramid
 # sampling-based bundling
 params.calc_std_u = lambda u_initial, i: u_initial / (i**0.8)
 params.std_u_initial = np.ones(dim_u) * 0.2
@@ -80,7 +80,7 @@ base = np.log(log_barrier_weight_final / params.log_barrier_weight_initial) / T
 base = np.exp(base)
 params.calc_log_barrier_weight = lambda kappa0, i: kappa0 * (base**i)
 
-params.use_A = True
+params.use_A = False
 params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
 
 prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
@@ -95,16 +95,14 @@ x0 = q_sim.get_q_vec_from_dict(q0_dict)
 u0 = q_sim.get_q_a_cmd_vec_from_dict(q0_dict)
 xd = q_sim.get_q_vec_from_dict(qd_dict)
 
-q_sim_py = q_parser.make_simulator_py(internal_vis=True)
-q_sim_py.update_mbp_positions_from_vector(x0)
-q_sim_py.draw_current_configuration()
+q_vis.draw_configuration(x0)
 
 x_trj_d = np.tile(xd, (T + 1, 1))
 u_trj_0 = np.tile(u0, (T, 1))
 prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 
 # %%
-n_runs = 5
+n_runs = 1
 costs = np.zeros((n_runs, 21))
 for i in range(n_runs):
     prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
