@@ -1,29 +1,18 @@
 #!/usr/bin/env python3
-import copy
 import time
-import pickle
-import matplotlib.pyplot as plt
-import numpy as np
 
 from pydrake.all import (
-    PiecewisePolynomial,
-    RotationMatrix,
     AngleAxis,
     Quaternion,
     RigidTransform,
 )
 from pydrake.math import RollPitchYaw
-from manipulation.meshcat_utils import AddMeshcatTriad
-
 from qsim.parser import QuasistaticParser
-from qsim.simulator import QuasistaticSimulator, GradientMode
-from qsim_cpp import QuasistaticSimulatorCpp, GradientMode, ForwardDynamicsMode
 
+from allegro_hand_setup import *
 from irs_mpc2.irs_mpc import IrsMpcQuasistatic
 from irs_mpc2.irs_mpc_params import SmoothingMode, IrsMpcQuasistaticParameters
 from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
-
-from allegro_hand_setup import *
 
 # %% sim setup
 h = 0.01
@@ -109,8 +98,7 @@ params.use_A = False
 params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
 
 prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
-# %%
-q_vis.draw_configuration(q_sim.get_q_vec_from_dict(q0_dict))
+
 
 # %%
 Q_WB_d = RollPitchYaw(0, 0, np.pi / 6).ToQuaternion()
@@ -123,14 +111,8 @@ x_trj_d = np.tile(xd, (T + 1, 1))
 u_trj_0 = np.tile(u0, (T, 1))
 prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 
-# %%
-t0 = time.time()
-prob_mpc.iterate(max_iterations=max_iterations, cost_Qu_f_threshold=1)
-t1 = time.time()
-
-print(f"iterate took {t1 - t0} seconds.")
-
 # %% visualize goal.
+q_vis.draw_configuration(q_sim.get_q_vec_from_dict(q0_dict))
 q_vis.draw_object_triad(
     length=0.1, radius=0.001, opacity=1, path="sphere/sphere"
 )
@@ -141,6 +123,13 @@ q_vis.draw_goal_triad(
     opacity=0.5,
     X_WG=RigidTransform(Q_WB_d, p_WB_d),
 )
+
+# %%
+t0 = time.time()
+prob_mpc.iterate(max_iterations=max_iterations, cost_Qu_f_threshold=1)
+t1 = time.time()
+
+print(f"iterate took {t1 - t0} seconds.")
 
 # %% Rollout trajectory according to the real physics.
 x_trj_to_publish = prob_mpc.rollout(
