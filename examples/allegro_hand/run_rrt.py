@@ -13,7 +13,7 @@ from allegro_hand_setup import *
 
 from pydrake.math import RollPitchYaw
 
-# %% quasistatic dynamical system
+# %%
 q_parser = QuasistaticParser(q_model_path)
 q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
 q_sim, q_sim_py = q_vis.q_sim, q_vis.q_sim_py
@@ -75,8 +75,7 @@ joint_limits = {
     idx_a: np.zeros([num_joints, 2]),
 }
 
-# %% RRT testing
-# IrsRrt params
+# %% IrsRrt params
 rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits)
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
 rrt_params.root_node = IrsNode(q0)
