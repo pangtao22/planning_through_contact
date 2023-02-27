@@ -52,8 +52,9 @@ class IrsRrtProjection(IrsRrt):
         # For prettier tqdm bar in jupyter notebooks.
         if "get_ipython" in locals():
             if get_ipython().__class__.__name__ == "ZMQInteractiveShell":
+                print("Running in a jupyter notebook!")
                 from tqdm.notebook import tqdm
-                
+
         pbar = tqdm(total=self.max_size)
 
         while self.size < self.rrt_params.max_size:
