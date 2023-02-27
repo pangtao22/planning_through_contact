@@ -49,6 +49,11 @@ class IrsRrtProjection(IrsRrt):
         """
         Main method for iteration.
         """
+        # For prettier tqdm bar in jupyter notebooks.
+        if "get_ipython" in locals():
+            if get_ipython().__class__.__name__ == "ZMQInteractiveShell":
+                from tqdm.notebook import tqdm
+                
         pbar = tqdm(total=self.max_size)
 
         while self.size < self.rrt_params.max_size:
