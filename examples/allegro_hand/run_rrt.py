@@ -99,7 +99,9 @@ rrt_params.std_u = 0.1
 rrt_params.grasp_prob = 0.2
 rrt_params.h = 0.1
 
-#%% draw the goals
+rrt_params.use_free_solvers = True
+
+# %% draw the goals
 for i in range(5):
     prob_rrt = IrsRrtProjection3D(rrt_params, contact_sampler, q_sim, q_sim_py)
     q_vis.draw_object_triad(

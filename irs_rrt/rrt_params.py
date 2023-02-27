@@ -61,6 +61,10 @@ class IrsRrtParams(RrtParams):
         # TODO(terry-suh): the selection of this parameter should be automated.
         self.stepsize = 0.3
 
+        # When set to True, this field ensures that Gurobi and Mosek are not
+        # used anywhere.
+        self.use_free_solvers = False
+
 
 class IrsRrtProjectionParams(IrsRrtParams):
     def __init__(self, q_model_path, joint_limits):
