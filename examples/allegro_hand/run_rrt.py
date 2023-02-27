@@ -13,7 +13,7 @@ from allegro_hand_setup import *
 
 from pydrake.math import RollPitchYaw
 
-# %% quasistatic dynamical system
+# %%
 q_parser = QuasistaticParser(q_model_path)
 q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
 q_sim, q_sim_py = q_vis.q_sim, q_vis.q_sim_py
@@ -75,8 +75,7 @@ joint_limits = {
     idx_a: np.zeros([num_joints, 2]),
 }
 
-# %% RRT testing
-# IrsRrt params
+# %% IrsRrt params
 rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits)
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
 rrt_params.root_node = IrsNode(q0)
@@ -100,9 +99,14 @@ rrt_params.std_u = 0.1
 rrt_params.grasp_prob = 0.2
 rrt_params.h = 0.1
 
-#%% draw the goals
+# %% use free solvers?
+use_free_solvers = False
+rrt_params.use_free_solvers = use_free_solvers
+contact_sampler.sim_params.use_free_solvers = use_free_solvers
+# %% draw the goals
 for i in range(5):
     prob_rrt = IrsRrtProjection3D(rrt_params, contact_sampler, q_sim, q_sim_py)
+
     q_vis.draw_object_triad(
         length=0.1, radius=0.001, opacity=1, path="sphere/sphere"
     )

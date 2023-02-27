@@ -6,6 +6,7 @@ from qsim.simulator import QuasistaticSimulator
 from qsim_cpp import QuasistaticSimulatorCpp
 from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
 
+# from tests.context import examples
 from examples.allegro_hand.allegro_hand_setup import *
 
 

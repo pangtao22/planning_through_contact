@@ -85,6 +85,7 @@ class IrsRrt(Rrt):
         self.sim_params.forward_mode = kSmoothingMode2ForwardDynamicsModeMap[
             rrt_params.smoothing_mode
         ]
+        self.sim_params.use_free_solvers = rrt_params.use_free_solvers
 
         # TODO(pang): what does self.load_params() do?
         self.rrt_params = self.load_joint_limits_dict(rrt_params)
@@ -602,10 +603,9 @@ class IrsRrt(Rrt):
         error = np.linalg.norm(q_u_0 - q_u_1)
         return error, error
 
-
     def get_calc_q_u_diff(self):
         # TODO(terry-suh): this  doesn't seem like the right if statement.
-        # What if there are 3 dofs but they're in joint-space instead of 
+        # What if there are 3 dofs but they're in joint-space instead of
         # SE(2)? ditto for 7.
         if self.dim_q_u == 3:
             return self.calc_q_u_diff_SE2

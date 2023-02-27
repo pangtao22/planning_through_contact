@@ -7,7 +7,14 @@ from qsim.simulator import QuasistaticSimulator
 from irs_rrt.contact_sampler import ContactSampler
 from irs_rrt.irs_rrt import IrsRrtParams, IrsRrt, IrsNode, IrsEdge
 from irs_rrt.rrt_base import Node
+
+# For prettier tqdm bar in jupyter notebooks.
 from tqdm import tqdm
+
+if "get_ipython" in locals() or "get_ipython" in globals():
+    if get_ipython().__class__.__name__ == "ZMQInteractiveShell":
+        print("Running in a jupyter notebook!")
+        from tqdm.notebook import tqdm
 
 
 class IrsRrtProjection(IrsRrt):
@@ -49,6 +56,7 @@ class IrsRrtProjection(IrsRrt):
         """
         Main method for iteration.
         """
+
         pbar = tqdm(total=self.max_size)
 
         while self.size < self.rrt_params.max_size:
