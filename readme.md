@@ -10,3 +10,6 @@ This repo provides implementation of model-based planners for contact-rich manip
 Details of the planning algorithms can be found in 
 - [Global Planning for Contact-Rich Manipulation via
 Local Smoothing of Quasi-dynamic Contact Models](https://arxiv.org/abs/2206.10787), currently under review.
+
+Our quasidynamic simulator can be found in 
+- https://github.com/pangtao22/quasistatic_simulator
