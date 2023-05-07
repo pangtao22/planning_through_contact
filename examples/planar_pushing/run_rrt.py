@@ -29,8 +29,7 @@ dim_x = q_sim.num_dofs()
 dim_u = q_sim.num_actuated_dofs()
 idx_a = plant.GetModelInstanceByName(robot_name)
 idx_u = plant.GetModelInstanceByName(object_name)
-contact_sampler = PlanarPushingContactSampler(
-    q_sim=q_sim, q_sim_py=q_sim_py)
+contact_sampler = PlanarPushingContactSampler(q_sim=q_sim, q_sim_py=q_sim_py)
 
 q_u0 = np.array([0.0, 0.5, 0])
 x0 = contact_sampler.sample_contact(q_u0)
@@ -41,7 +40,9 @@ joint_limits = {
 }
 
 # %% RRT Testing
-rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits)
+rrt_params = IrsRrtProjectionParams()
+rrt_params.q_model_path = q_model_path
+rrt_params.joint_limits = joint_limits
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticPyramid
 rrt_params.log_barrier_weight_for_bundling = 100
 rrt_params.root_node = IrsNode(x0)
@@ -62,15 +63,12 @@ rrt_params.global_metric = np.array([20, 20, 20, 1e-3, 1e-3])
 prob_rrt = IrsRrtProjection(rrt_params, contact_sampler, q_sim, q_sim_py)
 prob_rrt.iterate()
 
+
+# %%
 d_batch = prob_rrt.calc_distance_batch(rrt_params.goal)
 print("minimum distance: ", d_batch.min())
-
-# %%
-node_id_closest = np.argmin(d_batch)
-
-# %%
-prob_rrt.save_tree(f"tree_{rrt_params.max_size}_{0}.pkl")
-# prob_rrt.save_tree(os.path.join(
-#     data_folder,
-#     "randomized",
-#     f"tree_{params.max_size}_{0}.pkl"))
+(
+    q_knots_trimmed,
+    u_knots_trimmed,
+) = prob_rrt.get_trimmed_q_and_u_knots_to_goal()
+q_vis.publish_trajectory(q_knots_trimmed, h=rrt_params.h)

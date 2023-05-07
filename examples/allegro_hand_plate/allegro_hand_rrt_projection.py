@@ -13,7 +13,7 @@ from contact_sampler_allegro_plate import AllegroHandPlateContactSampler
 from pydrake.multibody.tree import JointIndex
 from pydrake.math import RollPitchYaw
 
-#%% quasistatic dynamical system
+# %% quasistatic dynamical system
 q_dynamics = QuasistaticDynamics(
     h=h, q_model_path=q_model_path, internal_viz=True
 )
@@ -80,47 +80,53 @@ joint_limits[idx_a][0, :] = joint_limits[idx_u][4, :]
 joint_limits[idx_a][1, :] = joint_limits[idx_u][5, :]
 joint_limits[idx_a][2, :] = joint_limits[idx_u][6, :]
 
-#%% RRT testing
+# %% RRT testing
 # IrsRrt params
-params = IrsRrtProjectionParams(q_model_path, joint_limits)
-params.smoothing_mode = BundleMode.kFirstAnalytic
-params.root_node = IrsNode(x0)
-params.max_size = 1000
-params.goal = np.copy(x0)
+rrt_params = IrsRrtProjectionParams()
+rrt_params.q_model_path = q_model_path
+rrt_params.joint_limits = joint_limits
+rrt_params.smoothing_mode = BundleMode.kFirstAnalytic
+rrt_params.root_node = IrsNode(x0)
+rrt_params.max_size = 1000
+rrt_params.goal = np.copy(x0)
 Q_WB_d = RollPitchYaw(np.pi / 2, 0, 0).ToQuaternion()
-params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
-params.goal[q_dynamics.get_q_u_indices_into_x()[5]] = -0.3
-params.goal[q_dynamics.get_q_u_indices_into_x()[6]] = 0.3
-params.termination_tolerance = 0  # used in irs_rrt.iterate() as cost threshold.
-params.goal_as_subgoal_prob = 0.3
-params.rewire = False
-params.regularization = 1e-4
-params.distance_metric = "local_u"
+rrt_params.goal[q_dynamics.get_q_u_indices_into_x()[:4]] = Q_WB_d.wxyz()
+rrt_params.goal[q_dynamics.get_q_u_indices_into_x()[5]] = -0.3
+rrt_params.goal[q_dynamics.get_q_u_indices_into_x()[6]] = 0.3
+rrt_params.termination_tolerance = (
+    0  # used in irs_rrt.iterate() as cost threshold.
+)
+rrt_params.goal_as_subgoal_prob = 0.3
+rrt_params.rewire = False
+rrt_params.regularization = 1e-4
+rrt_params.distance_metric = "local_u"
 # params.distance_metric = 'global'  # If using global metric
-params.global_metric = np.ones(x0.shape) * 0.1
-params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
-params.quat_metric = 5
-params.distance_threshold = np.inf
-params.stepsize = 0.2
+rrt_params.global_metric = np.ones(x0.shape) * 0.1
+rrt_params.global_metric[num_joints:] = [0, 0, 0, 0, 1, 1, 1]
+rrt_params.quat_metric = 5
+rrt_params.distance_threshold = np.inf
+rrt_params.stepsize = 0.2
 std_u = 0.2 * np.ones(19)
 std_u[0:3] = 0.03
-params.std_u = std_u
-params.grasp_prob = 0.3
+rrt_params.std_u = std_u
+rrt_params.grasp_prob = 0.3
 
 
-#%%
+# %%
 for i in range(5):
     irs_rrt = IrsRrtProjection3D(
-        params,
+        rrt_params,
         contact_sampler,
         q_sim,
     )
     irs_rrt.iterate()
 
-    d_batch = irs_rrt.calc_distance_batch(params.goal)
+    d_batch = irs_rrt.calc_distance_batch(rrt_params.goal)
     print("minimum distance: ", d_batch.min())
 
     # %%
     irs_rrt.save_tree(
-        os.path.join(data_folder, "analytic", f"tree_{params.max_size}_{i}.pkl")
+        os.path.join(
+            data_folder, "analytic", f"tree_{rrt_params.max_size}_{i}.pkl"
+        )
     )

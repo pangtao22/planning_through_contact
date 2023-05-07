@@ -34,7 +34,9 @@ q_vis.draw_configuration(contact_sampler.sample_contact(q0))
 
 # %%
 joint_limits = {idx_u: np.array([[-1.0, 1.0]])}
-rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits=joint_limits)
+rrt_params = IrsRrtProjectionParams()
+rrt_params.q_model_path = q_model_path
+rrt_params.joint_limits = joint_limits
 rrt_params.h = 0.1
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticPyramid
 rrt_params.log_barrier_weight_for_bundling = 100

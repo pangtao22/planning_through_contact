@@ -130,10 +130,7 @@ class CollisionFreeRRT(Rrt):
         child_node = Node(xnext)
         child_node.subgoal = q
 
-        edge = Edge()
-        edge.parent = parent_node
-        edge.child = child_node
-        edge.cost = 0.0
+        edge = Edge(parent=parent_node, child=child_node, cost=0.0)
 
         q = np.zeros(self.dim_x)
         q[self.ind_q_u] = self.qu
@@ -154,7 +151,6 @@ class CollisionFreeRRT(Rrt):
 
             collision = True
             while collision:
-
                 # 1. Sample a subgoal.
                 if self.cointoss_for_goal():
                     subgoal = self.params.goal
@@ -221,13 +217,11 @@ class CollisionFreeRRT(Rrt):
         x_trj = np.zeros((path_T, self.dim_x))
 
         for i in range(path_T - 1):
-            x_trj[
-                i, self.ind_q_a
-            ] = self.get_node_from_id(path[i]).q
+            x_trj[i, self.ind_q_a] = self.get_node_from_id(path[i]).q
             x_trj[i, self.ind_q_u] = self.qu
-        x_trj[
-            path_T - 1, self.ind_q_a
-        ] = self.get_node_from_id(path[path_T - 1]).q
+        x_trj[path_T - 1, self.ind_q_a] = self.get_node_from_id(
+            path[path_T - 1]
+        ).q
         x_trj[path_T - 1, self.ind_q_u] = self.qu
 
         return x_trj
@@ -250,12 +244,8 @@ class CollisionFreeRRT(Rrt):
             # choose two random points on the path.
             ind_a, ind_b = np.sort(np.random.choice(T, 2, replace=False))
 
-            x_a = x_trj_shortcut[
-                ind_a, self.ind_q_a
-            ]
-            x_b = x_trj_shortcut[
-                ind_b, self.ind_q_a
-            ]
+            x_a = x_trj_shortcut[ind_a, self.ind_q_a]
+            x_b = x_trj_shortcut[ind_b, self.ind_q_a]
 
             if self.segment_has_no_collision(x_a, x_b, 100):
                 x_trj_shortcut[
@@ -263,6 +253,7 @@ class CollisionFreeRRT(Rrt):
                 ] = self.interpolate_traj(x_a, x_b, ind_b - ind_a)
 
         return x_trj_shortcut
+
 
 def step_out(q_sim, q_sim_py, x, scale=0.06, num_iters=3):
     """
@@ -392,6 +383,7 @@ def generate_random_configuration(q_sim, qu, q_lb, q_ub):
 
         if not is_collision(q_sim, q):
             return q[ind_q_a]
+
 
 def test_collision():
     h = 0.01

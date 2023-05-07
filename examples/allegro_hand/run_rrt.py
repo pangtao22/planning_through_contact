@@ -76,7 +76,9 @@ joint_limits = {
 }
 
 # %% IrsRrt params
-rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits)
+rrt_params = IrsRrtProjectionParams()
+rrt_params.q_model_path = q_model_path
+rrt_params.joint_limits = joint_limits
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
 rrt_params.root_node = IrsNode(q0)
 rrt_params.max_size = 1000

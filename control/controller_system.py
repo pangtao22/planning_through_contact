@@ -2,7 +2,7 @@ import copy
 import numpy as np
 
 from pydrake.all import LeafSystem, PortDataType, BasicVector, GurobiSolver, eq
-import pydrake.solvers.mathematicalprogram as mp
+from pydrake.solvers import MathematicalProgram
 
 from qsim_cpp import ForwardDynamicsMode, GradientMode, QuasistaticSimulatorCpp
 
@@ -137,7 +137,7 @@ class Controller:
             [distances_and_indices[0][1], distances_and_indices[1][1]]
         )
 
-        prog = mp.MathematicalProgram()
+        prog = MathematicalProgram()
         t = prog.NewContinuousVariables(1, "t")[0]
         q_t = prog.NewContinuousVariables(self.n_q, "q_t")
         q0 = self.q_nominal[indices_closest[0]]
@@ -204,7 +204,7 @@ class Controller:
         n_u = len(idx_q_u_into_q)
         n_a = self.q_sim.num_actuated_dofs()
 
-        prog = mp.MathematicalProgram()
+        prog = MathematicalProgram()
         q_u_next = prog.NewContinuousVariables(n_u, "q_u_+")
         u = prog.NewContinuousVariables(n_a, "u")
 

@@ -15,7 +15,7 @@ from pydrake.multibody.tree import JointIndex
 from pydrake.math import RollPitchYaw, RigidTransform
 
 
-#%% quasistatic dynamical system
+# %% quasistatic dynamical system
 q_parser = QuasistaticParser(q_model_path)
 q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
 q_sim, q_sim_py = q_vis.q_sim, q_vis.q_sim_py
@@ -54,7 +54,7 @@ q_a0 = np.array(
 )
 
 q_u0 = np.array([1, 0, 0, 0, 0.0, 0.0, 0.05])
-q0 = q_sim.get_q_vec_from_dict({idx_u:q_u0, idx_a: q_a0})
+q0 = q_sim.get_q_vec_from_dict({idx_u: q_u0, idx_a: q_a0})
 q_vis.draw_configuration(q0)
 
 num_joints = 19  # The last joint is weldjoint (welded to the world)
@@ -84,9 +84,11 @@ joint_limits[idx_a][0, :] = joint_limits[idx_u][4, :]
 joint_limits[idx_a][1, :] = joint_limits[idx_u][5, :]
 joint_limits[idx_a][2, :] = joint_limits[idx_u][6, :]
 
-#%% RRT testing
+# %% RRT testing
 # IrsRrt rrt_params
-rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits)
+rrt_params = IrsRrtProjectionParams()
+rrt_params.q_model_path = q_model_path
+rrt_params.joint_limits = joint_limits
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
 rrt_params.root_node = IrsNode(q0)
 rrt_params.max_size = 2000
@@ -113,11 +115,13 @@ rrt_params.std_u = std_u
 rrt_params.grasp_prob = 0.1
 
 prob_rrt = IrsRrtProjection3D(rrt_params, contact_sampler, q_sim, q_sim_py)
-q_vis.draw_object_triad(
-    length=0.1, radius=0.001, opacity=1, path="pen/pen"
+q_vis.draw_object_triad(length=0.1, radius=0.001, opacity=1, path="pen/pen")
+q_vis.draw_goal_triad(
+    length=0.4,
+    radius=0.01,
+    opacity=0.7,
+    X_WG=RigidTransform(Q_WB_d, np.array([0.15, 0.15, 0.15])),
 )
-q_vis.draw_goal_triad(length=0.4, radius=0.01, opacity=0.7,
-    X_WG=RigidTransform(Q_WB_d, np.array([0.15, 0.15, 0.15])))
 prob_rrt.iterate()
 
 d_batch = prob_rrt.calc_distance_batch(prob_rrt.rrt_params.goal)

@@ -49,7 +49,9 @@ joint_limits = {
     idx_a: np.zeros([num_joints, 2]),
 }
 
-rrt_params = IrsRrtProjectionParams(q_model_path_no_ground, joint_limits)
+rrt_params = IrsRrtProjectionParams()
+rrt_params.q_model_path = q_model_path
+rrt_params.joint_limits = joint_limits
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
 rrt_params.root_node = IrsNode(x0)
 rrt_params.max_size = 2000

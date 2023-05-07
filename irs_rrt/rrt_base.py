@@ -2,38 +2,10 @@ import pickle
 
 import networkx as nx
 import numpy as np
-from irs_rrt.rrt_params import RrtParams
+from irs_rrt.rrt_params import RrtParams, Node, Edge
 from tqdm import tqdm
 
 from dash_vis.dash_common import trace_nodes_to_root_from
-
-
-class Node:
-    """
-    Base node class. Owns all the attributes and methods related to a
-    single node. Add to nx.Digraph() using G.add_node(1, node=Node())
-    """
-
-    def __init__(self, q):
-        self.q = q  # np.array of states.
-        self.value = np.nan  # float.
-        self.id = np.nan  # int
-        # To extend the tree, a subgoal is sampled first, and then a new node
-        # that is "as close as possible" to the subgoal is added to the tree.
-        # This field stores the subgoal associated with the new node.
-        self.subgoal = None
-
-
-class Edge:
-    """
-    Base edge class. Owns all the attributes and methods related to an edge.
-    Add to nx.Digraph() using G.add_edge(1, 2, edge=Edge())
-    """
-
-    def __init__(self):
-        self.parent = None  # Node class.
-        self.child = None  # Node class.
-        self.cost = np.nan  # float
 
 
 class Rrt:

@@ -35,7 +35,9 @@ joint_limits = {
 }
 
 # %% RRT testing
-rrt_params = IrsRrtProjectionParams(q_model_path, joint_limits)
+rrt_params = IrsRrtProjectionParams()
+rrt_params.q_model_path = q_model_path
+rrt_params.joint_limits = joint_limits
 rrt_params.h = h
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticPyramid
 rrt_params.log_barrier_weight_for_bundling = 100
@@ -47,7 +49,7 @@ rrt_params.termination_tolerance = 0.01
 rrt_params.goal_as_subgoal_prob = 0.3
 rrt_params.regularization = 1e-4
 rrt_params.rewire = False
-rrt_params.grasp_prob = 0.
+rrt_params.grasp_prob = 0.3
 rrt_params.distance_threshold = np.inf
 rrt_params.stepsize = 0.35
 rrt_params.distance_metric = "local_u"

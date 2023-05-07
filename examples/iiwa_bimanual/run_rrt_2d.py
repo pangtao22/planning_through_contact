@@ -40,7 +40,9 @@ joint_limits = {
 
 q_u_goal = np.array([0.5, 0, -np.pi])
 
-rrt_params = IrsRrtProjectionParams(q_model_path_planar, joint_limits)
+rrt_params = IrsRrtProjectionParams()
+rrt_params.q_model_path = q_model_path
+rrt_params.joint_limits = joint_limits
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
 rrt_params.root_node = IrsNode(q0)
 rrt_params.max_size = 3000
@@ -64,7 +66,7 @@ rrt_params.h = 0.05
 
 rrt_params.enforce_robot_joint_limits = True
 
-#%%
+# %%
 draw_goal_and_object_triads_2d(q_vis, plant, q_u_goal)
 
 prob_rrt = IrsRrtProjection(rrt_params, contact_sampler, q_sim, q_sim_py)
@@ -76,4 +78,4 @@ q_vis.publish_trajectory(q_knots_trimmed, h=rrt_params.h)
 prob_rrt.save_tree("bimanual_planar.pkl")
 
 
-#%%
+# %%
