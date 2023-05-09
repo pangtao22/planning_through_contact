@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 
-import cProfile
-
+from pydrake.all import RigidTransform, RollPitchYaw
 from qsim.parser import QuasistaticParser
 
 from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
@@ -18,7 +17,6 @@ from planar_pushing_setup import *
 from contact_sampler import PlanarPushingContactSampler
 
 # %% quasistatic dynamical system
-
 q_parser = QuasistaticParser(q_model_path)
 
 q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
@@ -46,9 +44,10 @@ rrt_params.joint_limits = joint_limits
 rrt_params.smoothing_mode = SmoothingMode.k1AnalyticPyramid
 rrt_params.log_barrier_weight_for_bundling = 100
 rrt_params.root_node = IrsNode(x0)
-rrt_params.max_size = 500
+rrt_params.max_size = 5000
 rrt_params.goal = np.copy(x0)
 rrt_params.goal[1] = -0.5
+rrt_params.goal[2] = -3 * np.pi / 4
 rrt_params.termination_tolerance = 0.1
 rrt_params.goal_as_subgoal_prob = 0.1
 rrt_params.grasp_prob = 0.2
@@ -59,6 +58,17 @@ rrt_params.regularization = 1e-2
 rrt_params.distance_threshold = 50
 
 rrt_params.global_metric = np.array([20, 20, 20, 1e-3, 1e-3])
+
+q_vis.draw_object_triad(length=0.7, radius=0.01, opacity=1, path="box/box")
+Q_WB_d = RollPitchYaw(rrt_params.goal[2], 0, 0)
+p_WB_d = np.array([0, rrt_params.goal[0], rrt_params.goal[1]])
+q_vis.draw_goal_triad(
+    length=1.0,
+    radius=0.02,
+    opacity=0.7,
+    X_WG=RigidTransform(Q_WB_d, p_WB_d),
+)
+
 
 prob_rrt = IrsRrtProjection(rrt_params, contact_sampler, q_sim, q_sim_py)
 prob_rrt.iterate()
