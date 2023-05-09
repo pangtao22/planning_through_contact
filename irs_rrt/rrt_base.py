@@ -178,6 +178,9 @@ class Rrt:
         """
         Main method for iteration.
         """
+        # TODO (pang): this method is only used in euclidean_tree.py and
+        #  test_rrt_base.py. I should consider merging this with
+        #  IrsRrtProjection
         pbar = tqdm(total=self.max_size)
 
         while self.size < self.rrt_params.max_size:

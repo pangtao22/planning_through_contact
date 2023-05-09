@@ -1,3 +1,4 @@
+import numpy as np
 from qsim_cpp import QuasistaticSimulatorCpp
 from qsim.simulator import QuasistaticSimulator
 
@@ -15,7 +16,7 @@ class ContactSampler:
         #  QuasistaticSimulatorCpp.
         self.q_sim_py = q_sim_py
 
-    def sample_contact(self, q):
+    def sample_contact(self, q: np.ndarray):
         """
         Given a q, return a state vector that corresponds to a grasp
         configuration.

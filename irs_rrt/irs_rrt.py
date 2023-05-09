@@ -25,6 +25,7 @@ from qsim.parser import QuasistaticParser
 from qsim.model_paths import package_paths_dict
 
 
+# TODO(pang): convert these into dataclasses.
 class IrsNode(Node):
     """
     IrsNode. Each node is responsible for keeping a copy of the bundled dynamics
@@ -98,6 +99,11 @@ class IrsRrt(Rrt):
         self.dim_u = self.q_sim.num_actuated_dofs()
         self.dim_q_u = self.dim_x - self.dim_u
 
+        # TODO(pang?): the naming here is extremely confusing.
+        #  self.params.joint_limits is used for sampling subgoals. IIRC the
+        #  robot part of the sampled subgoal is ignored.
+        #  self.q_lb and self.q_ub is used to enforce the physical joint
+        #  limits (coming from URDFs) of the robots.
         self.q_lb, self.q_ub = self.get_joint_limits()
 
         # Initialize tensors for batch computation.
@@ -112,6 +118,8 @@ class IrsRrt(Rrt):
         self.q_u_indices_into_x = self.q_sim.get_q_u_indices_into_q()
         self.q_a_indices_into_x = self.q_sim.get_q_a_indices_into_q()
 
+        # Note: this distance function is only used for post processing. It
+        # is NOT used when connecting a node back to the tree.
         self.calc_q_u_diff = self.get_calc_q_u_diff()
 
         super().__init__(rrt_params)
@@ -283,6 +291,7 @@ class IrsRrt(Rrt):
         mu_batch = self.get_chat_matrix_up_to(n_nodes, is_q_u_only)
         # B x n x n
         covinv_tensor = self.get_covinv_tensor_up_to(n_nodes, is_q_u_only)
+        # TODO (pang): support wrap-around of angles.
         error_batch = q_query - mu_batch
         int_batch = np.einsum("Bij,Bi -> Bj", covinv_tensor, error_batch)
         metric_batch = np.einsum("Bi,Bi -> B", int_batch, error_batch)
@@ -375,7 +384,7 @@ class IrsRrt(Rrt):
             )
         else:
             raise RuntimeError(
-                f"distance metric {distance_metric} is not " f"supported."
+                f"distance metric {distance_metric} is not supported."
             )
 
     @staticmethod
@@ -605,8 +614,8 @@ class IrsRrt(Rrt):
 
     def get_calc_q_u_diff(self):
         # TODO(terry-suh): this  doesn't seem like the right if statement.
-        # What if there are 3 dofs but they're in joint-space instead of
-        # SE(2)? ditto for 7.
+        #  What if there are 3 dofs but they're in joint-space instead of
+        #  SE(2)? ditto for 7.
         if self.dim_q_u == 3:
             return self.calc_q_u_diff_SE2
         elif self.dim_q_u == 7:

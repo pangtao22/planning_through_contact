@@ -2,14 +2,15 @@ import numpy as np
 from pydrake.solvers import MathematicalProgram, GurobiSolver
 
 from qsim.simulator import QuasistaticSimulator
+from qsim_cpp import QuasistaticSimulatorCpp
 
 from irs_rrt.contact_sampler import ContactSampler
 from irs_rrt.irs_rrt import IrsRrtParams, IrsRrt, IrsNode, IrsEdge
 from irs_rrt.rrt_base import Node
 
-# For prettier tqdm bar in jupyter notebooks.
 from tqdm import tqdm
 
+# For prettier tqdm bar in jupyter notebooks.
 if "get_ipython" in locals() or "get_ipython" in globals():
     if get_ipython().__class__.__name__ == "ZMQInteractiveShell":
         print("Running in a jupyter notebook!")
@@ -21,7 +22,7 @@ class IrsRrtProjection(IrsRrt):
         self,
         rrt_params: IrsRrtParams,
         contact_sampler: ContactSampler,
-        q_sim,
+        q_sim: QuasistaticSimulatorCpp,
         q_sim_py: QuasistaticSimulator,
     ):
         self.contact_sampler = contact_sampler
