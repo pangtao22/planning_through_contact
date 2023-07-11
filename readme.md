@@ -1,5 +1,5 @@
 # Model-based Contact-rich Manipulation Planning
-[![Deepnote](https://deepnote.com/buttons/launch-in-deepnote-small.svg)](https://deepnote.com/workspace/pang-a928705f-1da7-4aa9-a64c-e5cdfb9b162e/project/planning-through-contact-c39756a2-acd7-4fb0-8443-38625de2db2e/notebook/allegro_hand_irs_mpc-f9677ed681c742b0b6577c7f1f86d4cc)
+[![Deepnote](https://deepnote.com/buttons/launch-in-deepnote.svg)](https://deepnote.com/workspace/pang-a928705f-1da7-4aa9-a64c-e5cdfb9b162e/project/planning-through-contact-c39756a2-acd7-4fb0-8443-38625de2db2e/notebook/allegro_hand_irs_mpc-f9677ed681c742b0b6577c7f1f86d4cc)
 
 ![](/media/planar_hand.gif) ![](/media/allegro_hand_ball.gif) ![](/media/allegro_hand_door.gif)
 
