@@ -2,7 +2,7 @@ import copy
 import numpy as np
 
 from pydrake.all import LeafSystem, PortDataType, BasicVector, GurobiSolver, eq
-import pydrake.solvers.mathematicalprogram as mp
+from pydrake.all import MathematicalProgram as mp
 
 from qsim_cpp import ForwardDynamicsMode, GradientMode, QuasistaticSimulatorCpp
 
