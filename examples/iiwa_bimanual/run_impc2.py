@@ -23,7 +23,7 @@ from irs_mpc2.irs_mpc_params import SmoothingMode, IrsMpcQuasistaticParameters
 
 from iiwa_bimanual_setup import *
 
-#%% sim setup
+# %% sim setup
 h = 0.01
 T = 25  # num of time steps to simulate forward.
 duration = T * h
@@ -48,12 +48,11 @@ dim_u_r = plant.num_positions(idx_a_r)
 # initial conditions.
 q_a0_r = [0.11, 1.57, 0, 0, 0, 0, 0]
 q_a0_l = [-0.09, 1.03, 0.04, -0.61, -0.15, -0.06, 0]
-
 q_u0 = np.array([1, 0, 0, 0, 0.55, 0, 0.315])
 
 q0_dict = {idx_a_l: q_a0_l, idx_a_r: q_a0_r, idx_u: q_u0}
 
-#%%
+# %%
 params = IrsMpcQuasistaticParameters()
 params.h = h
 params.Q_dict = {
@@ -96,11 +95,11 @@ params.rollout_forward_dynamics_mode = ForwardDynamicsMode.kSocpMp
 
 prob_mpc = IrsMpcQuasistatic(q_sim=q_sim, parser=q_parser, params=params)
 q_sim_py = prob_mpc.q_vis.q_sim_py
-#%%
+# %%
 q_sim_py.update_mbp_positions(q0_dict)
 q_sim_py.draw_current_configuration()
 
-#%%
+# %%
 Q_WB_d = RollPitchYaw(np.pi / 4, 0, 0).ToQuaternion()
 p_WB_d = q_u0[4:] + np.array([0, 0, 0], dtype=float)
 q_d_dict = {
@@ -115,14 +114,14 @@ x_trj_d = np.tile(xd, (T + 1, 1))
 u_trj_0 = np.tile(u0, (T, 1))
 prob_mpc.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_trj_0)
 
-#%%
+# %%
 t0 = time.time()
 prob_mpc.iterate(max_iterations=max_iterations, cost_Qu_f_threshold=1)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")
 
-#%% visualize goal.
+# %% visualize goal.
 AddTriad(
     vis=q_sim_py.viz.vis,
     name="frame",
@@ -146,7 +145,7 @@ q_sim_py.viz.vis["goal"].set_transform(
 )
 
 
-#%% Rollout trajectory according to the real physics.
+# %% Rollout trajectory according to the real physics.
 x_trj_to_publish = prob_mpc.rollout(
     x0=x0, u_trj=prob_mpc.u_trj_best, forward_mode=ForwardDynamicsMode.kSocpMp
 )
@@ -162,12 +161,12 @@ print(
 )
 print()
 
-#%% plot different components of the cost for all iterations.
+# %% plot different components of the cost for all iterations.
 prob_mpc.plot_costs()
 prob_mpc.q_vis.publish_trajectory(prob_mpc.x_trj_best, h)
 
 
-#%% save trajectories
+# %% save trajectories
 things_to_save = {"x_trj": prob_mpc.x_trj_best, "u_trj": prob_mpc.u_trj_best}
 with open("box_flipping_trj.pkl", "wb") as f:
     pickle.dump(things_to_save, f)
