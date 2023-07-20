@@ -1,6 +1,6 @@
 import numpy as np
-from pydrake.solvers.gurobi import GurobiSolver
-import pydrake.solvers.mathematicalprogram as mp
+from pydrake.solvers import GurobiSolver
+from pydrake.solvers import MathematicalProgram
 
 from qsim.simulator import QuasistaticSimulator
 
@@ -108,7 +108,7 @@ class IrsRrtProjection(IrsRrt):
         pbar.close()
 
     def calc_du_star_towards_q_qp(self, parent_node: Node, q: np.ndarray):
-        prog = mp.MathematicalProgram()
+        prog = MathematicalProgram()
         n_a = self.q_dynamics.dim_u
         du = prog.NewContinuousVariables(n_a)
         idx_obj = self.q_sim.get_q_u_indices_into_q()
