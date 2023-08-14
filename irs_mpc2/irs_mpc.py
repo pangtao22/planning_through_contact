@@ -26,7 +26,6 @@ from .irs_mpc_params import (
     kAnalyticSmoothingModes,
     k0RandomizedSmoothingModes,
 )
-from .quasistatic_visualizer import QuasistaticVisualizer
 from .mpc import solve_mpc
 
 

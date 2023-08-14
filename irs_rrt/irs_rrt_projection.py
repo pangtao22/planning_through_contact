@@ -2,7 +2,8 @@ import numpy as np
 from pydrake.solvers import GurobiSolver
 from pydrake.solvers import MathematicalProgram
 
-from qsim.simulator import QuasistaticSimulator
+from qsim_cpp import QuasistaticSimulatorCpp
+from qsim.visualizer import QuasistaticVisualizer
 
 from irs_rrt.contact_sampler import ContactSampler
 from irs_rrt.irs_rrt import IrsRrtParams, IrsRrt, IrsNode, IrsEdge
@@ -22,11 +23,11 @@ class IrsRrtProjection(IrsRrt):
         self,
         rrt_params: IrsRrtParams,
         contact_sampler: ContactSampler,
-        q_sim,
-        q_sim_py: QuasistaticSimulator,
+        q_sim: QuasistaticSimulatorCpp,
+        q_vis: QuasistaticVisualizer,
     ):
         self.contact_sampler = contact_sampler
-        super().__init__(rrt_params, q_sim, q_sim_py)
+        super().__init__(rrt_params, q_sim, q_vis)
         self.solver = GurobiSolver()
 
     def select_closest_node(

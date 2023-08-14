@@ -6,9 +6,7 @@ import pickle
 
 import cProfile
 
-from qsim.parser import QuasistaticParser
-
-from irs_mpc2.quasistatic_visualizer import QuasistaticVisualizer
+from qsim.parser import QuasistaticParser, QsimVisualizationType
 
 from irs_rrt.irs_rrt import IrsNode
 from irs_rrt.irs_rrt_projection import IrsRrtProjection
@@ -21,16 +19,16 @@ from contact_sampler import PlanarPushingContactSampler
 
 q_parser = QuasistaticParser(q_model_path)
 
-q_vis = QuasistaticVisualizer.make_visualizer(q_parser)
-q_sim, q_sim_py = q_vis.q_sim, q_vis.q_sim_py
+q_vis = q_parser.make_visualizer(QsimVisualizationType.Cpp)
+q_sim = q_vis.q_sim
+
 plant = q_sim.get_plant()
 
 dim_x = q_sim.num_dofs()
 dim_u = q_sim.num_actuated_dofs()
 idx_a = plant.GetModelInstanceByName(robot_name)
 idx_u = plant.GetModelInstanceByName(object_name)
-contact_sampler = PlanarPushingContactSampler(
-    q_sim=q_sim, q_sim_py=q_sim_py)
+contact_sampler = PlanarPushingContactSampler(q_sim=q_sim, q_sim_py=None)
 
 q_u0 = np.array([0.0, 0.5, 0])
 x0 = contact_sampler.sample_contact(q_u0)
@@ -59,7 +57,7 @@ rrt_params.distance_threshold = 50
 
 rrt_params.global_metric = np.array([20, 20, 20, 1e-3, 1e-3])
 
-prob_rrt = IrsRrtProjection(rrt_params, contact_sampler, q_sim, q_sim_py)
+prob_rrt = IrsRrtProjection(rrt_params, contact_sampler, q_sim, q_vis)
 prob_rrt.iterate()
 
 d_batch = prob_rrt.calc_distance_batch(rrt_params.goal)

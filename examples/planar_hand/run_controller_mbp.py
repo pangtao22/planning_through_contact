@@ -36,9 +36,14 @@ def create_controller_plant(gravity: np.ndarray, hand_name):
     parser = Parser(plant=plant)
     add_package_paths_local(parser)
     ProcessModelDirectives(
-        LoadModelDirectives(os.path.join(models_dir,
-        "planar_hand_left.yml" if (hand_name == "left") else 
-        "planar_hand_right.yml")),
+        LoadModelDirectives(
+            os.path.join(
+                models_dir,
+                "planar_hand_left.yml"
+                if (hand_name == "left")
+                else "planar_hand_right.yml",
+            )
+        ),
         plant,
         parser,
     )
@@ -46,7 +51,8 @@ def create_controller_plant(gravity: np.ndarray, hand_name):
     plant.Finalize()
     return plant
 
-#%%
+
+# %%
 h_ref_knot = 0.1
 h_ctrl = 0.01
 controller_params.control_period = h_ctrl
@@ -54,7 +60,7 @@ controller_params.control_period = h_ctrl
 q_parser = QuasistaticParser(q_model_path)
 q_sim = q_parser.make_simulator_cpp()
 
-file_path = "./examples/planar_hand/planar_hand_optimized_q_and_u_trj.pkl"
+file_path = "./hand_optimized_q_and_u_trj.pkl"
 with open(file_path, "rb") as f:
     trj_dict = pickle.load(f)
 
@@ -101,12 +107,12 @@ u_ref_trj = diagram_and_contents["u_ref_trj"]
 logger_x = diagram_and_contents["logger_x"]
 meshcat = diagram_and_contents["meshcat"]
 
-#render_system_with_graphviz(diagram)
+render_system_with_graphviz(diagram)
 model_a_l = plant.GetModelInstanceByName(robot_l_name)
 model_a_r = plant.GetModelInstanceByName(robot_r_name)
 
 
-#%% Run sim.
+# %% Run sim.
 sim = Simulator(diagram)
 context = sim.get_context()
 
@@ -142,7 +148,7 @@ meshcat_vis.StartRecording()
 sim.AdvanceTo(t_knots[-1] + 1.0)
 meshcat_vis.PublishRecording()
 
-#%% plots
+# %% plots
 # 1. cmd vs nominal u.
 u_logs = {
     model_a: loggers_cmd[model_a].FindLog(context)
@@ -167,7 +173,7 @@ u_refs = np.array(
 
 u_diff = np.linalg.norm(u_refs[:-1] - u_logged[1:], axis=1)
 
-#%% 2. q_u_nominal vs q_u.
+# %% 2. q_u_nominal vs q_u.
 x_log = logger_x.FindLog(context)
 q_log = x_log.data()[: plant.num_positions()].T
 q_a_log = q_log[:, q_sim.get_q_a_indices_into_q()]
@@ -190,7 +196,7 @@ for i, t in enumerate(x_log.sample_times()):
 
     q_a_ref_mat.append(q_a_ref)
     q_u_ref_mat.append(q_u_ref)
-    
+
     angle_error.append(np.abs(q_u[2] - q_u_ref[2]))
     position_error.append(np.linalg.norm(q_u_ref[:2] - q_u[:2]))
 

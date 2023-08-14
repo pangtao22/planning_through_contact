@@ -19,10 +19,11 @@ from irs_mpc2.irs_mpc_params import (
     kSmoothingMode2ForwardDynamicsModeMap,
 )
 
-from qsim.simulator import QuasistaticSimulator, InternalVisualizationType
 from qsim_cpp import QuasistaticSimulatorCpp
+from qsim.visualizer import QsimVisualizationType
 from qsim.parser import QuasistaticParser
 from qsim.model_paths import package_paths_dict
+from qsim.visualizer import QuasistaticVisualizer
 
 
 class IrsNode(Node):
@@ -68,13 +69,11 @@ class IrsRrt(Rrt):
         self,
         rrt_params: IrsRrtParams,
         q_sim: QuasistaticSimulatorCpp,
-        q_sim_py: QuasistaticSimulator,
+        q_vis: QuasistaticVisualizer,
     ):
         self.q_sim = q_sim
         self.plant = q_sim.get_plant()
-        self.q_sim_py = q_sim_py
-        # q_sim_py must have an internal MeshcatVisualizer.
-        assert q_sim_py.internal_vis
+        self.q_vis = q_vis
 
         self.sim_params = copy.deepcopy(q_sim.get_sim_params())
         self.sim_params.calc_contact_forces = False
@@ -220,8 +219,7 @@ class IrsRrt(Rrt):
 
     def add_node(self, node: IrsNode, draw_node: bool = False):
         if draw_node:
-            self.q_sim_py.update_mbp_positions_from_vector(node.q)
-            self.q_sim_py.draw_current_configuration()
+            self.q_vis.draw_configuration(node.q)
         self.populate_node_parameters(node)  # exception may be thrown here.
 
         super().add_node(node)
@@ -394,9 +392,7 @@ class IrsRrt(Rrt):
         return tree.graph["irs_rrt_params"].q_model_path
 
     @staticmethod
-    def make_from_pickled_tree(
-        tree: networkx.DiGraph, internal_vis: InternalVisualizationType
-    ):
+    def make_from_pickled_tree(tree: networkx.DiGraph):
         # Factory method for making an IrsRrt object from a pickled tree.
         q_model_path = IrsRrt.load_q_model_path(tree)
         parser = QuasistaticParser(q_model_path)
@@ -408,7 +404,7 @@ class IrsRrt(Rrt):
         prob_rrt = IrsRrt(
             rrt_params=rrt_param,
             q_sim=parser.make_simulator_cpp(),
-            q_sim_py=parser.make_simulator_py(internal_vis=internal_vis),
+            q_vis=parser.make_visualizer(QsimVisualizationType.Cpp),
         )
         prob_rrt.graph = tree
         prob_rrt.size = tree.number_of_nodes()

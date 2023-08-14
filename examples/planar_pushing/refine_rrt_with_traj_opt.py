@@ -6,24 +6,25 @@ import time
 
 import numpy as np
 import matplotlib.pyplot as plt
-from pydrake.all import (RigidTransform, Quaternion,
-                         RollPitchYaw, AngleAxis, PiecewisePolynomial)
+from pydrake.all import (
+    RigidTransform,
+    Quaternion,
+    RollPitchYaw,
+    AngleAxis,
+    PiecewisePolynomial,
+)
 
 from qsim_cpp import ForwardDynamicsMode, GradientMode
-from qsim.parser import QuasistaticParser
+from qsim.parser import QuasistaticParser, QsimVisualizationType
 
 import irs_rrt
 from irs_rrt.irs_rrt import IrsRrt
-from irs_mpc2.quasistatic_visualizer import (
-    QuasistaticVisualizer,
-    InternalVisualizationType,
-)
 
 from irs_mpc2.irs_mpc import IrsMpcQuasistatic
 from irs_mpc2.irs_mpc_params import SmoothingMode, IrsMpcQuasistaticParameters
 from planar_pushing_setup import robot_name, object_name
 
-#%%
+# %%
 pickled_tree_path = os.path.join(
     os.path.dirname(irs_rrt.__file__),
     "..",
@@ -32,15 +33,14 @@ pickled_tree_path = os.path.join(
     "tree_500_0.pkl",
 )
 
-with open(pickled_tree_path, 'rb') as f:
+with open(pickled_tree_path, "rb") as f:
     tree = pickle.load(f)
 
-prob_rrt = IrsRrt.make_from_pickled_tree(
-    tree, internal_vis=InternalVisualizationType.Cpp
-)
+prob_rrt = IrsRrt.make_from_pickled_tree(tree)
+q_parser = QuasistaticParser(prob_rrt.rrt_params.q_model_path)
 
-q_sim, q_sim_py = prob_rrt.q_sim, prob_rrt.q_sim_py
-q_vis = QuasistaticVisualizer(q_sim=q_sim, q_sim_py=q_sim_py)
+q_vis = q_parser.make_visualizer(QsimVisualizationType.Cpp)
+q_sim = q_vis.q_sim
 
 # get goal and some problem data from RRT parameters.
 q_u_goal = prob_rrt.rrt_params.goal[q_sim.get_q_u_indices_into_q()]
@@ -57,8 +57,7 @@ q_vis.draw_object_triad(
     path="box/box",
 )
 q_vis.draw_goal_triad(
-    length=0.1, radius=0.005, opacity=0.7, X_WG=RigidTransform(
-        rpy_WB_d, p_WB_d)
+    length=0.1, radius=0.005, opacity=0.7, X_WG=RigidTransform(rpy_WB_d, p_WB_d)
 )
 
 # get trimmed path to goal.
@@ -68,7 +67,7 @@ segments = prob_rrt.get_regrasp_segments(u_knots_trimmed)
 
 # %% see the segments.
 prob_rrt.print_segments_displacements(q_knots_trimmed, segments)
-q_vis.publish_trajectory(q_knots_trimmed, prob_rrt.rrt_params.h)
+q_vis.publish_trajectory(prob_rrt.rrt_params.h, q_knots_trimmed)
 
 # %% determining h_small and n_steps_per_h from simulating a segment.
 h_small = 0.01
@@ -103,13 +102,10 @@ impc_params.R_dict = {idx_a: 1 * np.ones(dim_u)}
 
 u_size = 200.0
 impc_params.u_bounds_abs = np.array(
-    [
-        -np.ones(dim_u) * u_size,
-        np.ones(dim_u) * u_size
-    ]
+    [-np.ones(dim_u) * u_size, np.ones(dim_u) * u_size]
 )
 
-impc_params.smoothing_mode = SmoothingMode.k1AnalyticIcecream
+impc_params.smoothing_mode = SmoothingMode.k0Pyramid
 # sampling-based bundling
 impc_params.calc_std_u = lambda u_initial, i: u_initial / (i**0.8)
 impc_params.std_u_initial = np.ones(dim_u) * 0.2
@@ -147,7 +143,7 @@ input("Starting refinement...")
 for i_s, (t_start, t_end) in enumerate(sub_segments):
     u_trj = u_knots_trimmed[t_start:t_end]
     q_trj = q_knots_trimmed[t_start : t_end + 1]
-    q_vis.publish_trajectory(q_trj, prob_rrt.rrt_params.h)
+    q_vis.publish_trajectory(prob_rrt.rrt_params.h, q_trj)
 
     q0 = np.array(q_trj[0])
     if len(q_trj_optimized_list) > 0:
@@ -164,8 +160,8 @@ for i_s, (t_start, t_end) in enumerate(sub_segments):
     if i_s == len(sub_segments) - 1:
         q_final[indices_q_u_into_x] = q_u_goal
 
-    #n_steps_per_h = max(4, int(np.ceil(10 / len(u_trj))))
-    #print(int(np.ceil(10 / len(u_trj))))
+    # n_steps_per_h = max(4, int(np.ceil(10 / len(u_trj))))
+    # print(int(np.ceil(10 / len(u_trj))))
 
     n_steps_per_h = 10
 
@@ -189,17 +185,17 @@ for i_s, (t_start, t_end) in enumerate(sub_segments):
     print(u_trj_optimized)
 
     prob_mpc.plot_costs()
-    q_vis.publish_trajectory(q_trj_optimized, h_small)
+    q_vis.publish_trajectory(h_small, q_trj_optimized)
     print(f"Best trajectory iteration index: {idx_best}")
     input("Optimized trajectory shown. Press any key to go to the next segment")
 
 # %%
 q_trj_optimized_all = prob_rrt.concatenate_traj_list(q_trj_optimized_list)
-q_vis.publish_trajectory(q_trj_optimized_all, 0.1)
+q_vis.publish_trajectory(0.1, q_trj_optimized_all)
 
 # %% see differences between RRT and optimized trajectories.
 for t, q_trj_optimized in enumerate(q_trj_optimized_list):
-    # prob_mpc.q_vis.publish_trajectory(q_trj_optimized, h_small)
+    # prob_mpc.q_vis.publish_trajectory(h_small, q_trj_optimized)
 
     t_end = segments[t][1]
     q_u_d = q_knots_trimmed[t_end, q_sim.get_q_u_indices_into_q()]
@@ -220,7 +216,7 @@ for q_trj, u_trj in zip(q_trj_optimized_list, u_trj_optimized_list):
 q_trj_optimized_trimmed_all = prob_rrt.concatenate_traj_list(
     q_trj_optimized_trimmed_list
 )
-q_vis.publish_trajectory(q_trj_optimized_trimmed_all, 0.1)
+q_vis.publish_trajectory(0.1, q_trj_optimized_trimmed_all)
 
 # %%
 with open("hand_optimized_q_and_u_trj.pkl", "wb") as f:
