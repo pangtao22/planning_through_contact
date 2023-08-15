@@ -46,7 +46,7 @@ def create_controller_plant(gravity: np.ndarray):
     return plant
 
 
-#%%
+# %%
 h_ref_knot = 0.1
 h_ctrl = 0.01
 controller_params.control_period = h_ctrl
@@ -62,7 +62,7 @@ q_knots_ref_list = trj_dict["q_trj_list"]
 u_knots_ref_list = trj_dict["u_trj_list"]
 
 # pick one segment for now.
-idx_trj_segment = 1
+idx_trj_segment = 0
 q_knots_ref, u_knots_ref, t_knots = calc_q_and_u_extended_and_t_knots(
     q_knots_ref=q_knots_ref_list[idx_trj_segment],
     u_knots_ref=u_knots_ref_list[idx_trj_segment],
@@ -100,7 +100,7 @@ render_system_with_graphviz(diagram)
 model_a = plant.GetModelInstanceByName(robot_name)
 
 
-#%% Run sim.
+# %% Run sim.
 sim = Simulator(diagram)
 context = sim.get_context()
 
@@ -136,7 +136,7 @@ meshcat_vis.StartRecording()
 sim.AdvanceTo(t_knots[-1] + 1.0)
 meshcat_vis.PublishRecording()
 
-#%% plots
+# %% plots
 # 1. cmd vs nominal u.
 logger_cmd = loggers_cmd[model_a]
 u_log = logger_cmd.FindLog(context)
@@ -146,7 +146,7 @@ u_nominals = np.array(
 
 u_diff = np.linalg.norm(u_nominals[:-1] - u_log.data().T[1:], axis=1)
 
-#%% 2. q_u_nominal vs q_u.
+# %% 2. q_u_nominal vs q_u.
 x_log = logger_x.FindLog(context)
 q_log = x_log.data()[: plant.num_positions()].T
 q_a_log = q_log[:, q_sim.get_q_a_indices_into_q()]
@@ -169,7 +169,7 @@ for i, t in enumerate(x_log.sample_times()):
 
     q_a_ref_mat.append(q_a_ref)
     q_u_ref_mat.append(q_u_ref)
-    
+
     angle_error.append(np.abs(q_u[2] - q_u_ref[2]))
     position_error.append(np.linalg.norm(q_u_ref[:2] - q_u[:2]))
 

@@ -165,7 +165,9 @@ def make_controller_mbp_diagram(
     u_knots_ref: np.ndarray,
     q_knots_ref: np.ndarray,
     controller_params: ControllerParams,
-    create_controller_plant_functions: Dict[str, CreateControllerPlantFunction],
+    create_controller_plant_functions: Dict[
+        str, CreateControllerPlantFunction
+    ],
     closed_loop: bool,
 ):
     """
@@ -223,7 +225,7 @@ def make_controller_mbp_diagram(
             ].joint_angle_commanded_input_port,
         )
 
-    # Contact Viusalizer
+    # Contact Visualizer
     contact_viz = ContactVisualizer.AddToBuilder(builder, plant, meshcat)
 
     # Logging

@@ -39,8 +39,8 @@ with open(pickled_tree_path, "rb") as f:
 prob_rrt = IrsRrt.make_from_pickled_tree(tree)
 q_parser = QuasistaticParser(prob_rrt.rrt_params.q_model_path)
 
-q_vis = q_parser.make_visualizer(QsimVisualizationType.Cpp)
-q_sim = q_vis.q_sim
+q_vis = prob_rrt.q_vis
+q_sim = prob_rrt.q_sim
 
 # get goal and some problem data from RRT parameters.
 q_u_goal = prob_rrt.rrt_params.goal[q_sim.get_q_u_indices_into_q()]
@@ -105,7 +105,7 @@ impc_params.u_bounds_abs = np.array(
     [-np.ones(dim_u) * u_size, np.ones(dim_u) * u_size]
 )
 
-impc_params.smoothing_mode = SmoothingMode.k0Pyramid
+impc_params.smoothing_mode = SmoothingMode.k1AnalyticPyramid
 # sampling-based bundling
 impc_params.calc_std_u = lambda u_initial, i: u_initial / (i**0.8)
 impc_params.std_u_initial = np.ones(dim_u) * 0.2
@@ -145,48 +145,11 @@ for i_s, (t_start, t_end) in enumerate(sub_segments):
     q_trj = q_knots_trimmed[t_start : t_end + 1]
     q_vis.publish_trajectory(prob_rrt.rrt_params.h, q_trj)
 
-    q0 = np.array(q_trj[0])
-    if len(q_trj_optimized_list) > 0:
-        q0[indices_q_u_into_x] = q_trj_optimized_list[-1][
-            -1, indices_q_u_into_x
-        ]
-        print("qu0 before projection", q0[indices_q_u_into_x])
-        q0 = project_to_non_penetration(q0)
-        print("qu0 after projection", q0[indices_q_u_into_x])
-
-    input("Original trajectory segment shown. Press any key to optimize...")
-
-    q_final = np.array(q_trj[-1])
-    if i_s == len(sub_segments) - 1:
-        q_final[indices_q_u_into_x] = q_u_goal
-
-    # n_steps_per_h = max(4, int(np.ceil(10 / len(u_trj))))
-    # print(int(np.ceil(10 / len(u_trj))))
-
-    n_steps_per_h = 10
-
-    (
-        q_trj_optimized,
-        u_trj_optimized,
-        idx_best,
-    ) = prob_mpc.run_traj_opt_on_rrt_segment(
-        n_steps_per_h=n_steps_per_h,
-        h_small=h_small,
-        q0=q0,
-        q_final=q_final,
-        u_trj=u_trj,
-        max_iterations=max_iterations,
-    )
-
-    q_trj_optimized_list.append(q_trj_optimized)
-    u_trj_optimized_list.append(u_trj_optimized)
+    q_trj_optimized_list.append(q_trj)
+    u_trj_optimized_list.append(u_trj)
 
     print(u_trj)
-    print(u_trj_optimized)
 
-    prob_mpc.plot_costs()
-    q_vis.publish_trajectory(h_small, q_trj_optimized)
-    print(f"Best trajectory iteration index: {idx_best}")
     input("Optimized trajectory shown. Press any key to go to the next segment")
 
 # %%
