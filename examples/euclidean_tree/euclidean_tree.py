@@ -30,14 +30,22 @@ class EuclideanRrt(Rrt):
         x_child = child_node.q
         return np.linalg.norm(x_parent - x_child)
 
-    def extend_towards_q(self, node: Node, q: np.array):
-        if np.linalg.norm(q - node.q) < self.rrt_params.radius:
+    def extend_towards_q(self, parent_node: Node, q: np.array):
+        if np.linalg.norm(q - parent_node.q) < self.rrt_params.radius:
             child_q = q
         else:
-            child_q = node.q + self.rrt_params.radius * (
-                q - node.q
-            ) / np.linalg.norm(q - node.q)
-        return Node(child_q)
+            child_q = parent_node.q + self.rrt_params.radius * (
+                q - parent_node.q
+            ) / np.linalg.norm(q - parent_node.q)
+
+        child_node = Node(child_q)
+
+        edge = Edge()
+        edge.parent = parent_node
+        edge.child = child_node
+        edge.cost = self.compute_edge_cost(parent_node, child_node)
+
+        return child_node, edge
 
     def calc_distance_batch(self, q_query: np.array):
         q_batch = self.get_q_matrix_up_to()
